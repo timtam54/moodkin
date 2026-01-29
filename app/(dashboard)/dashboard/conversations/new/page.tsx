@@ -1,0 +1,147 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { ChevronLeft, ArrowRight, Palette } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useCreateConversation } from '@/hooks/use-conversations'
+
+type Mode = 'new' | 'join'
+
+export default function NewProjectPage() {
+  const router = useRouter()
+  const createConversation = useCreateConversation()
+
+  const [mode, setMode] = useState<Mode>('new')
+  const [projectName, setProjectName] = useState('')
+  const [collaboratorCode, setCollaboratorCode] = useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (mode === 'new' && projectName.trim()) {
+      createConversation.mutate(
+        { title: projectName.trim() },
+        {
+          onSuccess: (data) => router.push(`/dashboard/conversations/${data.id}`),
+        }
+      )
+    } else if (mode === 'join' && collaboratorCode.trim()) {
+      // TODO: Implement join by code
+      console.log('Joining with code:', collaboratorCode)
+    }
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-10rem)] flex flex-col max-w-md mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <button
+          onClick={() => router.back()}
+          className="p-2 -ml-2 hover:bg-moodkin-cream rounded-xl transition-colors"
+        >
+          <ChevronLeft className="w-6 h-6 text-moodkin-dark" />
+        </button>
+        <span className="text-sm text-moodkin-gray">Step 1 of 2</span>
+      </div>
+
+      {/* Title */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-moodkin-dark mb-3">
+          What are we creating?
+        </h1>
+        <p className="text-moodkin-gray">
+          Set up your project details to begin collaborating with your team or clients.
+        </p>
+      </div>
+
+      {/* Mode Toggle */}
+      <div className="bg-moodkin-cream/50 rounded-full p-1 flex mb-8">
+        <button
+          onClick={() => setMode('new')}
+          className={`flex-1 py-3 px-4 rounded-full text-sm font-medium transition-colors ${
+            mode === 'new'
+              ? 'bg-white text-moodkin-dark shadow-sm'
+              : 'text-moodkin-gray hover:text-moodkin-dark'
+          }`}
+        >
+          New Board
+        </button>
+        <button
+          onClick={() => setMode('join')}
+          className={`flex-1 py-3 px-4 rounded-full text-sm font-medium transition-colors ${
+            mode === 'join'
+              ? 'bg-white text-moodkin-dark shadow-sm'
+              : 'text-moodkin-gray hover:text-moodkin-dark'
+          }`}
+        >
+          Join Code
+        </button>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+        {mode === 'new' ? (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-moodkin-dark mb-2">
+              Project Name
+            </label>
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder="e.g. Summer Editorial 2024"
+              className="w-full px-4 py-4 bg-white border border-moodkin-light-gray rounded-2xl text-moodkin-dark placeholder:text-moodkin-gray/50 focus:outline-none focus:ring-2 focus:ring-moodkin-gold focus:border-transparent"
+            />
+            <p className="text-sm text-moodkin-gray mt-2">
+              You can change this name later in settings.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-moodkin-gray mb-2">
+              Collaborator Code
+            </label>
+            <input
+              type="text"
+              value={collaboratorCode}
+              onChange={(e) => setCollaboratorCode(e.target.value)}
+              placeholder="Enter 6-digit code"
+              maxLength={6}
+              className="w-full px-4 py-4 bg-moodkin-cream/30 border border-moodkin-light-gray/50 rounded-2xl text-moodkin-dark placeholder:text-moodkin-gray/50 focus:outline-none focus:ring-2 focus:ring-moodkin-gold focus:border-transparent"
+            />
+          </div>
+        )}
+
+        {/* Illustration */}
+        <div className="flex-1 flex items-center justify-center mb-8">
+          <div className="w-full h-48 bg-moodkin-cream/30 rounded-2xl flex items-center justify-center">
+            <Palette className="w-12 h-12 text-moodkin-gray/30" />
+          </div>
+        </div>
+
+        {/* Continue Button */}
+        <Button
+          type="submit"
+          disabled={
+            createConversation.isPending ||
+            (mode === 'new' && !projectName.trim()) ||
+            (mode === 'join' && !collaboratorCode.trim())
+          }
+          className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-2xl py-6 text-base disabled:opacity-50"
+        >
+          {createConversation.isPending ? 'Creating...' : 'Continue'}
+          <ArrowRight className="w-5 h-5 ml-2" />
+        </Button>
+
+        {/* Help Link */}
+        <p className="text-center text-sm text-moodkin-gray mt-6">
+          Need help?{' '}
+          <a href="#" className="text-moodkin-dark underline underline-offset-4">
+            Contact support
+          </a>
+        </p>
+      </form>
+    </div>
+  )
+}
