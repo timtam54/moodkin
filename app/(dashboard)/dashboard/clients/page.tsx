@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Users } from 'lucide-react'
+import { Plus, Search, Users, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ClientListItem } from '@/components/clients/client-list-item'
+import { ClientCard } from '@/components/clients/client-card'
 import { useClients } from '@/hooks/use-clients'
 
 export default function ClientsPage() {
@@ -39,33 +38,44 @@ export default function ClientsPage() {
         />
       </div>
 
-      <Card className="rounded-2xl border-0 shadow-sm">
-        <CardContent className="p-2">
-          {isLoading ? (
-            <div className="py-12 text-center text-moodkin-gray">Loading...</div>
-          ) : !clients?.length ? (
-            <EmptyState
-              icon={Users}
-              title="No clients yet"
-              description="Add your first client to get started"
-              action={
-                <Link href="/dashboard/clients/new">
-                  <Button variant="primary" size="sm">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Client
-                  </Button>
-                </Link>
-              }
-            />
-          ) : (
-            <div className="divide-y">
-              {clients.map((client) => (
-                <ClientListItem key={client.id} client={client} />
-              ))}
+      {isLoading ? (
+        <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+      ) : !clients?.length ? (
+        <div className="bg-white rounded-2xl shadow-sm p-8">
+          <EmptyState
+            icon={Users}
+            title="No clients yet"
+            description="Add your first client to get started"
+            action={
+              <Link href="/dashboard/clients/new">
+                <Button variant="primary" size="sm">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Client
+                </Button>
+              </Link>
+            }
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Add Client Card */}
+          <Link
+            href="/dashboard/clients/new"
+            className="aspect-square bg-moodkin-gold rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-moodkin-gold-hover transition-colors"
+          >
+            <div className="w-16 h-16 bg-moodkin-gold-hover/30 rounded-full flex items-center justify-center mb-3">
+              <UserPlus className="w-8 h-8 text-moodkin-dark" />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <p className="font-bold text-moodkin-dark text-center text-sm">ADD NEW</p>
+            <p className="font-bold text-moodkin-dark text-center text-sm">CLIENT</p>
+          </Link>
+
+          {/* Client Cards */}
+          {clients.map((client) => (
+            <ClientCard key={client.id} client={client} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

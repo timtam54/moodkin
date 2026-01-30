@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation'
 import {
   MessageSquare,
   Users,
-  FileText,
   Settings,
   LogOut,
   LayoutDashboard,
@@ -27,7 +26,6 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/conversations', icon: MessageSquare, label: 'Conversations' },
   { href: '/dashboard/clients', icon: Users, label: 'Clients' },
-  { href: '/dashboard/templates', icon: FileText, label: 'Templates' },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ]
 

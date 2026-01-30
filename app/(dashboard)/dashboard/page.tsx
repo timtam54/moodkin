@@ -1,8 +1,9 @@
-import { getSession } from '@/lib/auth/session'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
 import { Plus, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useConversations } from '@/hooks/use-conversations'
 
 // Placeholder images for demo projects
 const placeholderImages = [
@@ -12,22 +13,14 @@ const placeholderImages = [
   'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=400&q=80',
 ]
 
-export default async function DashboardPage() {
-  const session = await getSession()
-  const supabase = await createClient()
+export default function DashboardPage() {
+  const { data: projects, isLoading } = useConversations()
 
-  // Fetch projects (conversations)
-  const { data: projects } = await supabase
-    .from('conversations')
-    .select(`
-      id,
-      title,
-      updated_at,
-      status,
-      client:clients(name, email)
-    `)
-    .eq('photographer_id', session!.user.id)
-    .order('updated_at', { ascending: false })
+  if (isLoading) {
+    return (
+      <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+    )
+  }
 
   return (
     <div className="space-y-6">

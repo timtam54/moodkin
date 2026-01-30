@@ -2,26 +2,29 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ArrowRight, Palette } from 'lucide-react'
+import { ChevronLeft, ArrowRight, Palette, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCreateConversation } from '@/hooks/use-conversations'
+import { useClients } from '@/hooks/use-clients'
 
 type Mode = 'new' | 'join'
 
 export default function NewProjectPage() {
   const router = useRouter()
   const createConversation = useCreateConversation()
+  const { data: clients, isLoading: clientsLoading } = useClients()
 
   const [mode, setMode] = useState<Mode>('new')
   const [projectName, setProjectName] = useState('')
+  const [selectedClientId, setSelectedClientId] = useState('')
   const [collaboratorCode, setCollaboratorCode] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (mode === 'new' && projectName.trim()) {
+    if (mode === 'new' && projectName.trim() && selectedClientId) {
       createConversation.mutate(
-        { title: projectName.trim() },
+        { title: projectName.trim(), client_id: selectedClientId },
         {
           onSuccess: (data) => router.push(`/dashboard/conversations/${data.id}`),
         }
@@ -82,20 +85,50 @@ export default function NewProjectPage() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
         {mode === 'new' ? (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-moodkin-dark mb-2">
-              Project Name
-            </label>
-            <input
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="e.g. Summer Editorial 2024"
-              className="w-full px-4 py-4 bg-white border border-moodkin-light-gray rounded-2xl text-moodkin-dark placeholder:text-moodkin-gray/50 focus:outline-none focus:ring-2 focus:ring-moodkin-gold focus:border-transparent"
-            />
-            <p className="text-sm text-moodkin-gray mt-2">
-              You can change this name later in settings.
-            </p>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-moodkin-dark mb-2">
+                Client
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  className="w-full px-4 py-4 bg-white border border-moodkin-light-gray rounded-2xl text-moodkin-dark appearance-none focus:outline-none focus:ring-2 focus:ring-moodkin-gold focus:border-transparent"
+                >
+                  <option value="">Select a client...</option>
+                  {clients?.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name || client.email}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-moodkin-gray pointer-events-none" />
+              </div>
+              {clients?.length === 0 && !clientsLoading && (
+                <p className="text-sm text-moodkin-gray mt-2">
+                  No clients yet.{' '}
+                  <a href="/dashboard/clients" className="text-moodkin-dark underline">
+                    Add a client first
+                  </a>
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-moodkin-dark mb-2">
+                Project Name
+              </label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g. Summer Editorial 2024"
+                className="w-full px-4 py-4 bg-white border border-moodkin-light-gray rounded-2xl text-moodkin-dark placeholder:text-moodkin-gray/50 focus:outline-none focus:ring-2 focus:ring-moodkin-gold focus:border-transparent"
+              />
+              <p className="text-sm text-moodkin-gray mt-2">
+                You can change this name later in settings.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="mb-6">
@@ -125,7 +158,7 @@ export default function NewProjectPage() {
           type="submit"
           disabled={
             createConversation.isPending ||
-            (mode === 'new' && !projectName.trim()) ||
+            (mode === 'new' && (!projectName.trim() || !selectedClientId)) ||
             (mode === 'join' && !collaboratorCode.trim())
           }
           className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-2xl py-6 text-base disabled:opacity-50"

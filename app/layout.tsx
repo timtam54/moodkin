@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { QueryProvider } from '@/components/providers/query-provider'
 import { UserTypeProvider } from '@/components/providers/user-type-provider'
-import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register'
+import { PWAInstall } from '@/components/pwa/pwa-install'
 import './globals.css'
 
 const inter = Inter({
@@ -54,7 +54,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <ServiceWorkerRegister />
+        <PWAInstall />
         <QueryProvider>
           <UserTypeProvider>{children}</UserTypeProvider>
         </QueryProvider>

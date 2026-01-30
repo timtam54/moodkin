@@ -30,6 +30,22 @@ body {
   min-height: 100dvh;
 }
 
+/* PWA Install Banner Animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
 /* PWA safe areas for notched devices */
 @supports (padding: max(0px)) {
   .safe-top {
