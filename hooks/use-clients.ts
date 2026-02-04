@@ -45,7 +45,7 @@ export function useCreateClient() {
 export function useUpdateClient(clientId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: Partial<{ email: string; name: string; phone: string; address: string; notes: string }>) => {
+    mutationFn: async (data: Partial<{ email: string; name: string; phone: string; address: string; notes: string; avatar_url: string }>) => {
       const res = await fetch(`/api/clients/${clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
