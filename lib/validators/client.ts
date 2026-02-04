@@ -6,6 +6,7 @@ export const createClientSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
+  avatar_url: z.string().url().optional().or(z.literal('')),
 })
 
 export const updateClientSchema = createClientSchema.partial()

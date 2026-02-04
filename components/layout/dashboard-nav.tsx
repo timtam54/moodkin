@@ -5,11 +5,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
-  MessageSquare,
+  FolderOpen,
   Users,
   Settings,
   LogOut,
-  LayoutDashboard,
   Menu,
   X,
 } from 'lucide-react'
@@ -23,10 +22,9 @@ interface DashboardNavProps {
 }
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/conversations', icon: MessageSquare, label: 'Conversations' },
+  { href: '/dashboard/projects', icon: FolderOpen, label: 'Projects' },
   { href: '/dashboard/clients', icon: Users, label: 'Clients' },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+  { href: '/dashboard/settings', icon: Settings, label: 'Profile' },
 ]
 
 export function DashboardNav({ user }: DashboardNavProps) {
@@ -38,7 +36,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
       <div className="max-w-7xl mx-auto px-4">
         <div className="h-16 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/dashboard">
+          <Link href="/dashboard/projects">
             <Image
               src="/darklogo.png"
               alt="Moodkin"
@@ -51,10 +49,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
-              const isActive =
-                item.href === '/dashboard'
-                  ? pathname === '/dashboard'
-                  : pathname.startsWith(item.href)
+              const isActive = pathname.startsWith(item.href)
 
               return (
                 <Link
@@ -112,10 +107,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
         <div className="md:hidden bg-moodkin-dark border-t border-white/10">
           <nav className="px-4 py-2 space-y-1">
             {navItems.map((item) => {
-              const isActive =
-                item.href === '/dashboard'
-                  ? pathname === '/dashboard'
-                  : pathname.startsWith(item.href)
+              const isActive = pathname.startsWith(item.href)
 
               return (
                 <Link

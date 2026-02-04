@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { QueryProvider } from '@/components/providers/query-provider'
 import { UserTypeProvider } from '@/components/providers/user-type-provider'
+import { ToastProvider } from '@/components/ui/toast'
 import { PWAInstall } from '@/components/pwa/pwa-install'
 import './globals.css'
 
@@ -56,7 +57,9 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <PWAInstall />
         <QueryProvider>
-          <UserTypeProvider>{children}</UserTypeProvider>
+          <UserTypeProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </UserTypeProvider>
         </QueryProvider>
       </body>
     </html>

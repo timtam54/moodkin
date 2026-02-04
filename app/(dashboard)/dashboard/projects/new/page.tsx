@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ArrowRight, Palette, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ArrowRight, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCreateConversation } from '@/hooks/use-conversations'
 import { useClients } from '@/hooks/use-clients'
+import { ImageUpload } from '@/components/upload/image-upload'
 
 type Mode = 'new' | 'join'
 
@@ -18,15 +19,21 @@ export default function NewProjectPage() {
   const [projectName, setProjectName] = useState('')
   const [selectedClientId, setSelectedClientId] = useState('')
   const [collaboratorCode, setCollaboratorCode] = useState('')
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     if (mode === 'new' && projectName.trim() && selectedClientId) {
       createConversation.mutate(
-        { title: projectName.trim(), client_id: selectedClientId },
         {
-          onSuccess: (data) => router.push(`/dashboard/conversations/${data.id}`),
+          title: projectName.trim(),
+          client_id: selectedClientId,
+          cover_image_url: coverImageUrl || undefined,
+        },
+        {
+          onSuccess: (data) => router.push(`/dashboard/projects/${data.id}`),
         }
       )
     } else if (mode === 'join' && collaboratorCode.trim()) {
@@ -68,7 +75,7 @@ export default function NewProjectPage() {
               : 'text-moodkin-gray hover:text-moodkin-dark'
           }`}
         >
-          New Board
+          New Project
         </button>
         <button
           onClick={() => setMode('join')}
@@ -129,6 +136,24 @@ export default function NewProjectPage() {
                 You can change this name later in settings.
               </p>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-moodkin-dark mb-2">
+                Cover Image
+              </label>
+              <ImageUpload
+                onUploadComplete={(url) => {
+                  setCoverImageUrl(url)
+                  setUploadError(null)
+                }}
+                onError={(error) => setUploadError(error)}
+              />
+              {uploadError && (
+                <p className="text-sm text-red-500 mt-2">{uploadError}</p>
+              )}
+              <p className="text-sm text-moodkin-gray mt-2">
+                Optional. Add a cover image for your project.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="mb-6">
@@ -146,12 +171,8 @@ export default function NewProjectPage() {
           </div>
         )}
 
-        {/* Illustration */}
-        <div className="flex-1 flex items-center justify-center mb-8">
-          <div className="w-full h-48 bg-moodkin-cream/30 rounded-2xl flex items-center justify-center">
-            <Palette className="w-12 h-12 text-moodkin-gray/30" />
-          </div>
-        </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* Continue Button */}
         <Button

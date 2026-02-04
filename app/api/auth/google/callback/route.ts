@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
   const error = searchParams.get('error')
+  const state = searchParams.get('state')
+  const returnUrl = state ? decodeURIComponent(state) : null
 
   if (error) {
     return NextResponse.redirect(new URL('/login?error=google_auth_failed', request.url))
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
         .eq('id', existingPhotographer.id)
 
       await createSession(existingPhotographer.id, 'photographer')
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
     // Check if user exists as client
@@ -69,8 +71,8 @@ export async function GET(request: NextRequest) {
         .eq('id', existingClient.id)
 
       await createSession(existingClient.id, 'client')
-      // Redirect clients to their conversation view
-      return NextResponse.redirect(new URL('/c', request.url))
+      // Redirect clients to returnUrl or their conversation view
+      return NextResponse.redirect(new URL(returnUrl || '/c', request.url))
     }
 
     // New user - create photographer account
@@ -96,7 +98,7 @@ export async function GET(request: NextRequest) {
     }
 
     await createSession(newPhotographer.id, 'photographer')
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
   } catch (error) {
     console.error('Google auth error:', error)
     return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))

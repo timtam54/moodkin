@@ -2,9 +2,9 @@
 
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
-import { loginWithGoogle, loginWithMicrosoft } from '@/lib/auth/client'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const errorMessages: Record<string, string> = {
   google_auth_failed: 'Google authentication failed. Please try again.',
@@ -18,6 +18,15 @@ const errorMessages: Record<string, string> = {
 function LoginContent() {
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
+  const returnUrl = searchParams.get('returnUrl')
+
+  const googleUrl = returnUrl
+    ? `/api/auth/google?returnUrl=${encodeURIComponent(returnUrl)}`
+    : '/api/auth/google'
+
+  const microsoftUrl = returnUrl
+    ? `/api/auth/microsoft?returnUrl=${encodeURIComponent(returnUrl)}`
+    : '/api/auth/microsoft'
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-moodkin-cream px-4">
@@ -43,10 +52,12 @@ function LoginContent() {
           )}
 
           <div className="space-y-4">
-            <Button
-              variant="outline"
-              className="w-full h-12 text-base rounded-xl border-moodkin-light-gray hover:bg-gray-50 text-moodkin-dark"
-              onClick={loginWithGoogle}
+            <a
+              href={googleUrl}
+              className={cn(
+                buttonVariants({ variant: 'outline' }),
+                'w-full h-12 text-base rounded-xl border-moodkin-light-gray hover:bg-gray-50 text-moodkin-dark'
+              )}
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                 <path
@@ -67,12 +78,14 @@ function LoginContent() {
                 />
               </svg>
               Continue with Google
-            </Button>
+            </a>
 
-            <Button
-              variant="outline"
-              className="w-full h-12 text-base rounded-xl border-moodkin-light-gray hover:bg-gray-50 text-moodkin-dark"
-              onClick={loginWithMicrosoft}
+            <a
+              href={microsoftUrl}
+              className={cn(
+                buttonVariants({ variant: 'outline' }),
+                'w-full h-12 text-base rounded-xl border-moodkin-light-gray hover:bg-gray-50 text-moodkin-dark'
+              )}
             >
               <svg className="w-5 h-5 mr-3" viewBox="0 0 23 23">
                 <path fill="#f35325" d="M1 1h10v10H1z" />
@@ -81,7 +94,7 @@ function LoginContent() {
                 <path fill="#ffba08" d="M12 12h10v10H12z" />
               </svg>
               Continue with Microsoft
-            </Button>
+            </a>
           </div>
 
           <p className="text-xs text-center text-moodkin-gray pt-6">

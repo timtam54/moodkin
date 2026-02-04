@@ -69,6 +69,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
+  const state = searchParams.get('state')
+  const returnUrl = state ? decodeURIComponent(state) : null
 
   if (error) {
     console.error('Microsoft auth error:', error, errorDescription)
@@ -115,7 +117,7 @@ export async function GET(request: NextRequest) {
         .eq('id', existingPhotographer.id)
 
       await createSession(existingPhotographer.id, 'photographer')
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
     // Check if user exists as client
@@ -138,7 +140,7 @@ export async function GET(request: NextRequest) {
         .eq('id', existingClient.id)
 
       await createSession(existingClient.id, 'client')
-      return NextResponse.redirect(new URL('/c', request.url))
+      return NextResponse.redirect(new URL(returnUrl || '/c', request.url))
     }
 
     // New user - create photographer account
@@ -163,7 +165,7 @@ export async function GET(request: NextRequest) {
     }
 
     await createSession(newPhotographer.id, 'photographer')
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
   } catch (error) {
     console.error('Microsoft auth error:', error)
     return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))

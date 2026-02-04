@@ -31,7 +31,7 @@ export function useConversation(conversationId: string) {
 export function useCreateConversation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { client_id: string; title: string; category_id?: string }) => {
+    mutationFn: async (data: { client_id: string; title: string; category_id?: string; cover_image_url?: string }) => {
       const res = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -59,6 +59,22 @@ export function useUpdateConversation(conversationId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       queryClient.invalidateQueries({ queryKey: ['conversations', conversationId] })
+    },
+  })
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      const res = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete conversation')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
 }

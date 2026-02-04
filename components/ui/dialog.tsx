@@ -38,13 +38,13 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       <div className="fixed inset-0 bg-black/50" />
       <div
         className={cn(
-          'relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6',
+          'relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-8 max-h-[90vh] overflow-y-auto',
           className
         )}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          className="absolute top-5 right-5 text-moodkin-gray hover:text-moodkin-dark transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -55,13 +55,17 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
 }
 
 export function DialogHeader({ children }: { children: React.ReactNode }) {
-  return <div className="mb-4">{children}</div>
+  return <div className="mb-6 pr-8">{children}</div>
 }
 
 export function DialogTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold text-gray-900">{children}</h2>
+  return (
+    <h2 className="text-xl font-semibold text-moodkin-dark tracking-wide">
+      {children}
+    </h2>
+  )
 }
 
 export function DialogDescription({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-gray-500 mt-1">{children}</p>
+  return <p className="text-sm text-moodkin-gray mt-1">{children}</p>
 }

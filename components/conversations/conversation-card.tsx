@@ -27,11 +27,11 @@ interface ConversationCardProps {
 }
 
 export function ConversationCard({ conversation }: ConversationCardProps) {
-  const imageUrl = getPlaceholderImage(conversation.id)
+  const imageUrl = conversation.cover_image_url || getPlaceholderImage(conversation.id)
 
   return (
     <Link
-      href={`/dashboard/conversations/${conversation.id}`}
+      href={`/dashboard/projects/${conversation.id}`}
       className="aspect-square relative rounded-2xl overflow-hidden group cursor-pointer bg-moodkin-cream"
     >
       <Image

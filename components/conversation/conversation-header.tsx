@@ -44,7 +44,7 @@ export function ConversationHeader({
     <div className="flex items-center justify-between pb-4 border-b">
       <div className="flex items-center gap-3">
         <Link
-          href="/dashboard/conversations"
+          href="/dashboard/projects"
           className="text-gray-400 hover:text-gray-600"
         >
           <ArrowLeft className="w-5 h-5" />

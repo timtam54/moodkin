@@ -26,7 +26,7 @@ interface ClientCardProps {
 }
 
 export function ClientCard({ client }: ClientCardProps) {
-  const avatarUrl = getPlaceholderAvatar(client.id)
+  const avatarUrl = client.avatar_url || getPlaceholderAvatar(client.id)
   const initials = (client.name || client.email)
     .split(' ')
     .map((n) => n[0])
