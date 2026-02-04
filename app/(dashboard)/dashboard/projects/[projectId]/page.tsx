@@ -270,7 +270,7 @@ export default function ProjectDetailPage() {
             className="p-2 hover:bg-moodkin-cream rounded-xl transition-colors"
           >
             <ChevronLeft className="w-6 h-6 text-moodkin-dark" />
-          </button>
+          </button> 
           <div>
             <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
             <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
