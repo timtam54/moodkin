@@ -22,6 +22,9 @@ export async function GET(
     const { conversationId } = await params
 
     // Verify user has access to this conversation
+    let hasAccess = false
+
+    // Check if user is photographer or direct client
     const { data: conversation } = await supabase
       .from('conversations')
       .select('id')
@@ -29,7 +32,24 @@ export async function GET(
       .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
       .single()
 
-    if (!conversation) {
+    if (conversation) {
+      hasAccess = true
+    } else {
+      // Check if user has access via project_users (invite)
+      const { data: projectUser } = await supabase
+        .from('project_users')
+        .select('id')
+        .eq('project_id', conversationId)
+        .eq('email', session.user.email)
+        .eq('invite_status', 'accepted')
+        .single()
+
+      if (projectUser) {
+        hasAccess = true
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
@@ -59,6 +79,8 @@ export async function POST(
     const { conversationId } = await params
 
     // Verify user has access to this conversation
+    let hasAccess = false
+
     const { data: conversation } = await supabase
       .from('conversations')
       .select('id')
@@ -66,7 +88,24 @@ export async function POST(
       .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
       .single()
 
-    if (!conversation) {
+    if (conversation) {
+      hasAccess = true
+    } else {
+      // Check if user has access via project_users (invite)
+      const { data: projectUser } = await supabase
+        .from('project_users')
+        .select('id')
+        .eq('project_id', conversationId)
+        .eq('email', session.user.email)
+        .eq('invite_status', 'accepted')
+        .single()
+
+      if (projectUser) {
+        hasAccess = true
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 

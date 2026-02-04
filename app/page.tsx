@@ -10,11 +10,8 @@ export default async function HomePage() {
   const session = await getSession()
 
   if (session) {
-    if (session.user.role === 'photographer') {
-      redirect('/dashboard')
-    } else {
-      redirect('/c')
-    }
+    // All users go to dashboard (clients can view projects they're invited to)
+    redirect('/dashboard')
   }
 
   return (

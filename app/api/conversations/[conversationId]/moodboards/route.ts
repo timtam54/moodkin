@@ -17,6 +17,8 @@ export async function GET(
     const { conversationId } = await params
 
     // Verify access
+    let hasAccess = false
+
     const { data: conversation } = await supabase
       .from('conversations')
       .select('id')
@@ -24,7 +26,24 @@ export async function GET(
       .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
       .single()
 
-    if (!conversation) {
+    if (conversation) {
+      hasAccess = true
+    } else {
+      // Check if user has access via project_users (invite)
+      const { data: projectUser } = await supabase
+        .from('project_users')
+        .select('id')
+        .eq('project_id', conversationId)
+        .eq('email', session.user.email)
+        .eq('invite_status', 'accepted')
+        .single()
+
+      if (projectUser) {
+        hasAccess = true
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
@@ -60,7 +79,10 @@ export async function POST(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    // Verify access
+    // Verify access and get conversation details
+    let hasAccess = false
+    let conversationTitle = ''
+
     const { data: conversation } = await supabase
       .from('conversations')
       .select('id, title')
@@ -68,7 +90,32 @@ export async function POST(
       .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
       .single()
 
-    if (!conversation) {
+    if (conversation) {
+      hasAccess = true
+      conversationTitle = conversation.title
+    } else {
+      // Check if user has access via project_users (invite)
+      const { data: projectUser } = await supabase
+        .from('project_users')
+        .select('id')
+        .eq('project_id', conversationId)
+        .eq('email', session.user.email)
+        .eq('invite_status', 'accepted')
+        .single()
+
+      if (projectUser) {
+        hasAccess = true
+        // Get conversation title separately
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('title')
+          .eq('id', conversationId)
+          .single()
+        conversationTitle = conv?.title || 'Untitled'
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
@@ -110,7 +157,7 @@ export async function POST(
     }
 
     // Use AI to generate a title and description based on the images
-    let aiTitle = `${conversation.title} Moodboard`
+    let aiTitle = `${conversationTitle} Moodboard`
     let aiDescription = null
 
     try {
@@ -129,7 +176,7 @@ export async function POST(
             content: [
               {
                 type: 'text',
-                text: `Based on these images from a project called "${conversation.title}", create a short evocative title (3-5 words) and a one-sentence description for this moodboard. Return as JSON: {"title": "...", "description": "..."}`
+                text: `Based on these images from a project called "${conversationTitle}", create a short evocative title (3-5 words) and a one-sentence description for this moodboard. Return as JSON: {"title": "...", "description": "..."}`
               },
               ...topImages.map(url => ({
                 type: 'image_url' as const,

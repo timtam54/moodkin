@@ -13,10 +13,7 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  if (session.user.role !== 'photographer') {
-    redirect('/c')
-  }
-
+  // Allow both photographers and clients (clients can view projects they're invited to)
   return (
     <div className="min-h-screen bg-moodkin-cream">
       <DashboardNav user={session.user} />

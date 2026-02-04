@@ -12,7 +12,45 @@ export async function GET(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    let query = supabase
+    // For clients, also check project_users for invite-based access
+    if (session.user.role === 'client') {
+      // Check if user has access via project_users (invite)
+      const { data: projectUser } = await supabase
+        .from('project_users')
+        .select('id')
+        .eq('project_id', conversationId)
+        .eq('email', session.user.email)
+        .eq('invite_status', 'accepted')
+        .single()
+
+      // Also check if they're the direct client
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          client:clients(id, name, email),
+          photographer:photographers(id, name, email)
+        `)
+        .eq('id', conversationId)
+        .single()
+
+      if (error || !data) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+      }
+
+      // Allow access if user is the direct client OR has accepted invite
+      const isDirectClient = data.client_id === session.user.id
+      const hasInviteAccess = !!projectUser
+
+      if (!isDirectClient && !hasInviteAccess) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+      }
+
+      return NextResponse.json(data)
+    }
+
+    // Photographer access
+    const { data, error } = await supabase
       .from('conversations')
       .select(`
         *,
@@ -20,15 +58,8 @@ export async function GET(
         photographer:photographers(id, name, email)
       `)
       .eq('id', conversationId)
-
-    // Scope by role
-    if (session.user.role === 'photographer') {
-      query = query.eq('photographer_id', session.user.id)
-    } else {
-      query = query.eq('client_id', session.user.id)
-    }
-
-    const { data, error } = await query.single()
+      .eq('photographer_id', session.user.id)
+      .single()
 
     if (error || !data) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })

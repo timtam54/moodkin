@@ -5,7 +5,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const returnUrl = searchParams.get('returnUrl') || ''
 
-  const state = returnUrl ? encodeURIComponent(returnUrl) : ''
+  // Don't encode here - URLSearchParams will handle encoding
+  const state = returnUrl || ''
 
   // Get the base URL from the request
   const protocol = request.headers.get('x-forwarded-proto') || 'http'

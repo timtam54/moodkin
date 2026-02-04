@@ -28,40 +28,37 @@ export async function POST(
       return NextResponse.json({ error: 'This invite has already been accepted' }, { status: 400 })
     }
 
-    // Get user's email from photographers or clients table
-    let userEmail: string | null = null
+    // Get user's email from session (already fetched during auth)
+    const userEmail = session.user.email
 
-    if (session.user.role === 'photographer') {
-      const { data: photographer } = await supabase
-        .from('photographers')
-        .select('email')
-        .eq('id', session.user.id)
-        .single()
-      userEmail = photographer?.email || null
-    } else {
-      const { data: client } = await supabase
-        .from('clients')
-        .select('email')
-        .eq('id', session.user.id)
-        .single()
-      userEmail = client?.email || null
-    }
+    console.log('Accept invite debug:', {
+      userEmail,
+      inviteEmail: invite.email,
+      sessionUserId: session.user.id,
+      sessionRole: session.user.role,
+    })
 
     // Verify the invite email matches (case-insensitive)
-    if (userEmail?.toLowerCase() !== invite.email.toLowerCase()) {
+    if (!userEmail || userEmail.toLowerCase() !== invite.email.toLowerCase()) {
       return NextResponse.json({
         error: `This invite was sent to ${invite.email}. Please sign in with that email address.`
       }, { status: 403 })
     }
 
-    // Accept the invite
+    // Accept the invite - only set user_id for photographers (due to FK constraint)
+    const updateData: Record<string, unknown> = {
+      invite_status: 'accepted',
+      accepted_at: new Date().toISOString(),
+    }
+
+    // Only set user_id if user is a photographer (FK constraint references photographers table)
+    if (session.user.role === 'photographer') {
+      updateData.user_id = session.user.id
+    }
+
     const { error: updateError } = await supabase
       .from('project_users')
-      .update({
-        invite_status: 'accepted',
-        user_id: session.user.id,
-        accepted_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', invite.id)
 
     if (updateError) {

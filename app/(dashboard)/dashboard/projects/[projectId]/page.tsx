@@ -273,7 +273,17 @@ export default function ProjectDetailPage() {
           </button> 
           <div>
             <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
-            <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
+              {project.client?.name && (
+                <a
+                  href={`/dashboard/clients/${project.client.id}`}
+                  className="text-xl text-moodkin-gray hover:text-moodkin-dark transition-colors"
+                >
+                  • {project.client.name}
+                </a>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -1,20 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requirePhotographer } from '@/lib/auth/session'
+import { requireSession, requirePhotographer } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createConversationSchema } from '@/lib/validators/conversation'
 
 export async function GET() {
   try {
-    const session = await requirePhotographer()
+    const session = await requireSession()
     const supabase = await createServiceClient()
+
+    // For photographers, return their conversations
+    if (session.user.role === 'photographer') {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          client:clients(id, name, email)
+        `)
+        .eq('photographer_id', session.user.id)
+        .order('updated_at', { ascending: false })
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+
+      return NextResponse.json(data)
+    }
+
+    // For clients, return conversations they have access to via project_users
+    const { data: projectAccess, error: accessError } = await supabase
+      .from('project_users')
+      .select('project_id')
+      .eq('email', session.user.email)
+      .eq('invite_status', 'accepted')
+
+    if (accessError) {
+      return NextResponse.json({ error: accessError.message }, { status: 500 })
+    }
+
+    const projectIds = projectAccess?.map(p => p.project_id) || []
+
+    if (projectIds.length === 0) {
+      return NextResponse.json([])
+    }
 
     const { data, error } = await supabase
       .from('conversations')
       .select(`
         *,
-        client:clients(id, name, email)
+        photographer:photographers(id, name, email)
       `)
-      .eq('photographer_id', session.user.id)
+      .in('id', projectIds)
       .order('updated_at', { ascending: false })
 
     if (error) {

@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
         .eq('id', existingClient.id)
 
       await createSession(existingClient.id, 'client')
-      return NextResponse.redirect(new URL(returnUrl || '/c', request.url))
+      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
     // New user - create photographer account

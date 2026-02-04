@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
         .eq('id', existingClient.id)
 
       await createSession(existingClient.id, 'client')
-      // Redirect clients to returnUrl or their conversation view
-      return NextResponse.redirect(new URL(returnUrl || '/c', request.url))
+      // Redirect clients to returnUrl or dashboard
+      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
     // New user - create photographer account

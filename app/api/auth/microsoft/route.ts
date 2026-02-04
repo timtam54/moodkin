@@ -6,7 +6,8 @@ export async function GET(request: NextRequest) {
   const returnUrl = searchParams.get('returnUrl') || ''
 
   const tenantId = process.env.NEXT_PUBLIC_AZURE_AD_TENANT_ID || 'common'
-  const state = returnUrl ? encodeURIComponent(returnUrl) : ''
+  // Don't encode here - URLSearchParams will handle encoding
+  const state = returnUrl || ''
 
   // Get the base URL from the request
   const protocol = request.headers.get('x-forwarded-proto') || 'http'

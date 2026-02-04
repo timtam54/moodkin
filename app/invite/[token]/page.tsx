@@ -86,21 +86,38 @@ export default function InvitePage() {
   }
 
   if (error) {
+    const isEmailMismatch = error.includes('sent to') || error.includes('sign in with')
     return (
       <div className="min-h-screen bg-moodkin-cream flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm max-w-md w-full p-8 text-center">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-moodkin-dark mb-2">Invite Not Found</h1>
+          <XCircle className={`w-16 h-16 mx-auto mb-4 ${isEmailMismatch ? 'text-amber-500' : 'text-red-500'}`} />
+          <h1 className="text-xl font-bold text-moodkin-dark mb-2">
+            {isEmailMismatch ? 'Wrong Account' : 'Invite Not Found'}
+          </h1>
           <p className="text-moodkin-gray mb-6">{error}</p>
-          <a href="/dashboard" className={cn(buttonVariants({ variant: 'outline' }))}>
-            Go to Dashboard
-          </a>
+          {isEmailMismatch ? (
+            <div className="space-y-3">
+              <a href="/api/auth/logout" className={cn(buttonVariants({ variant: 'primary' }), 'w-full')}>
+                Sign Out & Try Again
+              </a>
+              <a href="/dashboard" className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
+                Go to Dashboard
+              </a>
+            </div>
+          ) : (
+            <a href="/dashboard" className={cn(buttonVariants({ variant: 'outline' }))}>
+              Go to Dashboard
+            </a>
+          )}
         </div>
       </div>
     )
   }
 
   if (success) {
+    // All users go to the project page
+    const projectUrl = `/dashboard/projects/${projectId}`
+
     return (
       <div className="min-h-screen bg-moodkin-cream flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-sm max-w-md w-full p-8 text-center">
@@ -110,7 +127,7 @@ export default function InvitePage() {
             You now have access to &quot;{invite?.project_title}&quot;.
           </p>
           <a
-            href={`/dashboard/projects/${projectId}`}
+            href={projectUrl}
             className={cn(buttonVariants({ variant: 'primary' }), 'w-full')}
           >
             Go to Project
@@ -168,14 +185,48 @@ export default function InvitePage() {
 
           {!session?.user ? (
             <div className="space-y-3">
-              <p className="text-sm text-center text-moodkin-gray mb-4">
-                Please sign in or create an account to accept this invitation.
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <p className="text-sm text-amber-800 font-medium text-center">
+                  You must sign in with:
+                </p>
+                <p className="text-base text-amber-900 font-bold text-center mt-1">
+                  {invite?.email}
+                </p>
+              </div>
+              <p className="text-xs text-center text-moodkin-gray">
+                Make sure to select this email when signing in with Google or Microsoft.
               </p>
               <a
                 href={`/login?returnUrl=/invite/${token}`}
                 className={cn(buttonVariants({ variant: 'primary' }), 'w-full')}
               >
                 Sign In to Accept
+              </a>
+            </div>
+          ) : session?.user?.email?.toLowerCase() !== invite?.email?.toLowerCase() ? (
+            <div className="space-y-3">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+                <p className="text-sm text-red-800 font-medium text-center">
+                  Wrong account! This invite was sent to:
+                </p>
+                <p className="text-base text-red-900 font-bold text-center mt-1">
+                  {invite?.email}
+                </p>
+                <p className="text-xs text-red-700 text-center mt-2">
+                  You&apos;re signed in as {session?.user?.email}
+                </p>
+              </div>
+              <a
+                href="/api/auth/logout"
+                className={cn(buttonVariants({ variant: 'primary' }), 'w-full')}
+              >
+                Sign Out & Use Correct Account
+              </a>
+              <a
+                href="/dashboard"
+                className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
+              >
+                Go to Dashboard
               </a>
             </div>
           ) : (

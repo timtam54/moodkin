@@ -49,7 +49,7 @@ export default function ClientPortalPage() {
               {conversations.map((conversation) => (
                 <Link
                   key={conversation.id}
-                  href={`/c/${conversation.id}`}
+                  href={`/dashboard/projects/${conversation.id}`}
                   className="flex items-center justify-between py-3 px-4 hover:bg-moodkin-cream/50 rounded-xl transition-colors"
                 >
                   <div className="min-w-0 flex-1">
