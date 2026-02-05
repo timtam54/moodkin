@@ -1,4 +1,4 @@
-const CACHE_NAME = 'moodkin-v1';
+const CACHE_NAME = 'moodkin-v2';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -72,5 +72,54 @@ self.addEventListener('fetch', (event) => {
           return new Response('Offline', { status: 503 });
         });
       })
+  );
+});
+
+// Push notification event
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+
+    const options = {
+      body: data.body || 'New message',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-72.png',
+      data: {
+        conversationId: data.conversationId,
+      },
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Moodkin', options)
+    );
+  } catch (err) {
+    console.error('Push event error:', err);
+  }
+});
+
+// Notification click - open the conversation
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const conversationId = event.notification.data?.conversationId;
+  const url = conversationId
+    ? `/dashboard/projects/${conversationId}?tab=conversation`
+    : '/dashboard';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus existing window if open
+      for (const client of clientList) {
+        if (client.url.includes(conversationId) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(url);
+      }
+    })
   );
 });

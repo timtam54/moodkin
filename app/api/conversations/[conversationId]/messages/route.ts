@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { sendMessageSchema } from '@/lib/validators/message'
+import { isProjectMember } from '@/lib/auth/project-access'
+import { sendPushToProjectMembers } from '@/lib/push'
 
 export async function GET(
   _request: NextRequest,
@@ -13,18 +15,8 @@ export async function GET(
     const { conversationId } = await params
 
     // Verify access
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .or(
-        session.user.role === 'photographer'
-          ? `photographer_id.eq.${session.user.id}`
-          : `client_id.eq.${session.user.id}`
-      )
-      .single()
-
-    if (!conversation) {
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
@@ -54,18 +46,8 @@ export async function POST(
     const { conversationId } = await params
 
     // Verify access
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .or(
-        session.user.role === 'photographer'
-          ? `photographer_id.eq.${session.user.id}`
-          : `client_id.eq.${session.user.id}`
-      )
-      .single()
-
-    if (!conversation) {
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
+    if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
@@ -80,7 +62,6 @@ export async function POST(
       .from('messages')
       .insert({
         conversation_id: conversationId,
-        sender_type: session.user.role,
         sender_id: session.user.id,
         text_content: parsed.data.text_content || null,
         canvas_data: parsed.data.canvas_data || null,
@@ -97,6 +78,21 @@ export async function POST(
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', conversationId)
+
+    // Send push notifications to other project members (fire-and-forget)
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('title')
+      .eq('id', conversationId)
+      .single()
+
+    sendPushToProjectMembers(supabase, conversationId, session.user.id, {
+      title: conversation?.title || 'New message',
+      body: parsed.data.text_content
+        ? parsed.data.text_content.slice(0, 100)
+        : 'Canvas updated',
+      conversationId,
+    }).catch(() => {})
 
     return NextResponse.json(data, { status: 201 })
   } catch {

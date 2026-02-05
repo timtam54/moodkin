@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { Mail, Phone } from 'lucide-react'
-import type { Client } from '@/types/database'
+import type { User } from '@/types/database'
 import { formatRelativeTime } from '@/lib/utils'
 
 interface ClientListItemProps {
-  client: Client
+  client: User
 }
 
 export function ClientListItem({ client }: ClientListItemProps) {

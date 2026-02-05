@@ -53,7 +53,6 @@ export async function POST(
       .insert({
         asset_id: assetId,
         user_id: session.user.id,
-        user_type: session.user.role,
         user_name: session.user.name || session.user.email,
         content: parsed.data.content,
       })

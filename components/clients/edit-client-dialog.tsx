@@ -2,12 +2,12 @@
 
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ClientForm } from '@/components/clients/client-form'
-import type { Client } from '@/types/database'
+import type { User } from '@/types/database'
 
 interface EditClientDialogProps {
   open: boolean
   onClose: () => void
-  client: Client
+  client: User
   onSubmit: (data: { email: string; name?: string; phone?: string; address?: string; notes?: string; avatar_url?: string }) => void
   isLoading?: boolean
 }

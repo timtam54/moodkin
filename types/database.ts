@@ -9,7 +9,6 @@ export type Json =
 export type SubscriptionStatus = 'trial' | 'active' | 'cancelled' | 'expired'
 export type CreativeClientType = 'creative' | 'client'
 export type ConversationStatus = 'active' | 'archived'
-export type SenderType = 'photographer' | 'client'
 export type AssetType = 'image' | 'link'
 export type ReactionType = 'like' | 'redflag'
 export type ProjectUserRole = 'creative' | 'client'
@@ -18,12 +17,15 @@ export type ProjectInviteStatus = 'pending' | 'accepted' | 'declined'
 export interface Database {
   public: {
     Tables: {
-      photographers: {
+      users: {
         Row: {
           id: string
           email: string
           name: string | null
           avatar_url: string | null
+          phone: string | null
+          address: string | null
+          notes: string | null
           auth_provider: string | null
           auth_provider_id: string | null
           stripe_customer_id: string | null
@@ -38,6 +40,9 @@ export interface Database {
           email: string
           name?: string | null
           avatar_url?: string | null
+          phone?: string | null
+          address?: string | null
+          notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
           stripe_customer_id?: string | null
@@ -52,56 +57,15 @@ export interface Database {
           email?: string
           name?: string | null
           avatar_url?: string | null
+          phone?: string | null
+          address?: string | null
+          notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
           stripe_customer_id?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      clients: {
-        Row: {
-          id: string
-          photographer_id: string
-          email: string
-          name: string | null
-          phone: string | null
-          address: string | null
-          notes: string | null
-          avatar_url: string | null
-          auth_provider: string | null
-          auth_provider_id: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          photographer_id: string
-          email: string
-          name?: string | null
-          phone?: string | null
-          address?: string | null
-          notes?: string | null
-          avatar_url?: string | null
-          auth_provider?: string | null
-          auth_provider_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          photographer_id?: string
-          email?: string
-          name?: string | null
-          phone?: string | null
-          address?: string | null
-          notes?: string | null
-          avatar_url?: string | null
-          auth_provider?: string | null
-          auth_provider_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -109,19 +73,19 @@ export interface Database {
       categories: {
         Row: {
           id: string
-          photographer_id: string
+          user_id: string
           name: string
           created_at: string
         }
         Insert: {
           id?: string
-          photographer_id: string
+          user_id: string
           name: string
           created_at?: string
         }
         Update: {
           id?: string
-          photographer_id?: string
+          user_id?: string
           name?: string
           created_at?: string
         }
@@ -129,8 +93,6 @@ export interface Database {
       conversations: {
         Row: {
           id: string
-          photographer_id: string
-          client_id: string
           category_id: string | null
           title: string
           cover_image_url: string | null
@@ -140,8 +102,6 @@ export interface Database {
         }
         Insert: {
           id?: string
-          photographer_id: string
-          client_id: string
           category_id?: string | null
           title: string
           cover_image_url?: string | null
@@ -151,8 +111,6 @@ export interface Database {
         }
         Update: {
           id?: string
-          photographer_id?: string
-          client_id?: string
           category_id?: string | null
           title?: string
           cover_image_url?: string | null
@@ -165,7 +123,6 @@ export interface Database {
         Row: {
           id: string
           conversation_id: string
-          sender_type: SenderType
           sender_id: string
           text_content: string | null
           canvas_data: Json | null
@@ -174,7 +131,6 @@ export interface Database {
         Insert: {
           id?: string
           conversation_id: string
-          sender_type: SenderType
           sender_id: string
           text_content?: string | null
           canvas_data?: Json | null
@@ -183,7 +139,6 @@ export interface Database {
         Update: {
           id?: string
           conversation_id?: string
-          sender_type?: SenderType
           sender_id?: string
           text_content?: string | null
           canvas_data?: Json | null
@@ -193,21 +148,21 @@ export interface Database {
       templates: {
         Row: {
           id: string
-          photographer_id: string
+          user_id: string
           category_id: string | null
           name: string
           created_at: string
         }
         Insert: {
           id?: string
-          photographer_id: string
+          user_id: string
           category_id?: string | null
           name: string
           created_at?: string
         }
         Update: {
           id?: string
-          photographer_id?: string
+          user_id?: string
           category_id?: string | null
           name?: string
           created_at?: string
@@ -239,7 +194,7 @@ export interface Database {
       client_invite_tokens: {
         Row: {
           id: string
-          client_id: string
+          user_id: string
           conversation_id: string
           token: string
           expires_at: string
@@ -247,7 +202,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          client_id: string
+          user_id: string
           conversation_id: string
           token: string
           expires_at: string
@@ -255,7 +210,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          client_id?: string
+          user_id?: string
           conversation_id?: string
           token?: string
           expires_at?: string
@@ -273,7 +228,6 @@ export interface Database {
           thumbnail_url: string | null
           color_palette: string[] | null
           uploaded_by_id: string
-          uploaded_by_type: SenderType
           uploaded_by_name: string | null
           created_at: string
         }
@@ -287,7 +241,6 @@ export interface Database {
           thumbnail_url?: string | null
           color_palette?: string[] | null
           uploaded_by_id: string
-          uploaded_by_type: SenderType
           uploaded_by_name?: string | null
           created_at?: string
         }
@@ -301,7 +254,6 @@ export interface Database {
           thumbnail_url?: string | null
           color_palette?: string[] | null
           uploaded_by_id?: string
-          uploaded_by_type?: SenderType
           uploaded_by_name?: string | null
           created_at?: string
         }
@@ -311,7 +263,6 @@ export interface Database {
           id: string
           asset_id: string
           user_id: string
-          user_type: SenderType
           user_name: string | null
           reaction_type: ReactionType
           created_at: string
@@ -320,7 +271,6 @@ export interface Database {
           id?: string
           asset_id: string
           user_id: string
-          user_type: SenderType
           user_name?: string | null
           reaction_type: ReactionType
           created_at?: string
@@ -329,7 +279,6 @@ export interface Database {
           id?: string
           asset_id?: string
           user_id?: string
-          user_type?: SenderType
           user_name?: string | null
           reaction_type?: ReactionType
           created_at?: string
@@ -340,7 +289,6 @@ export interface Database {
           id: string
           asset_id: string
           user_id: string
-          user_type: SenderType
           user_name: string | null
           content: string
           created_at: string
@@ -349,7 +297,6 @@ export interface Database {
           id?: string
           asset_id: string
           user_id: string
-          user_type: SenderType
           user_name?: string | null
           content: string
           created_at?: string
@@ -358,7 +305,6 @@ export interface Database {
           id?: string
           asset_id?: string
           user_id?: string
-          user_type?: SenderType
           user_name?: string | null
           content?: string
           created_at?: string
@@ -429,6 +375,7 @@ export interface Database {
           invite_token: string
           invite_status: ProjectInviteStatus
           invited_by_id: string
+          is_owner: boolean
           invited_at: string
           accepted_at: string | null
           created_at: string
@@ -443,6 +390,7 @@ export interface Database {
           invite_token?: string
           invite_status?: ProjectInviteStatus
           invited_by_id: string
+          is_owner?: boolean
           invited_at?: string
           accepted_at?: string | null
           created_at?: string
@@ -457,10 +405,37 @@ export interface Database {
           invite_token?: string
           invite_status?: ProjectInviteStatus
           invited_by_id?: string
+          is_owner?: boolean
           invited_at?: string
           accepted_at?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          created_at?: string
         }
       }
     }
@@ -468,20 +443,19 @@ export interface Database {
 }
 
 // Convenience types
-export type Photographer = Database['public']['Tables']['photographers']['Row']
-export type Client = Database['public']['Tables']['clients']['Row']
+export type User = Database['public']['Tables']['users']['Row']
 export type Category = Database['public']['Tables']['categories']['Row']
 export type Conversation = Database['public']['Tables']['conversations']['Row']
 export type Message = Database['public']['Tables']['messages']['Row']
 export type Template = Database['public']['Tables']['templates']['Row']
 export type TemplateQuestion = Database['public']['Tables']['template_questions']['Row']
-export type ClientInviteToken = Database['public']['Tables']['client_invite_tokens']['Row']
 export type ProjectAsset = Database['public']['Tables']['project_assets']['Row']
 export type AssetReaction = Database['public']['Tables']['asset_reactions']['Row']
 export type AssetComment = Database['public']['Tables']['asset_comments']['Row']
 export type Moodboard = Database['public']['Tables']['moodboards']['Row']
 export type MoodboardImage = Database['public']['Tables']['moodboard_images']['Row']
 export type ProjectUser = Database['public']['Tables']['project_users']['Row']
+export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
 
 // Extended moodboard type with images
 export type MoodboardWithImages = Moodboard & {
@@ -496,13 +470,8 @@ export type ProjectAssetWithInteractions = ProjectAsset & {
 
 // Extended types with relations
 export type ConversationWithRelations = Conversation & {
-  client: Client
   category: Category | null
   messages?: Message[]
-}
-
-export type ClientWithConversations = Client & {
-  conversations: Conversation[]
 }
 
 export type TemplateWithQuestions = Template & {

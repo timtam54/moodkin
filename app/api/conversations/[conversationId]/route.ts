@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { updateConversationSchema } from '@/lib/validators/conversation'
+import { isProjectMember, isProjectOwner } from '@/lib/auth/project-access'
 
 export async function GET(
   _request: NextRequest,
@@ -12,53 +13,16 @@ export async function GET(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    // For clients, also check project_users for invite-based access
-    if (session.user.role === 'client') {
-      // Check if user has access via project_users (invite)
-      const { data: projectUser } = await supabase
-        .from('project_users')
-        .select('id')
-        .eq('project_id', conversationId)
-        .eq('email', session.user.email)
-        .eq('invite_status', 'accepted')
-        .single()
-
-      // Also check if they're the direct client
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          client:clients(id, name, email),
-          photographer:photographers(id, name, email)
-        `)
-        .eq('id', conversationId)
-        .single()
-
-      if (error || !data) {
-        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
-      }
-
-      // Allow access if user is the direct client OR has accepted invite
-      const isDirectClient = data.client_id === session.user.id
-      const hasInviteAccess = !!projectUser
-
-      if (!isDirectClient && !hasInviteAccess) {
-        return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
-      }
-
-      return NextResponse.json(data)
+    // Check access via project_users
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    // Photographer access
     const { data, error } = await supabase
       .from('conversations')
-      .select(`
-        *,
-        client:clients(id, name, email),
-        photographer:photographers(id, name, email)
-      `)
+      .select('*')
       .eq('id', conversationId)
-      .eq('photographer_id', session.user.id)
       .single()
 
     if (error || !data) {
@@ -80,7 +44,8 @@ export async function PATCH(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    if (session.user.role !== 'photographer') {
+    const isOwner = await isProjectOwner(supabase, conversationId, session.user.id)
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -95,7 +60,6 @@ export async function PATCH(
       .from('conversations')
       .update(parsed.data)
       .eq('id', conversationId)
-      .eq('photographer_id', session.user.id)
       .select()
       .single()
 
@@ -118,7 +82,8 @@ export async function DELETE(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    if (session.user.role !== 'photographer') {
+    const isOwner = await isProjectOwner(supabase, conversationId, session.user.id)
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -126,7 +91,6 @@ export async function DELETE(
       .from('conversations')
       .delete()
       .eq('id', conversationId)
-      .eq('photographer_id', session.user.id)
 
     if (error) {
       return NextResponse.json({ error: 'Failed to delete conversation' }, { status: 500 })

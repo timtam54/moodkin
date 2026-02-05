@@ -3,19 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ClientForm } from '@/components/clients/client-form'
-import { useCreateClient } from '@/hooks/use-clients'
 
 export default function NewClientPage() {
   const router = useRouter()
-  const createClient = useCreateClient()
-
-  function handleSubmit(data: { email: string; name?: string; phone?: string; address?: string; notes?: string }) {
-    createClient.mutate(data, {
-      onSuccess: () => router.push('/dashboard/clients'),
-    })
-  }
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -27,17 +17,19 @@ export default function NewClientPage() {
         Back to clients
       </Link>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add New Client</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ClientForm
-            onSubmit={handleSubmit}
-            isLoading={createClient.isPending}
-          />
-        </CardContent>
-      </Card>
+      <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+        <p className="text-moodkin-dark font-medium mb-2">Adding clients has changed</p>
+        <p className="text-moodkin-gray text-sm">
+          Clients are now added by inviting them to a project. Go to a project and use the
+          &quot;Invite Collaborator&quot; button to add team members.
+        </p>
+        <button
+          onClick={() => router.push('/dashboard/projects')}
+          className="mt-4 px-6 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl transition-colors"
+        >
+          Go to Projects
+        </button>
+      </div>
     </div>
   )
 }

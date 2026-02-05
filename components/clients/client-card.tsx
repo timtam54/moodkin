@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Mail, Phone, User } from 'lucide-react'
-import type { Client } from '@/types/database'
+import { Mail, Phone } from 'lucide-react'
+import type { User } from '@/types/database'
 import { formatRelativeTime } from '@/lib/utils'
 
 // Placeholder avatar images
@@ -22,7 +22,7 @@ function getPlaceholderAvatar(id: string): string {
 }
 
 interface ClientCardProps {
-  client: Client
+  client: User
 }
 
 export function ClientCard({ client }: ClientCardProps) {

@@ -11,7 +11,7 @@ export default async function ClientLayout({
 
   // If no session and not on invite page, redirect to login
   // Invite page handles its own auth
-  if (!session || session.user.role !== 'client') {
+  if (!session) {
     // Allow invite pages through without session
     return (
       <div className="min-h-screen bg-moodkin-cream">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { extractColorsFromUrl } from '@/lib/utils/extract-colors'
+import { isProjectMember, isProjectOwner } from '@/lib/auth/project-access'
 import { z } from 'zod'
 
 const createAssetSchema = z.object({
@@ -21,34 +22,7 @@ export async function GET(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    // Verify user has access to this conversation
-    let hasAccess = false
-
-    // Check if user is photographer or direct client
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
-      .single()
-
-    if (conversation) {
-      hasAccess = true
-    } else {
-      // Check if user has access via project_users (invite)
-      const { data: projectUser } = await supabase
-        .from('project_users')
-        .select('id')
-        .eq('project_id', conversationId)
-        .eq('email', session.user.email)
-        .eq('invite_status', 'accepted')
-        .single()
-
-      if (projectUser) {
-        hasAccess = true
-      }
-    }
-
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
@@ -78,33 +52,7 @@ export async function POST(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    // Verify user has access to this conversation
-    let hasAccess = false
-
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
-      .single()
-
-    if (conversation) {
-      hasAccess = true
-    } else {
-      // Check if user has access via project_users (invite)
-      const { data: projectUser } = await supabase
-        .from('project_users')
-        .select('id')
-        .eq('project_id', conversationId)
-        .eq('email', session.user.email)
-        .eq('invite_status', 'accepted')
-        .single()
-
-      if (projectUser) {
-        hasAccess = true
-      }
-    }
-
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
@@ -134,7 +82,6 @@ export async function POST(
         thumbnail_url: parsed.data.thumbnail_url || null,
         color_palette: colorPalette,
         uploaded_by_id: session.user.id,
-        uploaded_by_type: session.user.role,
         uploaded_by_name: session.user.name || session.user.email,
       })
       .select()
@@ -167,10 +114,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Asset ID required' }, { status: 400 })
     }
 
-    // Verify user has access and owns the asset or is photographer
+    // Verify asset exists in this conversation
     const { data: asset } = await supabase
       .from('project_assets')
-      .select('*, conversation:conversations(photographer_id)')
+      .select('id, uploaded_by_id')
       .eq('id', assetId)
       .eq('conversation_id', conversationId)
       .single()
@@ -179,10 +126,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
 
-    // Allow delete if user uploaded it or is the photographer
-    const canDelete =
-      asset.uploaded_by_id === session.user.id ||
-      (asset.conversation as any)?.photographer_id === session.user.id
+    // Allow delete if user uploaded it or is the project owner
+    const isOwner = await isProjectOwner(supabase, conversationId, session.user.id)
+    const canDelete = asset.uploaded_by_id === session.user.id || isOwner
 
     if (!canDelete) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

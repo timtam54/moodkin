@@ -26,10 +26,7 @@ export function UserTypeProvider({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
 
-  if (
-    session?.user.role === 'photographer' &&
-    session.user.creativeClient === null
-  ) {
+  if (session && session.user.creativeClient === null) {
     return <UserTypeSelector onSelect={handleSelect} />
   }
 

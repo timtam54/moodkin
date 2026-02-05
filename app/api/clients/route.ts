@@ -1,19 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requirePhotographer } from '@/lib/auth/session'
+import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
-import { createClientSchema } from '@/lib/validators/client'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requirePhotographer()
+    const session = await requireSession()
     const supabase = await createServiceClient()
 
     const search = request.nextUrl.searchParams.get('search')
 
+    // Find projects this user owns
+    const { data: ownedProjects } = await supabase
+      .from('project_users')
+      .select('project_id')
+      .eq('user_id', session.user.id)
+      .eq('is_owner', true)
+
+    const projectIds = ownedProjects?.map(p => p.project_id) || []
+
+    if (projectIds.length === 0) {
+      return NextResponse.json([])
+    }
+
+    // Find distinct users who are clients on those projects
+    const { data: clientEntries } = await supabase
+      .from('project_users')
+      .select('user_id')
+      .in('project_id', projectIds)
+      .eq('role', 'client')
+      .not('user_id', 'is', null)
+
+    const userIds = [...new Set(clientEntries?.map(c => c.user_id).filter(Boolean) || [])]
+
+    if (userIds.length === 0) {
+      return NextResponse.json([])
+    }
+
     let query = supabase
-      .from('clients')
+      .from('users')
       .select('*')
-      .eq('photographer_id', session.user.id)
+      .in('id', userIds)
       .order('created_at', { ascending: false })
 
     if (search) {
@@ -27,37 +53,6 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(data)
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const session = await requirePhotographer()
-    const supabase = await createServiceClient()
-
-    const body = await request.json()
-    const parsed = createClientSchema.safeParse(body)
-
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-    }
-
-    const { data, error } = await supabase
-      .from('clients')
-      .insert({
-        ...parsed.data,
-        photographer_id: session.user.id,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json(data, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

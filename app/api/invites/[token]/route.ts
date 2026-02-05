@@ -37,7 +37,7 @@ export async function GET(
 
     // Get inviter name
     const { data: inviter } = await supabase
-      .from('photographers')
+      .from('users')
       .select('name, email')
       .eq('id', invite.invited_by_id)
       .single()

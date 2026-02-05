@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { isProjectOwner } from '@/lib/auth/project-access'
 import nodemailer from 'nodemailer'
 
 // GET project users
@@ -52,10 +53,16 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
+    // Verify user owns the project
+    const ownerCheck = await isProjectOwner(supabase, projectId, session.user.id)
+    if (!ownerCheck) {
+      return NextResponse.json({ error: 'Not authorized to invite users to this project' }, { status: 403 })
+    }
+
     // Get the project details
     const { data: project, error: projectError } = await supabase
       .from('conversations')
-      .select('*, client:clients(*)')
+      .select('title')
       .eq('id', projectId)
       .single()
 
@@ -63,14 +70,9 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Verify user owns the project
-    if (project.photographer_id !== session.user.id) {
-      return NextResponse.json({ error: 'Not authorized to invite users to this project' }, { status: 403 })
-    }
-
     // Get inviter's info
     const { data: inviter } = await supabase
-      .from('photographers')
+      .from('users')
       .select('name, email')
       .eq('id', session.user.id)
       .single()
@@ -183,6 +185,66 @@ export async function POST(
   }
 }
 
+// PATCH - Update a project user's role
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const session = await requireSession()
+    const supabase = await createServiceClient()
+    const { projectId } = await params
+
+    const { userId, role } = await request.json()
+
+    if (!userId || !role) {
+      return NextResponse.json({ error: 'userId and role are required' }, { status: 400 })
+    }
+
+    if (!['creative', 'client'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
+
+    // Verify user owns the project
+    const ownerCheck = await isProjectOwner(supabase, projectId, session.user.id)
+    if (!ownerCheck) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
+    // Don't allow changing the owner's role
+    const { data: targetUser } = await supabase
+      .from('project_users')
+      .select('id, is_owner')
+      .eq('id', userId)
+      .eq('project_id', projectId)
+      .single()
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found in project' }, { status: 404 })
+    }
+
+    if (targetUser.is_owner) {
+      return NextResponse.json({ error: 'Cannot change the project owner\'s role' }, { status: 400 })
+    }
+
+    const { data, error } = await supabase
+      .from('project_users')
+      .update({ role })
+      .eq('id', userId)
+      .eq('project_id', projectId)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
+
 // DELETE - Remove a project user
 export async function DELETE(
   request: NextRequest,
@@ -201,13 +263,8 @@ export async function DELETE(
     }
 
     // Verify user owns the project
-    const { data: project } = await supabase
-      .from('conversations')
-      .select('photographer_id')
-      .eq('id', projectId)
-      .single()
-
-    if (!project || project.photographer_id !== session.user.id) {
+    const ownerCheck = await isProjectOwner(supabase, projectId, session.user.id)
+    if (!ownerCheck) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

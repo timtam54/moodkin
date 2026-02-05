@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requirePhotographer } from '@/lib/auth/session'
+import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { updateClientSchema } from '@/lib/validators/client'
 
@@ -8,15 +8,40 @@ export async function GET(
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const session = await requirePhotographer()
+    const session = await requireSession()
     const supabase = await createServiceClient()
     const { clientId } = await params
 
+    // Verify the current user shares a project with this client
+    const { data: sharedProject } = await supabase
+      .from('project_users')
+      .select('project_id')
+      .eq('user_id', session.user.id)
+      .eq('is_owner', true)
+
+    const projectIds = sharedProject?.map(p => p.project_id) || []
+
+    if (projectIds.length === 0) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
+
+    const { data: clientAccess } = await supabase
+      .from('project_users')
+      .select('id')
+      .in('project_id', projectIds)
+      .eq('user_id', clientId)
+      .eq('role', 'client')
+      .limit(1)
+      .single()
+
+    if (!clientAccess) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
+
     const { data, error } = await supabase
-      .from('clients')
+      .from('users')
       .select('*')
       .eq('id', clientId)
-      .eq('photographer_id', session.user.id)
       .single()
 
     if (error || !data) {
@@ -34,7 +59,7 @@ export async function PATCH(
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
-    const session = await requirePhotographer()
+    const session = await requireSession()
     const supabase = await createServiceClient()
     const { clientId } = await params
 
@@ -45,11 +70,15 @@ export async function PATCH(
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
+    // Only allow editing your own profile
+    if (clientId !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { data, error } = await supabase
-      .from('clients')
+      .from('users')
       .update(parsed.data)
       .eq('id', clientId)
-      .eq('photographer_id', session.user.id)
       .select()
       .single()
 
@@ -58,31 +87,6 @@ export async function PATCH(
     }
 
     return NextResponse.json(data)
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-}
-
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ clientId: string }> }
-) {
-  try {
-    const session = await requirePhotographer()
-    const supabase = await createServiceClient()
-    const { clientId } = await params
-
-    const { error } = await supabase
-      .from('clients')
-      .delete()
-      .eq('id', clientId)
-      .eq('photographer_id', session.user.id)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

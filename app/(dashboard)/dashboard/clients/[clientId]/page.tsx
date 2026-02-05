@@ -2,29 +2,22 @@
 
 import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, Mail, Phone, MapPin, FolderOpen, Plus, Camera, Loader2, Pencil } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Camera, Loader2, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { upload } from '@vercel/blob/client'
 import { Button } from '@/components/ui/button'
 import { EditClientDialog } from '@/components/clients/edit-client-dialog'
-import { ConversationCard } from '@/components/conversations/conversation-card'
-import { useClient, useUpdateClient, useDeleteClient } from '@/hooks/use-clients'
-import { useConversations } from '@/hooks/use-conversations'
+import { useClient, useUpdateClient } from '@/hooks/use-clients'
 
 export default function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const router = useRouter()
   const { data: client, isLoading } = useClient(clientId)
-  const { data: allProjects } = useConversations()
   const updateClient = useUpdateClient(clientId)
-  const deleteClient = useDeleteClient()
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
-
-  // Filter projects for this client
-  const clientProjects = allProjects?.filter(p => p.client_id === clientId) || []
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -61,13 +54,6 @@ export default function ClientDetailPage() {
     })
   }
 
-  function handleDelete() {
-    if (!confirm('Are you sure you want to delete this client? This will also delete all their conversations.')) return
-    deleteClient.mutate(clientId, {
-      onSuccess: () => router.push('/dashboard/clients'),
-    })
-  }
-
   if (isLoading) {
     return <div className="py-12 text-center text-moodkin-gray">Loading...</div>
   }
@@ -91,10 +77,6 @@ export default function ClientDetailPage() {
           <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
             <Pencil className="w-4 h-4 mr-1" />
             Edit
-          </Button>
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
-            <Trash2 className="w-4 h-4 mr-1" />
-            Delete
           </Button>
         </div>
       </div>
@@ -179,32 +161,6 @@ export default function ClientDetailPage() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Projects Section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-moodkin-dark">Projects</h2>
-          <Link href={`/dashboard/projects/new?client=${clientId}`}>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-1" />
-              New Project
-            </Button>
-          </Link>
-        </div>
-
-        {clientProjects.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {clientProjects.map((project) => (
-              <ConversationCard key={project.id} conversation={project} />
-            ))}
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-            <FolderOpen className="w-12 h-12 text-moodkin-light-gray mx-auto mb-3" />
-            <p className="text-moodkin-gray text-sm">No projects with this client yet</p>
-          </div>
-        )}
       </div>
 
       {/* Edit Client Dialog */}

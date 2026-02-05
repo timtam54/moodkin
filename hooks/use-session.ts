@@ -25,7 +25,7 @@ export function useSession() {
     error,
     refetch,
     isAuthenticated: !!session,
-    isPhotographer: session?.user.role === 'photographer',
-    isClient: session?.user.role === 'client',
+    isCreative: session?.user.creativeClient === 'creative',
+    isClient: session?.user.creativeClient === 'client',
   }
 }

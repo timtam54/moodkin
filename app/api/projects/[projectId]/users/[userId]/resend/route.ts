@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { isProjectOwner } from '@/lib/auth/project-access'
 import nodemailer from 'nodemailer'
 
 // POST - Resend invite email
@@ -30,10 +31,16 @@ export async function POST(
       return NextResponse.json({ error: 'This invite has already been accepted' }, { status: 400 })
     }
 
+    // Verify user owns the project
+    const ownerCheck = await isProjectOwner(supabase, projectId, session.user.id)
+    if (!ownerCheck) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
     // Get the project details
     const { data: project } = await supabase
       .from('conversations')
-      .select('title, photographer_id')
+      .select('title')
       .eq('id', projectId)
       .single()
 
@@ -41,14 +48,9 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Verify user owns the project
-    if (project.photographer_id !== session.user.id) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
-    }
-
     // Get inviter's info
     const { data: inviter } = await supabase
-      .from('photographers')
+      .from('users')
       .select('name, email')
       .eq('id', session.user.id)
       .single()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { isProjectMember } from '@/lib/auth/project-access'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -17,32 +18,7 @@ export async function GET(
     const { conversationId } = await params
 
     // Verify access
-    let hasAccess = false
-
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('id', conversationId)
-      .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
-      .single()
-
-    if (conversation) {
-      hasAccess = true
-    } else {
-      // Check if user has access via project_users (invite)
-      const { data: projectUser } = await supabase
-        .from('project_users')
-        .select('id')
-        .eq('project_id', conversationId)
-        .eq('email', session.user.email)
-        .eq('invite_status', 'accepted')
-        .single()
-
-      if (projectUser) {
-        hasAccess = true
-      }
-    }
-
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
@@ -79,45 +55,19 @@ export async function POST(
     const supabase = await createServiceClient()
     const { conversationId } = await params
 
-    // Verify access and get conversation details
-    let hasAccess = false
-    let conversationTitle = ''
-
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('id, title')
-      .eq('id', conversationId)
-      .or(`photographer_id.eq.${session.user.id},client_id.eq.${session.user.id}`)
-      .single()
-
-    if (conversation) {
-      hasAccess = true
-      conversationTitle = conversation.title
-    } else {
-      // Check if user has access via project_users (invite)
-      const { data: projectUser } = await supabase
-        .from('project_users')
-        .select('id')
-        .eq('project_id', conversationId)
-        .eq('email', session.user.email)
-        .eq('invite_status', 'accepted')
-        .single()
-
-      if (projectUser) {
-        hasAccess = true
-        // Get conversation title separately
-        const { data: conv } = await supabase
-          .from('conversations')
-          .select('title')
-          .eq('id', conversationId)
-          .single()
-        conversationTitle = conv?.title || 'Untitled'
-      }
-    }
-
+    // Verify access
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    // Get conversation title
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('title')
+      .eq('id', conversationId)
+      .single()
+    const conversationTitle = conv?.title || 'Untitled'
 
     // Get all images (not links) for this project
     const { data: assets } = await supabase

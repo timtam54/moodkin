@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ImageUpload } from '@/components/upload/image-upload'
-import type { Client } from '@/types/database'
+import type { User } from '@/types/database'
 
 interface ClientFormProps {
-  initialData?: Partial<Client>
+  initialData?: Partial<User>
   onSubmit: (data: { email: string; name?: string; phone?: string; address?: string; notes?: string; avatar_url?: string }) => void
   isLoading?: boolean
 }

@@ -97,55 +97,32 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServiceClient()
 
-    // Check if user exists as photographer
-    const { data: existingPhotographer } = await supabase
-      .from('photographers')
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
       .select('id')
       .eq('email', email)
       .single()
 
-    if (existingPhotographer) {
-      // Update existing photographer
+    if (existingUser) {
+      // Update existing user
       await supabase
-        .from('photographers')
+        .from('users')
         .update({
           auth_provider: 'microsoft',
           auth_provider_id: userInfo.id,
           name: userInfo.displayName,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existingPhotographer.id)
+        .eq('id', existingUser.id)
 
-      await createSession(existingPhotographer.id, 'photographer')
+      await createSession(existingUser.id)
       return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
-    // Check if user exists as client
-    const { data: existingClient } = await supabase
-      .from('clients')
-      .select('id, photographer_id')
-      .eq('email', email)
-      .single()
-
-    if (existingClient) {
-      // Update existing client
-      await supabase
-        .from('clients')
-        .update({
-          auth_provider: 'microsoft',
-          auth_provider_id: userInfo.id,
-          name: userInfo.displayName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingClient.id)
-
-      await createSession(existingClient.id, 'client')
-      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
-    }
-
-    // New user - create photographer account
-    const { data: newPhotographer, error: createError } = await supabase
-      .from('photographers')
+    // New user - create account
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
       .insert({
         email,
         name: userInfo.displayName,
@@ -159,12 +136,12 @@ export async function GET(request: NextRequest) {
       .select('id')
       .single()
 
-    if (createError || !newPhotographer) {
-      console.error('Error creating photographer:', createError)
+    if (createError || !newUser) {
+      console.error('Error creating user:', createError)
       return NextResponse.redirect(new URL('/login?error=create_failed', request.url))
     }
 
-    await createSession(newPhotographer.id, 'photographer')
+    await createSession(newUser.id)
     return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
   } catch (error) {
     console.error('Microsoft auth error:', error)

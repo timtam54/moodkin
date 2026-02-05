@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
 export const createConversationSchema = z.object({
-  client_id: z.string().uuid(),
   category_id: z.string().uuid().optional(),
   title: z.string().min(1),
   cover_image_url: z.string().url().optional(),

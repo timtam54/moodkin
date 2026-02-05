@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { MessageSquare } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatRelativeTime } from '@/lib/utils'
-import type { ConversationWithClient } from '@/hooks/use-conversations'
+import type { Conversation } from '@/types/database'
 
 // Placeholder images for conversations
 const conversationPlaceholders = [
@@ -23,7 +23,7 @@ function getPlaceholderImage(id: string): string {
 }
 
 interface ConversationCardProps {
-  conversation: ConversationWithClient
+  conversation: Conversation
 }
 
 export function ConversationCard({ conversation }: ConversationCardProps) {
@@ -57,7 +57,7 @@ export function ConversationCard({ conversation }: ConversationCardProps) {
         </p>
         <p className="text-white/80 text-sm truncate flex items-center gap-1 mt-1">
           <MessageSquare className="w-3 h-3" />
-          {conversation.client?.name || conversation.client?.email}
+          {conversation.status}
         </p>
         <p className="text-white/60 text-xs mt-1">
           {formatRelativeTime(conversation.updated_at)}

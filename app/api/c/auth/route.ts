@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invite token has expired' }, { status: 410 })
     }
 
-    // Create client session
-    await createSession(invite.client_id, 'client')
+    // Create session
+    await createSession(invite.user_id)
 
     // Delete token (single use)
     await supabase

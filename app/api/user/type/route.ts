@@ -18,15 +18,8 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (session.user.role !== 'photographer') {
-      return NextResponse.json(
-        { error: 'Only photographers can set user type' },
-        { status: 403 }
-      )
-    }
-
     const { error } = await supabase
-      .from('photographers')
+      .from('users')
       .update({ creative_client: type })
       .eq('id', session.user.id)
 

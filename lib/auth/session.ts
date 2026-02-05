@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
-import type { Photographer, Client, SubscriptionStatus, CreativeClientType } from '@/types/database'
+import type { SubscriptionStatus, CreativeClientType } from '@/types/database'
 
 const SESSION_COOKIE_NAME = 'moodkin_session'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
@@ -10,11 +10,9 @@ export interface SessionUser {
   email: string
   name: string | null
   avatarUrl: string | null
-  role: 'photographer' | 'client'
+  creativeClient: CreativeClientType | null
   subscriptionStatus?: SubscriptionStatus
   subscriptionEndsAt?: string | null
-  creativeClient?: CreativeClientType | null
-  photographerId?: string // For clients only
 }
 
 export interface Session {
@@ -24,19 +22,14 @@ export interface Session {
 
 interface SessionData {
   userId: string
-  userType: 'photographer' | 'client'
   expiresAt: string
 }
 
-export async function createSession(
-  userId: string,
-  userType: 'photographer' | 'client'
-): Promise<string> {
+export async function createSession(userId: string): Promise<string> {
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString()
 
   const sessionData: SessionData = {
     userId,
-    userType,
     expiresAt,
   }
 
@@ -63,69 +56,46 @@ export async function getSession(): Promise<Session | null> {
   }
 
   try {
-    const sessionData: SessionData = JSON.parse(
+    const raw = JSON.parse(
       Buffer.from(sessionToken, 'base64').toString('utf-8')
     )
 
+    // Handle both old format (with userType) and new format
+    const sessionData: SessionData = {
+      userId: raw.userId,
+      expiresAt: raw.expiresAt,
+    }
+
     // Check if session is expired
     if (new Date(sessionData.expiresAt) < new Date()) {
-      await destroySession()
       return null
     }
 
     const supabase = await createServiceClient()
 
-    if (sessionData.userType === 'photographer') {
-      const { data: photographer } = await supabase
-        .from('photographers')
-        .select('*')
-        .eq('id', sessionData.userId)
-        .single()
+    const { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', sessionData.userId)
+      .single()
 
-      if (!photographer) {
-        await destroySession()
-        return null
-      }
+    if (!user) {
+      return null
+    }
 
-      return {
-        user: {
-          id: photographer.id,
-          email: photographer.email,
-          name: photographer.name,
-          avatarUrl: photographer.avatar_url,
-          role: 'photographer',
-          subscriptionStatus: photographer.subscription_status,
-          subscriptionEndsAt: photographer.subscription_ends_at,
-          creativeClient: photographer.creative_client,
-        },
-        expiresAt: sessionData.expiresAt,
-      }
-    } else {
-      const { data: client } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', sessionData.userId)
-        .single()
-
-      if (!client) {
-        await destroySession()
-        return null
-      }
-
-      return {
-        user: {
-          id: client.id,
-          email: client.email,
-          name: client.name,
-          avatarUrl: null,
-          role: 'client',
-          photographerId: client.photographer_id,
-        },
-        expiresAt: sessionData.expiresAt,
-      }
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatar_url,
+        creativeClient: user.creative_client,
+        subscriptionStatus: user.subscription_status,
+        subscriptionEndsAt: user.subscription_ends_at,
+      },
+      expiresAt: sessionData.expiresAt,
     }
   } catch {
-    await destroySession()
     return null
   }
 }
@@ -139,14 +109,6 @@ export async function requireSession(): Promise<Session> {
   const session = await getSession()
   if (!session) {
     throw new Error('Unauthorized')
-  }
-  return session
-}
-
-export async function requirePhotographer(): Promise<Session> {
-  const session = await requireSession()
-  if (session.user.role !== 'photographer') {
-    throw new Error('Forbidden: Photographer access required')
   }
   return session
 }

@@ -31,13 +31,6 @@ export async function POST(
     // Get user's email from session (already fetched during auth)
     const userEmail = session.user.email
 
-    console.log('Accept invite debug:', {
-      userEmail,
-      inviteEmail: invite.email,
-      sessionUserId: session.user.id,
-      sessionRole: session.user.role,
-    })
-
     // Verify the invite email matches (case-insensitive)
     if (!userEmail || userEmail.toLowerCase() !== invite.email.toLowerCase()) {
       return NextResponse.json({
@@ -45,20 +38,14 @@ export async function POST(
       }, { status: 403 })
     }
 
-    // Accept the invite - only set user_id for photographers (due to FK constraint)
-    const updateData: Record<string, unknown> = {
-      invite_status: 'accepted',
-      accepted_at: new Date().toISOString(),
-    }
-
-    // Only set user_id if user is a photographer (FK constraint references photographers table)
-    if (session.user.role === 'photographer') {
-      updateData.user_id = session.user.id
-    }
-
+    // Accept the invite
     const { error: updateError } = await supabase
       .from('project_users')
-      .update(updateData)
+      .update({
+        invite_status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        user_id: session.user.id,
+      })
       .eq('id', invite.id)
 
     if (updateError) {

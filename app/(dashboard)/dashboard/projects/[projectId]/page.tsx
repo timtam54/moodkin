@@ -3,11 +3,12 @@
 import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, UserPlus, Users, X, Clock, CheckCircle } from 'lucide-react'
+import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, UserPlus, Users, X, Clock, CheckCircle, MessageCircle, Bell, BellOff } from 'lucide-react'
 import { useConversation, useDeleteConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard } from '@/hooks/use-moodboards'
-import { useProjectUsers, useRemoveProjectUser } from '@/hooks/use-project-users'
+import { useProjectUsers, useRemoveProjectUser, useUpdateProjectUserRole } from '@/hooks/use-project-users'
+import { useMessages, useSendMessage } from '@/hooks/use-messages'
 import { useSession } from '@/hooks/use-session'
 import type { MoodboardWithImages } from '@/types/database'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,9 @@ import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '@/compone
 import { InviteUserDialog } from '@/components/projects/invite-user-dialog'
 import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
+import { MessageList } from '@/components/conversation/message-list'
+import { MessageInput } from '@/components/conversation/message-input'
+import { usePushNotifications } from '@/hooks/use-push-notifications'
 import Image from 'next/image'
 
 const tabs = [
@@ -24,6 +28,7 @@ const tabs = [
   { id: 'client', label: 'Client' },
   { id: 'links', label: 'Links' },
   { id: 'moodboards', label: 'Moodboards' },
+  { id: 'conversation', label: 'Conversation' },
 ]
 
 export default function ProjectDetailPage() {
@@ -50,8 +55,23 @@ export default function ProjectDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
   const removeProjectUser = useRemoveProjectUser(projectId)
+  const updateProjectUserRole = useUpdateProjectUserRole(projectId)
+  const { data: messages } = useMessages(projectId)
+  const sendMessage = useSendMessage(projectId)
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
 
   const currentUserId = session?.user?.id || ''
+
+  // Build a role map from project users for filtering assets by uploader role
+  const userRoleMap = new Map<string, string>()
+  // Build a sender map for conversation messages (userId -> email)
+  const senderMap = new Map<string, string>()
+  projectUsers?.forEach(pu => {
+    if (pu.user_id) {
+      userRoleMap.set(pu.user_id, pu.is_owner ? 'creative' : pu.role)
+      senderMap.set(pu.user_id, pu.email)
+    }
+  })
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -275,14 +295,7 @@ export default function ProjectDetailPage() {
             <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
-              {project.client?.name && (
-                <a
-                  href={`/dashboard/clients/${project.client.id}`}
-                  className="text-xl text-moodkin-gray hover:text-moodkin-dark transition-colors"
-                >
-                  • {project.client.name}
-                </a>
-              )}
+              {/* Project team indicator removed - client info derived from project_users */}
             </div>
           </div>
         </div>
@@ -397,8 +410,8 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'creative' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Photographer Assets (images only) */}
-            {assets?.filter(a => a.uploaded_by_type === 'photographer' && a.asset_type !== 'link').map((asset) => (
+            {/* Creative Assets (images only) */}
+            {assets?.filter(a => userRoleMap.get(a.uploaded_by_id) === 'creative' && a.asset_type !== 'link').map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
@@ -435,7 +448,7 @@ export default function ProjectDetailPage() {
         {activeTab === 'client' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* Client Assets (images only) */}
-            {assets?.filter(a => a.uploaded_by_type === 'client' && a.asset_type !== 'link').map((asset) => (
+            {assets?.filter(a => userRoleMap.get(a.uploaded_by_id) === 'client' && a.asset_type !== 'link').map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
@@ -608,6 +621,44 @@ export default function ProjectDetailPage() {
             )}
           </div>
         )}
+
+        {activeTab === 'conversation' && (
+          <div className="flex flex-col h-[500px] bg-white rounded-2xl shadow-sm overflow-hidden">
+            {pushSupported && (
+              <div className="flex items-center justify-end px-4 pt-3 pb-1">
+                <button
+                  onClick={() => pushSubscribed ? pushUnsubscribe() : pushSubscribe()}
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                    pushSubscribed
+                      ? 'border-moodkin-gold bg-moodkin-gold/10 text-moodkin-dark'
+                      : 'border-gray-200 text-gray-500 hover:border-moodkin-gold hover:text-moodkin-dark'
+                  }`}
+                >
+                  {pushSubscribed ? (
+                    <>
+                      <Bell className="w-3.5 h-3.5" />
+                      Notifications on
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="w-3.5 h-3.5" />
+                      Enable notifications
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            <MessageList
+              messages={messages || []}
+              currentUserId={currentUserId}
+              senderMap={senderMap}
+            />
+            <MessageInput
+              onSend={(text) => sendMessage.mutate({ text_content: text })}
+              disabled={sendMessage.isPending}
+            />
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -739,7 +790,23 @@ export default function ProjectDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-moodkin-dark">{user.email}</p>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-moodkin-gray capitalize">{user.role}</span>
+                      {user.is_owner ? (
+                        <span className="text-xs text-moodkin-gold font-medium">Owner</span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const newRole = user.role === 'creative' ? 'client' : 'creative'
+                            updateProjectUserRole.mutate({ userId: user.id, role: newRole })
+                          }}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-colors hover:bg-moodkin-gold/10 hover:border-moodkin-gold capitalize"
+                          style={{
+                            borderColor: user.role === 'creative' ? '#E9B824' : '#9ca3af',
+                            color: user.role === 'creative' ? '#92700e' : '#6b7280',
+                          }}
+                        >
+                          {user.role}
+                        </button>
+                      )}
                       {user.invite_status === 'pending' ? (
                         <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                           <Clock className="w-3 h-3" />

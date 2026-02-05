@@ -1,9 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Conversation, Client } from '@/types/database'
-
-export type ConversationWithClient = Conversation & {
-  client: Pick<Client, 'id' | 'name' | 'email'>
-}
+import type { Conversation } from '@/types/database'
 
 export function useConversations() {
   return useQuery({
@@ -11,7 +7,7 @@ export function useConversations() {
     queryFn: async () => {
       const res = await fetch('/api/conversations')
       if (!res.ok) throw new Error('Failed to fetch conversations')
-      return res.json() as Promise<ConversationWithClient[]>
+      return res.json() as Promise<Conversation[]>
     },
   })
 }
@@ -31,7 +27,7 @@ export function useConversation(conversationId: string) {
 export function useCreateConversation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { client_id: string; title: string; category_id?: string; cover_image_url?: string }) => {
+    mutationFn: async (data: { title: string; category_id?: string; cover_image_url?: string }) => {
       const res = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
