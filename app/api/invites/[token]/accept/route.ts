@@ -53,6 +53,20 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to accept invite' }, { status: 500 })
     }
 
+    // Set the user's creative_client type based on invite role (if not already set)
+    const { data: user } = await supabase
+      .from('users')
+      .select('creative_client')
+      .eq('id', session.user.id)
+      .single()
+
+    if (user && user.creative_client === null) {
+      await supabase
+        .from('users')
+        .update({ creative_client: invite.role })
+        .eq('id', session.user.id)
+    }
+
     return NextResponse.json({ success: true, project_id: invite.project_id })
   } catch {
     return NextResponse.json({ error: 'Please sign in to accept this invite' }, { status: 401 })

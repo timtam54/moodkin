@@ -8,13 +8,16 @@ import Image from 'next/image'
 import { upload } from '@vercel/blob/client'
 import { Button } from '@/components/ui/button'
 import { EditClientDialog } from '@/components/clients/edit-client-dialog'
-import { useClient, useUpdateClient } from '@/hooks/use-clients'
+import { useClient, useUpdateClient, useClientProjects } from '@/hooks/use-clients'
+import { FolderOpen } from 'lucide-react'
+import { ConversationCard } from '@/components/conversations/conversation-card'
 
 export default function ClientDetailPage() {
   const { clientId } = useParams<{ clientId: string }>()
   const router = useRouter()
   const { data: client, isLoading } = useClient(clientId)
   const updateClient = useUpdateClient(clientId)
+  const { data: projects, isLoading: projectsLoading } = useClientProjects(clientId)
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -161,6 +164,25 @@ export default function ClientDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Projects Section */}
+      <div>
+        <h2 className="text-lg font-semibold text-moodkin-dark mb-4">Projects</h2>
+        {projectsLoading ? (
+          <div className="py-8 text-center text-moodkin-gray">Loading projects...</div>
+        ) : projects && projects.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {projects.map((project) => (
+              <ConversationCard key={project.id} conversation={project} />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center text-moodkin-gray">
+            <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
+            <p>No projects yet</p>
+          </div>
+        )}
       </div>
 
       {/* Edit Client Dialog */}

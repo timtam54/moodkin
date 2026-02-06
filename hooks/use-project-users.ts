@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ProjectUser, ProjectUserRole } from '@/types/database'
+import type { ProjectUserWithUser, ProjectUserRole } from '@/types/database'
 
 // Fetch project users
 export function useProjectUsers(projectId: string) {
   return useQuery({
     queryKey: ['project-users', projectId],
-    queryFn: async (): Promise<ProjectUser[]> => {
+    queryFn: async (): Promise<ProjectUserWithUser[]> => {
       const res = await fetch(`/api/projects/${projectId}/users`)
       if (!res.ok) {
         throw new Error('Failed to fetch project users')

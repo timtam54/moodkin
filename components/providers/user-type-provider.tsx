@@ -1,12 +1,14 @@
 'use client'
 
 import { ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { useSession } from '@/hooks/use-session'
 import { UserTypeSelector } from '@/components/user-type-selector'
 import type { CreativeClientType } from '@/types/database'
 
 export function UserTypeProvider({ children }: { children: ReactNode }) {
   const { session, isLoading, refetch } = useSession()
+  const pathname = usePathname()
 
   const handleSelect = async (type: CreativeClientType) => {
     const response = await fetch('/api/user/type', {
@@ -26,7 +28,10 @@ export function UserTypeProvider({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
 
-  if (session && session.user.creativeClient === null) {
+  // Skip the user type selector on invite pages - they'll set type when accepting
+  const isInvitePage = pathname?.startsWith('/invite')
+
+  if (session && session.user.creativeClient === null && !isInvitePage) {
     return <UserTypeSelector onSelect={handleSelect} />
   }
 

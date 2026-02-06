@@ -21,6 +21,7 @@ import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const tabs = [
   { id: 'uploads', label: 'Uploads' },
@@ -292,11 +293,22 @@ export default function ProjectDetailPage() {
             <ChevronLeft className="w-6 h-6 text-moodkin-dark" />
           </button> 
           <div>
-            <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
-              {/* Project team indicator removed - client info derived from project_users */}
-            </div>
+            {(() => {
+              const clientUser = projectUsers?.find(pu => pu.role === 'client' && !pu.is_owner)
+              const clientName = clientUser?.user?.name || clientUser?.email
+              const clientId = clientUser?.user_id
+              return clientName && clientId ? (
+                <Link
+                  href={`/dashboard/clients/${clientId}`}
+                  className="text-sm text-moodkin-gold font-medium tracking-wider uppercase hover:underline"
+                >
+                  {clientName}
+                </Link>
+              ) : (
+                <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
+              )
+            })()}
+            <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">

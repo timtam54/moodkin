@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { User } from '@/types/database'
+import type { User, Conversation } from '@/types/database'
 
 export function useClients(search?: string) {
   return useQuery({
@@ -42,5 +42,17 @@ export function useUpdateClient(clientId: string) {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
       queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
     },
+  })
+}
+
+export function useClientProjects(clientId: string) {
+  return useQuery({
+    queryKey: ['clients', clientId, 'projects'],
+    queryFn: async () => {
+      const res = await fetch(`/api/clients/${clientId}/projects`)
+      if (!res.ok) throw new Error('Failed to fetch client projects')
+      return res.json() as Promise<Conversation[]>
+    },
+    enabled: !!clientId,
   })
 }
