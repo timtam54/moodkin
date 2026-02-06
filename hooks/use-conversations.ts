@@ -43,7 +43,7 @@ export function useCreateConversation() {
 export function useUpdateConversation(conversationId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { title?: string; status?: string; category_id?: string | null }) => {
+    mutationFn: async (data: { title?: string; status?: string; category_id?: string | null; cover_image_url?: string }) => {
       const res = await fetch(`/api/conversations/${conversationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

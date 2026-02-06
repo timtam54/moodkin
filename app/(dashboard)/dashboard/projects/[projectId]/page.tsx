@@ -3,8 +3,8 @@
 import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, UserPlus, Users, X, Clock, CheckCircle, MessageCircle, Bell, BellOff } from 'lucide-react'
-import { useConversation, useDeleteConversation } from '@/hooks/use-conversations'
+import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, UserPlus, Users, X, Clock, CheckCircle, MessageCircle, Bell, BellOff, Pencil } from 'lucide-react'
+import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard } from '@/hooks/use-moodboards'
 import { useProjectUsers, useRemoveProjectUser, useUpdateProjectUserRole } from '@/hooks/use-project-users'
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { InviteUserDialog } from '@/components/projects/invite-user-dialog'
+import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
 import { MessageList } from '@/components/conversation/message-list'
@@ -43,7 +44,9 @@ export default function ProjectDetailPage() {
   const deleteAsset = useDeleteProjectAsset(projectId)
   const createMoodboard = useCreateMoodboard(projectId)
   const deleteProject = useDeleteConversation()
+  const updateProject = useUpdateConversation(projectId)
   const [activeTab, setActiveTab] = useState('uploads')
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isAddingLink, setIsAddingLink] = useState(false)
@@ -331,6 +334,10 @@ export default function ProjectDetailPage() {
               </button>
             }
           >
+            <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+              <Pencil className="w-4 h-4" />
+              Edit Project
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowInviteDialog(true)}>
               <UserPlus className="w-4 h-4" />
               Invite Collaborator
@@ -772,6 +779,19 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        project={project}
+        onSubmit={(data) => {
+          updateProject.mutate(data, {
+            onSuccess: () => setShowEditDialog(false),
+          })
+        }}
+        isLoading={updateProject.isPending}
+      />
 
       {/* Invite User Dialog */}
       <InviteUserDialog
