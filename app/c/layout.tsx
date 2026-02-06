@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth/session'
 
 export default async function ClientLayout({
   children,
-}: {
+}: { 
   children: React.ReactNode
 }) {
   const session = await getSession()
