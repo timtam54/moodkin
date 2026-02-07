@@ -356,21 +356,18 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-moodkin-light-gray/50 mb-6">
+      <div className="flex flex-wrap gap-x-4 gap-y-2 border-b border-moodkin-light-gray/50 mb-6 pb-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`pb-3 text-sm font-medium transition-colors relative ${
+            className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-full ${
               activeTab === tab.id
-                ? 'text-moodkin-dark'
-                : 'text-moodkin-gray hover:text-moodkin-dark'
+                ? 'bg-moodkin-gold text-moodkin-dark'
+                : 'text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream'
             }`}
           >
             {tab.label}
-            {activeTab === tab.id && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-moodkin-gold" />
-            )}
           </button>
         ))}
       </div>
