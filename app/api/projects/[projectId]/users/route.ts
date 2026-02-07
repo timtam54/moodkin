@@ -110,12 +110,17 @@ export async function POST(
 
     // Send invite email
     try {
+      console.log('[Email] Attempting to send invite email to:', email)
+      console.log('[Email] Using EMAIL_USER:', process.env.EMAIL_USER)
+      console.log('[Email] EMAIL_PASSWORD set:', !!process.env.EMAIL_PASSWORD)
+
       const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
+        secure: false,
         auth: {
-          user: process.env.EMAIL_USER || 'JobSafePro@gmail.com',
-          pass: process.env.EMAIL_PASSWORD || 'fqpl dhhc wvuo nzjn',
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
         },
       })
 
@@ -167,15 +172,16 @@ export async function POST(
       `
 
       await transporter.sendMail({
-        from: process.env.EMAIL_USER || 'JobSafePro@gmail.com',
+        from: process.env.EMAIL_USER,
         to: email,
         subject: `${inviter?.name || 'Someone'} invited you to collaborate on "${project.title}"`,
         html: emailHtml,
       })
 
-      console.log('Invite email sent to:', email)
+      console.log('[Email] Invite email sent successfully to:', email)
     } catch (emailError) {
-      console.error('Failed to send invite email:', emailError)
+      console.error('[Email] Failed to send invite email:', emailError)
+      console.error('[Email] Error details:', JSON.stringify(emailError, Object.getOwnPropertyNames(emailError as object)))
       // Don't fail the request, the invite was still created
     }
 

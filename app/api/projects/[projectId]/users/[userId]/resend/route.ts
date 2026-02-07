@@ -56,12 +56,17 @@ export async function POST(
       .single()
 
     // Send invite email
+    console.log('[Email] Attempting to resend invite email to:', invite.email)
+    console.log('[Email] Using EMAIL_USER:', process.env.EMAIL_USER)
+    console.log('[Email] EMAIL_PASSWORD set:', !!process.env.EMAIL_PASSWORD)
+
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 587,
+      secure: false,
       auth: {
-        user: process.env.EMAIL_USER || 'JobSafePro@gmail.com',
-        pass: process.env.EMAIL_PASSWORD || 'fqpl dhhc wvuo nzjn',
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
       },
     })
 
@@ -117,12 +122,19 @@ export async function POST(
       </html>
     `
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'JobSafePro@gmail.com',
-      to: invite.email,
-      subject: `Reminder: ${inviter?.name || 'Someone'} invited you to collaborate on "${project.title}"`,
-      html: emailHtml,
-    })
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: invite.email,
+        subject: `Reminder: ${inviter?.name || 'Someone'} invited you to collaborate on "${project.title}"`,
+        html: emailHtml,
+      })
+      console.log('[Email] Resend email sent successfully to:', invite.email)
+    } catch (emailError) {
+      console.error('[Email] Failed to resend invite email:', emailError)
+      console.error('[Email] Error details:', JSON.stringify(emailError, Object.getOwnPropertyNames(emailError as object)))
+      return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
+    }
 
     // Update the invited_at timestamp
     await supabase
@@ -131,7 +143,8 @@ export async function POST(
       .eq('id', userId)
 
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (err) {
+    console.error('[Email] Unexpected error:', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }
