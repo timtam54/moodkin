@@ -7,6 +7,7 @@ import { MessageInput } from '@/components/conversation/message-input'
 import { CanvasToolbar } from '@/components/canvas/canvas-toolbar'
 import { useConversation } from '@/hooks/use-conversations'
 import { useMessages, useSendMessage, useLatestCanvasData } from '@/hooks/use-messages'
+import { Loading } from '@/components/ui/loading'
 import { useSession } from '@/hooks/use-session'
 import type { Json } from '@/types/database'
 
@@ -33,7 +34,7 @@ export default function ClientConversationPage() {
   }
 
   if (isLoading) {
-    return <div className="py-12 text-center text-gray-500">Loading...</div>
+    return <Loading message="Loading conversation..." />
   }
 
   if (!conversation) {

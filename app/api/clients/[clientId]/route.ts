@@ -70,8 +70,29 @@ export async function PATCH(
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
-    // Only allow editing your own profile
-    if (clientId !== session.user.id) {
+    // Verify the current user is an owner of a project that includes this client
+    const { data: ownedProjects } = await supabase
+      .from('project_users')
+      .select('project_id')
+      .eq('user_id', session.user.id)
+      .eq('is_owner', true)
+
+    const projectIds = ownedProjects?.map(p => p.project_id) || []
+
+    if (projectIds.length === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { data: clientAccess } = await supabase
+      .from('project_users')
+      .select('id')
+      .in('project_id', projectIds)
+      .eq('user_id', clientId)
+      .eq('role', 'client')
+      .limit(1)
+      .single()
+
+    if (!clientAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

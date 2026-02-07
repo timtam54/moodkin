@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
+import { Loading } from '@/components/ui/loading'
 import { useSession } from '@/hooks/use-session'
 import { cn } from '@/lib/utils'
 
@@ -77,10 +78,7 @@ export default function InvitePage() {
   if (isLoading || sessionLoading) {
     return (
       <div className="min-h-screen bg-moodkin-cream flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-moodkin-gold animate-spin mx-auto mb-4" />
-          <p className="text-moodkin-gray">Loading invite...</p>
-        </div>
+        <Loading message="Loading invite..." />
       </div>
     )
   }

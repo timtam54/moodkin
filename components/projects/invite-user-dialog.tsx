@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useProjectUsers, useInviteUser, useRemoveProjectUser, useResendInvite } from '@/hooks/use-project-users'
-import { Camera, Briefcase, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send } from 'lucide-react'
+import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User } from 'lucide-react'
 import type { ProjectUserRole } from '@/types/database'
 
 interface InviteUserDialogProps {
@@ -176,7 +176,7 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
                     : 'border-moodkin-light-gray hover:border-moodkin-gold/50'
                 }`}
               >
-                <Briefcase className={`w-6 h-6 mx-auto mb-2 ${role === 'client' ? 'text-moodkin-gold' : 'text-moodkin-gray'}`} />
+                <User className={`w-6 h-6 mx-auto mb-2 ${role === 'client' ? 'text-moodkin-gold' : 'text-moodkin-gray'}`} />
                 <p className={`font-medium text-sm ${role === 'client' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`}>
                   Client
                 </p>
@@ -212,25 +212,89 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
             </div>
           ) : projectUsers && projectUsers.length > 0 ? (
             <>
-              {/* Pending Invites */}
-              {pendingInvites.length > 0 && (
+              {/* Owner */}
+              {projectUsers.filter(u => u.is_owner).length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
-                    Pending Invites ({pendingInvites.length})
+                    Owner
                   </h3>
                   <div className="space-y-2">
-                    {pendingInvites.map((user) => (
+                    {projectUsers.filter(u => u.is_owner).map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-3 rounded-xl bg-moodkin-gold/10 border border-moodkin-gold/30"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full bg-moodkin-gold/30 flex items-center justify-center flex-shrink-0">
+                            <Crown className="w-4 h-4 text-moodkin-gold" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 text-xs text-moodkin-gold font-medium">
+                                <Crown className="w-3 h-3" />
+                                Owner
+                              </span>
+                              <span className="text-xs text-moodkin-gray">•</span>
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
+                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
+                              }`}>
+                                {user.role === 'creative' ? (
+                                  <Camera className="w-3 h-3" />
+                                ) : (
+                                  <User className="w-3 h-3" />
+                                )}
+                                {user.role}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending Invites */}
+              {pendingInvites.filter(u => !u.is_owner).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
+                    Pending Invites ({pendingInvites.filter(u => !u.is_owner).length})
+                  </h3>
+                  <div className="space-y-2">
+                    {pendingInvites.filter(u => !u.is_owner).map((user) => (
                       <div
                         key={user.id}
                         className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                            <Clock className="w-4 h-4 text-amber-600" />
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
+                          }`}>
+                            {user.role === 'creative' ? (
+                              <Camera className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <User className="w-4 h-4 text-blue-600" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
-                            <p className="text-xs text-moodkin-gray capitalize">{user.role}</p>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
+                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
+                              }`}>
+                                {user.role === 'creative' ? (
+                                  <Camera className="w-3 h-3" />
+                                ) : (
+                                  <User className="w-3 h-3" />
+                                )}
+                                {user.role}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                <Clock className="w-3 h-3" />
+                                Pending
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 flex-shrink-0">
@@ -262,24 +326,49 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
               )}
 
               {/* Accepted Members */}
-              {acceptedInvites.length > 0 && (
+              {acceptedInvites.filter(u => !u.is_owner).length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
-                    Active Members ({acceptedInvites.length})
+                    Active Members ({acceptedInvites.filter(u => !u.is_owner).length})
                   </h3>
                   <div className="space-y-2">
-                    {acceptedInvites.map((user) => (
+                    {acceptedInvites.filter(u => !u.is_owner).map((user) => (
                       <div
                         key={user.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-green-50 border border-green-100"
+                        className={`flex items-center justify-between p-3 rounded-xl border ${
+                          user.role === 'creative'
+                            ? 'bg-purple-50 border-purple-100'
+                            : 'bg-blue-50 border-blue-100'
+                        }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
+                          }`}>
+                            {user.role === 'creative' ? (
+                              <Camera className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <User className="w-4 h-4 text-blue-600" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
-                            <p className="text-xs text-moodkin-gray capitalize">{user.role}</p>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
+                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
+                              }`}>
+                                {user.role === 'creative' ? (
+                                  <Camera className="w-3 h-3" />
+                                ) : (
+                                  <User className="w-3 h-3" />
+                                )}
+                                {user.role}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle className="w-3 h-3" />
+                                Active
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <button

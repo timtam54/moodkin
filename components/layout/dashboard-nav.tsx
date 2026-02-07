@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { logout } from '@/lib/auth/client'
+import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import type { SessionUser } from '@/lib/auth/session'
 
 interface DashboardNavProps {
@@ -153,6 +154,9 @@ export function DashboardNav({ user }: DashboardNavProps) {
           </div>
         </div>
       )}
+
+      {/* Push notification prompt */}
+      <PushNotificationPrompt />
     </header>
   )
 }

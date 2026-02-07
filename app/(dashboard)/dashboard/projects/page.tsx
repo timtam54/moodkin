@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Plus, FolderOpen, FolderPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Loading } from '@/components/ui/loading'
 import { ConversationCard } from '@/components/conversations/conversation-card'
 import { useConversations } from '@/hooks/use-conversations'
 
@@ -26,7 +27,7 @@ export default function ProjectsPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+        <Loading message="Loading projects..." />
       ) : !projects?.length ? (
         <div className="bg-white rounded-2xl shadow-sm p-8">
           <EmptyState

@@ -10,7 +10,11 @@ export async function POST(request: NextRequest) {
 
     const { endpoint, keys } = await request.json()
 
+    console.log('[Push Subscribe] Received subscription for user:', session.user.id)
+    console.log('[Push Subscribe] Endpoint:', endpoint?.slice(0, 50) + '...')
+
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      console.error('[Push Subscribe] Invalid subscription data')
       return NextResponse.json({ error: 'Invalid subscription' }, { status: 400 })
     }
 
@@ -27,12 +31,14 @@ export async function POST(request: NextRequest) {
       )
 
     if (error) {
-      console.error('Error saving push subscription:', error)
+      console.error('[Push Subscribe] Error saving subscription:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    console.log('[Push Subscribe] Successfully saved subscription for user:', session.user.id)
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (err) {
+    console.error('[Push Subscribe] Unexpected error:', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

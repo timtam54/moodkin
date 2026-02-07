@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/ui/logo'
 import { buttonVariants } from '@/components/ui/button'
+import { Loading } from '@/components/ui/loading'
 import { cn } from '@/lib/utils'
 
 const errorMessages: Record<string, string> = {
@@ -119,7 +120,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-moodkin-cream">
-          <div className="animate-pulse text-moodkin-gray">Loading...</div>
+          <Loading message="Loading..." />
         </div>
       }
     >

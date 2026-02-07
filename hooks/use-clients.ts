@@ -35,12 +35,19 @@ export function useUpdateClient(clientId: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Failed to update client')
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error('You do not have permission to edit this client')
+        }
+        throw new Error('Failed to update client')
+      }
       return res.json() as Promise<User>
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] })
-      queryClient.invalidateQueries({ queryKey: ['clients', clientId] })
+    onSuccess: (updatedClient) => {
+      // Immediately update the cache with the new data
+      queryClient.setQueryData(['clients', clientId], updatedClient)
+      // Also invalidate the clients list so it refetches
+      queryClient.invalidateQueries({ queryKey: ['clients'], exact: true })
     },
   })
 }

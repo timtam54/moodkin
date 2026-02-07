@@ -6,6 +6,7 @@ import { Plus, Search, Users, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Loading } from '@/components/ui/loading'
 import { ClientCard } from '@/components/clients/client-card'
 import { useClients } from '@/hooks/use-clients'
 
@@ -39,7 +40,7 @@ export default function ClientsPage() {
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+        <Loading message="Loading clients..." />
       ) : !clients?.length ? (
         <div className="bg-white rounded-2xl shadow-sm p-8">
           <EmptyState

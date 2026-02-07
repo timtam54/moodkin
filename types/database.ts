@@ -438,6 +438,87 @@ export interface Database {
           created_at?: string
         }
       }
+      project_colours: {
+        Row: {
+          id: string
+          conversation_id: string
+          hex_color: string
+          name: string | null
+          added_by_id: string
+          added_by_name: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          hex_color: string
+          name?: string | null
+          added_by_id: string
+          added_by_name?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          hex_color?: string
+          name?: string | null
+          added_by_id?: string
+          added_by_name?: string | null
+          created_at?: string
+        }
+      }
+      colour_reactions: {
+        Row: {
+          id: string
+          colour_id: string
+          user_id: string
+          user_name: string | null
+          reaction_type: ReactionType
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          colour_id: string
+          user_id: string
+          user_name?: string | null
+          reaction_type: ReactionType
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          colour_id?: string
+          user_id?: string
+          user_name?: string | null
+          reaction_type?: ReactionType
+          created_at?: string
+        }
+      }
+      colour_comments: {
+        Row: {
+          id: string
+          colour_id: string
+          user_id: string
+          user_name: string | null
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          colour_id: string
+          user_id: string
+          user_name?: string | null
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          colour_id?: string
+          user_id?: string
+          user_name?: string | null
+          content?: string
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -459,6 +540,9 @@ export type ProjectUserWithUser = ProjectUser & {
   user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url'> | null
 }
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
+export type ProjectColour = Database['public']['Tables']['project_colours']['Row']
+export type ColourReaction = Database['public']['Tables']['colour_reactions']['Row']
+export type ColourComment = Database['public']['Tables']['colour_comments']['Row']
 
 // Extended moodboard type with images
 export type MoodboardWithImages = Moodboard & {

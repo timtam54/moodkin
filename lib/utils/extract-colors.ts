@@ -6,7 +6,17 @@ import { Vibrant } from 'node-vibrant/node'
  */
 export async function extractColorsFromUrl(imageUrl: string): Promise<string[]> {
   try {
-    const palette = await new Vibrant(imageUrl).getPalette()
+    // Fetch the image as a buffer first (more reliable than passing URL directly)
+    const response = await fetch(imageUrl)
+    if (!response.ok) {
+      console.error('Failed to fetch image for color extraction:', response.status)
+      return []
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const palette = await Vibrant.from(buffer).getPalette()
 
     const colors: string[] = []
 

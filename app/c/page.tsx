@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { MessageSquare, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Loading } from '@/components/ui/loading'
 import { formatRelativeTime } from '@/lib/utils'
 import type { Conversation } from '@/types/database'
 
@@ -37,7 +38,7 @@ export default function ClientPortalPage() {
       <Card className="rounded-2xl border-0 shadow-sm">
         <CardContent className="p-2">
           {loading ? (
-            <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+            <Loading message="Loading moodboards..." />
           ) : !conversations.length ? (
             <EmptyState
               icon={MessageSquare}

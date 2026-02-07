@@ -32,7 +32,7 @@ export function MessageList({ messages, currentUserId, senderMap }: MessageListP
         const isOwn = message.sender_id === currentUserId
         const isCanvas = !!message.canvas_data && !message.text_content
         const prevMessage = index > 0 ? messages[index - 1] : null
-        const showSender = senderMap && !isOwn && message.sender_id !== prevMessage?.sender_id
+        const showSender = message.sender_id !== prevMessage?.sender_id
 
         return (
           <div
@@ -41,7 +41,7 @@ export function MessageList({ messages, currentUserId, senderMap }: MessageListP
           >
             {showSender && (
               <span className="text-xs text-gray-400 mb-1 px-1">
-                {senderMap.get(message.sender_id) || 'Unknown'}
+                {isOwn ? 'Me' : (senderMap?.get(message.sender_id) || 'Unknown')}
               </span>
             )}
             <div

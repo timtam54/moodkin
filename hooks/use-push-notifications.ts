@@ -37,22 +37,35 @@ export function usePushNotifications() {
   }, [])
 
   const subscribe = useCallback(async () => {
-    if (!isSupported) return false
+    if (!isSupported) {
+      console.log('[Push] Not supported in this browser')
+      return false
+    }
 
     try {
+      console.log('[Push] Requesting notification permission...')
       const perm = await Notification.requestPermission()
       setPermission(perm)
+      console.log('[Push] Permission result:', perm)
 
-      if (perm !== 'granted') return false
+      if (perm !== 'granted') {
+        console.log('[Push] Permission not granted')
+        return false
+      }
 
+      console.log('[Push] Waiting for service worker to be ready...')
       const registration = await navigator.serviceWorker.ready
+      console.log('[Push] Service worker ready, subscribing to push manager...')
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       })
+      console.log('[Push] Got subscription:', subscription.endpoint.slice(0, 50) + '...')
 
       const sub = subscription.toJSON()
 
+      console.log('[Push] Saving subscription to server...')
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,13 +76,16 @@ export function usePushNotifications() {
       })
 
       if (res.ok) {
+        console.log('[Push] Subscription saved successfully!')
         setIsSubscribed(true)
         return true
       }
 
+      const errorData = await res.json().catch(() => ({}))
+      console.error('[Push] Failed to save subscription:', res.status, errorData)
       return false
     } catch (error) {
-      console.error('Failed to subscribe to push:', error)
+      console.error('[Push] Failed to subscribe to push:', error)
       return false
     }
   }, [isSupported])

@@ -9,6 +9,8 @@ import { upload } from '@vercel/blob/client'
 import { Button } from '@/components/ui/button'
 import { EditClientDialog } from '@/components/clients/edit-client-dialog'
 import { useClient, useUpdateClient, useClientProjects } from '@/hooks/use-clients'
+import { useToast } from '@/components/ui/toast'
+import { Loading } from '@/components/ui/loading'
 import { FolderOpen } from 'lucide-react'
 import { ConversationCard } from '@/components/conversations/conversation-card'
 
@@ -21,6 +23,7 @@ export default function ClientDetailPage() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const { showToast } = useToast()
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -28,7 +31,7 @@ export default function ClientDetailPage() {
 
     const maxBytes = 10 * 1024 * 1024
     if (file.size > maxBytes) {
-      alert('File size must be less than 10MB')
+      showToast('File size must be less than 10MB', 'error')
       return
     }
 
@@ -39,10 +42,20 @@ export default function ClientDetailPage() {
         handleUploadUrl: '/api/upload',
       })
 
-      updateClient.mutate({ avatar_url: blob.url })
+      updateClient.mutate(
+        { avatar_url: blob.url },
+        {
+          onSuccess: () => {
+            showToast('Photo updated successfully', 'success')
+          },
+          onError: (error) => {
+            showToast(error.message || 'Failed to update photo', 'error')
+          },
+        }
+      )
     } catch (error) {
       console.error('Upload failed:', error)
-      alert('Failed to upload image')
+      showToast('Failed to upload image', 'error')
     } finally {
       setIsUploadingPhoto(false)
       if (photoInputRef.current) {
@@ -53,12 +66,18 @@ export default function ClientDetailPage() {
 
   function handleSubmit(data: { email: string; name?: string; phone?: string; address?: string; notes?: string; avatar_url?: string }) {
     updateClient.mutate(data, {
-      onSuccess: () => setIsEditDialogOpen(false),
+      onSuccess: () => {
+        setIsEditDialogOpen(false)
+        showToast('Client updated successfully', 'success')
+      },
+      onError: (error) => {
+        showToast(error.message || 'Failed to update client', 'error')
+      },
     })
   }
 
   if (isLoading) {
-    return <div className="py-12 text-center text-moodkin-gray">Loading...</div>
+    return <Loading message="Loading client..." />
   }
 
   if (!client) {

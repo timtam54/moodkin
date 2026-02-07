@@ -3,11 +3,12 @@
 import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, UserPlus, Users, X, Clock, CheckCircle, MessageCircle, Bell, BellOff, Pencil } from 'lucide-react'
+import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Clock, CheckCircle, Bell, BellOff, Pencil, Palette } from 'lucide-react'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard } from '@/hooks/use-moodboards'
-import { useProjectUsers, useRemoveProjectUser, useUpdateProjectUserRole } from '@/hooks/use-project-users'
+import { useProjectUsers } from '@/hooks/use-project-users'
+import { useProjectColours, useCreateProjectColour, useDeleteProjectColour } from '@/hooks/use-project-colours'
 import { useMessages, useSendMessage } from '@/hooks/use-messages'
 import { useSession } from '@/hooks/use-session'
 import type { MoodboardWithImages } from '@/types/database'
@@ -18,17 +19,21 @@ import { InviteUserDialog } from '@/components/projects/invite-user-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
+import { ColourCard } from '@/components/colours/colour-card'
+import { ColourPickerDialog } from '@/components/colours/colour-picker-dialog'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import Image from 'next/image'
 import Link from 'next/link'
+import { Loading } from '@/components/ui/loading'
 
 const tabs = [
   { id: 'uploads', label: 'Uploads' },
   { id: 'creative', label: 'Creative' },
   { id: 'client', label: 'Client' },
   { id: 'links', label: 'Links' },
+  { id: 'colours', label: 'Colours' },
   { id: 'moodboards', label: 'Moodboards' },
   { id: 'conversation', label: 'Conversation' },
 ]
@@ -55,11 +60,12 @@ export default function ProjectDetailPage() {
   const [linkTitle, setLinkTitle] = useState('')
   const [showMoodboardHelp, setShowMoodboardHelp] = useState(false)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
-  const [showTeamPanel, setShowTeamPanel] = useState(false)
+  const [showColourPicker, setShowColourPicker] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
-  const removeProjectUser = useRemoveProjectUser(projectId)
-  const updateProjectUserRole = useUpdateProjectUserRole(projectId)
+  const { data: colours, isLoading: coloursLoading } = useProjectColours(projectId)
+  const createColour = useCreateProjectColour(projectId)
+  const deleteColour = useDeleteProjectColour(projectId)
   const { data: messages } = useMessages(projectId)
   const sendMessage = useSendMessage(projectId)
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
@@ -273,9 +279,7 @@ export default function ProjectDetailPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="py-12 text-center text-moodkin-gray">Loading...</div>
-    )
+    return <Loading message="Loading project..." />
   }
 
   if (!project) {
@@ -318,7 +322,7 @@ export default function ProjectDetailPage() {
           {/* Team avatars / indicator */}
           {projectUsers && projectUsers.length > 0 && (
             <button
-              onClick={() => setShowTeamPanel(true)}
+              onClick={() => setShowInviteDialog(true)}
               className="flex items-center gap-2 px-3 py-1.5 bg-moodkin-cream hover:bg-moodkin-light-gray/50 rounded-xl transition-colors"
             >
               <Users className="w-4 h-4 text-moodkin-gray" />
@@ -336,15 +340,11 @@ export default function ProjectDetailPage() {
           >
             <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
               <Pencil className="w-4 h-4" />
-              Edit Project
+              Edit Project.
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowInviteDialog(true)}>
-              <UserPlus className="w-4 h-4" />
-              Invite Collaborator
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowTeamPanel(true)}>
               <Users className="w-4 h-4" />
-              View Team
+              Manage Team
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleDelete} destructive>
@@ -561,18 +561,105 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {activeTab === 'colours' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-moodkin-dark">Project Colours</h2>
+              <Button
+                onClick={() => setShowColourPicker(true)}
+                className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Colour
+              </Button>
+            </div>
+
+            {coloursLoading ? (
+              <div className="text-center py-8 text-moodkin-gray">
+                <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-moodkin-gold" />
+                <p>Loading colours...</p>
+              </div>
+            ) : colours && colours.length > 0 ? (
+              <>
+                {/* Colour strip preview */}
+                <div className="bg-white rounded-2xl shadow-sm p-4">
+                  <h3 className="text-sm font-medium text-moodkin-gray mb-3">Colour Strip</h3>
+                  <div className="flex h-12 rounded-xl overflow-hidden shadow-sm">
+                    {colours.slice(0, 12).map((colour) => (
+                      <div
+                        key={colour.id}
+                        className="flex-1"
+                        style={{ backgroundColor: colour.hex_color }}
+                        title={`${colour.hex_color}${colour.name ? ` - ${colour.name}` : ''}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Colour cards grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {colours.map((colour) => (
+                    <ColourCard
+                      key={colour.id}
+                      colour={colour}
+                      onDelete={(id) => deleteColour.mutate(id)}
+                      currentUserId={currentUserId}
+                      canDelete={colour.added_by_id === currentUserId}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12 text-moodkin-gray">
+                <Palette className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No colours added yet</p>
+                <p className="text-sm mt-1">Click "Add Colour" to start building your palette</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Colour Picker Dialog */}
+        <ColourPickerDialog
+          open={showColourPicker}
+          onClose={() => setShowColourPicker(false)}
+          onSelect={async (colour) => {
+            await createColour.mutateAsync(colour)
+          }}
+          existingColours={colours?.map(c => c.hex_color) || []}
+        />
+
         {activeTab === 'moodboards' && (
           <div className="space-y-6">
-            {/* Header with Help Button */}
+            {/* Header with Create Button and Help */}
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-moodkin-dark">Your Moodboards</h2>
-              <button
-                onClick={() => setShowMoodboardHelp(true)}
-                className="p-2 text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream rounded-xl transition-colors"
-                title="How moodboards work"
-              >
-                <HelpCircle className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleCreateMoodboard}
+                  disabled={isCreatingMoodboard}
+                  className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                >
+                  {isCreatingMoodboard ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Moodboard
+                    </>
+                  )}
+                </Button>
+                <button
+                  onClick={() => setShowMoodboardHelp(true)}
+                  className="p-2 text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream rounded-xl transition-colors"
+                  title="How moodboards work"
+                >
+                  <HelpCircle className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Moodboards Grid */}
@@ -680,32 +767,6 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="mt-8 pb-4 flex gap-4">
-        <Button
-          onClick={handleCreateMoodboard}
-          disabled={isCreatingMoodboard}
-          className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-bold rounded-2xl py-6 text-base tracking-wider"
-        >
-          {isCreatingMoodboard ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              CREATING...
-            </>
-          ) : (
-            'CREATE MOODBOARD'
-          )}
-        </Button>
-
-        <Button
-          onClick={handleDelete}
-          disabled={isDeleting}
-          className="bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl py-6 px-6 text-base tracking-wider"
-        >
-          <Trash2 className="w-5 h-5" />
-          <span className="sr-only">{isDeleting ? 'DELETING...' : 'DELETE PROJECT'}</span>
-        </Button>
-      </div>
 
       {/* Moodboard Help Dialog */}
       <Dialog open={showMoodboardHelp} onClose={() => setShowMoodboardHelp(false)} className="max-w-md p-0 overflow-hidden">
@@ -801,90 +862,6 @@ export default function ProjectDetailPage() {
         projectTitle={project.title}
       />
 
-      {/* Team Panel Dialog */}
-      <Dialog open={showTeamPanel} onClose={() => setShowTeamPanel(false)} className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Project Team</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {projectUsers && projectUsers.length > 0 ? (
-            projectUsers.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-moodkin-cream/50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-moodkin-gold/20 flex items-center justify-center">
-                    <span className="text-sm font-medium text-moodkin-dark">
-                      {user.email.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-moodkin-dark">{user.email}</p>
-                    <div className="flex items-center gap-2">
-                      {user.is_owner ? (
-                        <span className="text-xs text-moodkin-gold font-medium">Owner</span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            const newRole = user.role === 'creative' ? 'client' : 'creative'
-                            updateProjectUserRole.mutate({ userId: user.id, role: newRole })
-                          }}
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-colors hover:bg-moodkin-gold/10 hover:border-moodkin-gold capitalize"
-                          style={{
-                            borderColor: user.role === 'creative' ? '#E9B824' : '#9ca3af',
-                            color: user.role === 'creative' ? '#92700e' : '#6b7280',
-                          }}
-                        >
-                          {user.role}
-                        </button>
-                      )}
-                      {user.invite_status === 'pending' ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                          <Clock className="w-3 h-3" />
-                          Pending
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                          <CheckCircle className="w-3 h-3" />
-                          Accepted
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (confirm('Remove this user from the project?')) {
-                      removeProjectUser.mutate(user.id)
-                    }
-                  }}
-                  className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-6 text-moodkin-gray">
-              <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-              <p>No team members yet</p>
-              <p className="text-sm mt-1">Invite collaborators to work on this project</p>
-            </div>
-          )}
-          <Button
-            onClick={() => {
-              setShowTeamPanel(false)
-              setShowInviteDialog(true)
-            }}
-            variant="outline"
-            className="w-full mt-4"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Invite Collaborator
-          </Button>
-        </div>
-      </Dialog>
     </div>
   )
 }
