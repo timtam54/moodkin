@@ -5,7 +5,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/componen
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
-import { useProjectUsers, useInviteUser, useRemoveProjectUser, useResendInvite } from '@/hooks/use-project-users'
+import { useProjectUsers, useInviteUser, useRemoveProjectUser, useResendInvite, useUpdateProjectUserRole } from '@/hooks/use-project-users'
 import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User } from 'lucide-react'
 import type { ProjectUserRole } from '@/types/database'
 
@@ -25,6 +25,22 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
   const inviteUser = useInviteUser(projectId)
   const removeUser = useRemoveProjectUser(projectId)
   const resendInvite = useResendInvite(projectId)
+  const updateRole = useUpdateProjectUserRole(projectId)
+
+  function handleToggleRole(userId: string, currentRole: ProjectUserRole) {
+    const newRole: ProjectUserRole = currentRole === 'creative' ? 'client' : 'creative'
+    updateRole.mutate(
+      { userId, role: newRole },
+      {
+        onSuccess: () => {
+          showToast(`Role updated to ${newRole}`, 'success')
+        },
+        onError: (error) => {
+          showToast(error.message || 'Failed to update role', 'error')
+        },
+      }
+    )
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -236,16 +252,23 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
                                 Owner
                               </span>
                               <span className="text-xs text-moodkin-gray">•</span>
-                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
-                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
-                              }`}>
+                              <button
+                                onClick={() => handleToggleRole(user.id, user.role)}
+                                disabled={updateRole.isPending}
+                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
+                                  user.role === 'creative'
+                                    ? 'text-purple-600 hover:bg-purple-200'
+                                    : 'text-blue-600 hover:bg-blue-200'
+                                }`}
+                                title="Click to change role"
+                              >
                                 {user.role === 'creative' ? (
                                   <Camera className="w-3 h-3" />
                                 ) : (
                                   <User className="w-3 h-3" />
                                 )}
                                 {user.role}
-                              </span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -280,20 +303,28 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
                             <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
-                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
-                              }`}>
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                                <Clock className="w-3 h-3" />
+                                Pending
+                              </span>
+                              <button
+                                onClick={() => handleToggleRole(user.id, user.role)}
+                                disabled={updateRole.isPending}
+                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
+                                  user.role === 'creative'
+                                    ? 'text-purple-600 hover:bg-purple-200'
+                                    : 'text-blue-600 hover:bg-blue-200'
+                                }`}
+                                title="Click to change role"
+                              >
                                 {user.role === 'creative' ? (
                                   <Camera className="w-3 h-3" />
                                 ) : (
                                   <User className="w-3 h-3" />
                                 )}
                                 {user.role}
-                              </span>
-                              <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                                <Clock className="w-3 h-3" />
-                                Pending
-                              </span>
+                              </button>
+                              
                             </div>
                           </div>
                         </div>
@@ -354,20 +385,29 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
                             <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center gap-1 text-xs font-medium capitalize ${
-                                user.role === 'creative' ? 'text-purple-600' : 'text-blue-600'
-                              }`}>
+                            <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle className="w-3 h-3" />
+                                Active
+                              </span>
+
+                              <button
+                                onClick={() => handleToggleRole(user.id, user.role)}
+                                disabled={updateRole.isPending}
+                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
+                                  user.role === 'creative'
+                                    ? 'text-purple-600 hover:bg-purple-200'
+                                    : 'text-blue-600 hover:bg-blue-200'
+                                }`}
+                                title="Click to change role"
+                              >
                                 {user.role === 'creative' ? (
                                   <Camera className="w-3 h-3" />
                                 ) : (
                                   <User className="w-3 h-3" />
                                 )}
                                 {user.role}
-                              </span>
-                              <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                                <CheckCircle className="w-3 h-3" />
-                                Active
-                              </span>
+                              </button>
+                             
                             </div>
                           </div>
                         </div>

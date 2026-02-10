@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isProjectMember } from '@/lib/auth/project-access'
+import { isProjectMember, isProjectOwner } from '@/lib/auth/project-access'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -71,6 +71,8 @@ export async function POST(
       borderRadius = 12,
       borderWidth = 0,
       spacing = 8,
+      mode = 'automatic', // 'automatic' or 'manual'
+      selectedAssetIds = [], // Only used in manual mode
     } = body
 
     // Get conversation title
@@ -81,41 +83,68 @@ export async function POST(
       .single()
     const conversationTitle = conv?.title || 'Untitled'
 
-    // Get all images (not links) for this project
-    const { data: assets } = await supabase
+    // Get all visual assets (images and links with thumbnails)
+    const { data: allAssets } = await supabase
       .from('project_assets')
       .select('*')
       .eq('conversation_id', conversationId)
-      .neq('asset_type', 'link')
 
-    if (!assets || assets.length === 0) {
+    // Filter to images and links that have thumbnails
+    const assets = allAssets?.filter(a =>
+      a.asset_type === 'image' || (a.asset_type === 'link' && a.thumbnail_url)
+    ) || []
+
+    if (assets.length === 0) {
       return NextResponse.json({ error: 'No images to create moodboard' }, { status: 400 })
     }
 
-    // Get reactions for all assets
-    const assetIds = assets.map(a => a.id)
-    const { data: reactions } = await supabase
-      .from('asset_reactions')
-      .select('*')
-      .in('asset_id', assetIds)
+    let sortedAssets: { asset: typeof assets[0]; score: number }[]
 
-    // Calculate scores for each asset
-    // Likes = +1, Red flags = -2
-    const assetScores = assets.map(asset => {
-      const assetReactions = reactions?.filter(r => r.asset_id === asset.id) || []
-      const likes = assetReactions.filter(r => r.reaction_type === 'like').length
-      const flags = assetReactions.filter(r => r.reaction_type === 'redflag').length
-      const score = likes - (flags * 2)
-      return { asset, score }
-    })
+    if (mode === 'manual' && selectedAssetIds.length > 0) {
+      // Manual mode: use selected assets in the order provided
+      const selectedSet = new Set(selectedAssetIds as string[])
+      const selectedAssets = assets.filter(a => selectedSet.has(a.id))
 
-    // Sort by score (highest first), then filter out heavily flagged images
-    const sortedAssets = assetScores
-      .filter(a => a.score >= -2) // Exclude images with too many flags
-      .sort((a, b) => b.score - a.score)
+      // Sort by the order in selectedAssetIds
+      selectedAssets.sort((a, b) => {
+        return selectedAssetIds.indexOf(a.id) - selectedAssetIds.indexOf(b.id)
+      })
 
-    if (sortedAssets.length === 0) {
-      return NextResponse.json({ error: 'No suitable images for moodboard' }, { status: 400 })
+      sortedAssets = selectedAssets.map((asset, index) => ({
+        asset,
+        score: selectedAssets.length - index, // Higher score for earlier position
+      }))
+
+      if (sortedAssets.length === 0) {
+        return NextResponse.json({ error: 'No valid images selected' }, { status: 400 })
+      }
+    } else {
+      // Automatic mode: score based on reactions
+      // Get reactions for all assets
+      const assetIds = assets.map(a => a.id)
+      const { data: reactions } = await supabase
+        .from('asset_reactions')
+        .select('*')
+        .in('asset_id', assetIds)
+
+      // Calculate scores for each asset
+      // Likes = +1, Red flags = -2
+      const assetScores = assets.map(asset => {
+        const assetReactions = reactions?.filter(r => r.asset_id === asset.id) || []
+        const likes = assetReactions.filter(r => r.reaction_type === 'like').length
+        const flags = assetReactions.filter(r => r.reaction_type === 'redflag').length
+        const score = likes - (flags * 2)
+        return { asset, score }
+      })
+
+      // Sort by score (highest first), then filter out heavily flagged images
+      sortedAssets = assetScores
+        .filter(a => a.score >= -2) // Exclude images with too many flags
+        .sort((a, b) => b.score - a.score)
+
+      if (sortedAssets.length === 0) {
+        return NextResponse.json({ error: 'No suitable images for moodboard' }, { status: 400 })
+      }
     }
 
     // Use AI to generate a title and description based on the images
@@ -215,6 +244,72 @@ export async function POST(
     return NextResponse.json(completeMoodboard)
   } catch (error) {
     console.error('Moodboard creation error:', error)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> }
+) {
+  try {
+    const session = await requireSession()
+    const supabase = await createServiceClient()
+    const { conversationId } = await params
+
+    const { searchParams } = new URL(request.url)
+    const moodboardId = searchParams.get('moodboardId')
+
+    if (!moodboardId) {
+      return NextResponse.json({ error: 'Moodboard ID required' }, { status: 400 })
+    }
+
+    // Verify moodboard exists and belongs to this conversation
+    const { data: moodboard } = await supabase
+      .from('moodboards')
+      .select('id, created_by_id')
+      .eq('id', moodboardId)
+      .eq('conversation_id', conversationId)
+      .single()
+
+    if (!moodboard) {
+      return NextResponse.json({ error: 'Moodboard not found' }, { status: 404 })
+    }
+
+    // Check if user can delete (creator or project owner/creative)
+    const { data: projectUser } = await supabase
+      .from('project_users')
+      .select('role, is_owner')
+      .eq('project_id', conversationId)
+      .eq('user_id', session.user.id)
+      .single()
+
+    const isOwnerOrCreative = projectUser?.is_owner || projectUser?.role === 'creative'
+    const canDelete = moodboard.created_by_id === session.user.id || isOwnerOrCreative
+
+    if (!canDelete) {
+      return NextResponse.json({ error: 'Only the creator or project creatives can delete this moodboard' }, { status: 403 })
+    }
+
+    // Delete moodboard images first (foreign key constraint)
+    await supabase
+      .from('moodboard_images')
+      .delete()
+      .eq('moodboard_id', moodboardId)
+
+    // Delete the moodboard
+    const { error } = await supabase
+      .from('moodboards')
+      .delete()
+      .eq('id', moodboardId)
+
+    if (error) {
+      console.error('Failed to delete moodboard:', error)
+      return NextResponse.json({ error: 'Failed to delete moodboard' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

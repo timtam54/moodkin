@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
 import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil } from 'lucide-react'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
-import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative } from '@/hooks/use-project-assets'
-import { useMoodboards, useCreateMoodboard } from '@/hooks/use-moodboards'
+import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
+import { useMoodboards, useCreateMoodboard, useDeleteMoodboard } from '@/hooks/use-moodboards'
 import { useProjectUsers } from '@/hooks/use-project-users'
 import { useMessages, useSendMessage } from '@/hooks/use-messages'
 import { useSession } from '@/hooks/use-session'
@@ -19,10 +19,14 @@ import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
 import { AssetPickerDialog } from '@/components/assets/asset-picker-dialog'
-import { MoodboardCreatorDialog, type MoodboardOptions } from '@/components/moodboard/moodboard-creator-dialog'
+import { MoodboardCreatorDialog, type MoodboardOptions, type RankedAsset } from '@/components/moodboard/moodboard-creator-dialog'
+import { MoodboardModeSelector, type MoodboardMode } from '@/components/moodboard/moodboard-mode-selector'
+import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
+import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { useProjectReactions } from '@/hooks/use-asset-interactions'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loading } from '@/components/ui/loading'
@@ -46,7 +50,9 @@ export default function ProjectDetailPage() {
   const createAsset = useCreateProjectAsset(projectId)
   const deleteAsset = useDeleteProjectAsset(projectId)
   const updateAssetCreative = useUpdateAssetCreative(projectId)
+  const invalidateAssets = useInvalidateProjectAssets(projectId)
   const createMoodboard = useCreateMoodboard(projectId)
+  const deleteMoodboard = useDeleteMoodboard(projectId)
   const deleteProject = useDeleteConversation()
   const updateProject = useUpdateConversation(projectId)
   const [activeTab, setActiveTab] = useState('uploads')
@@ -63,13 +69,42 @@ export default function ProjectDetailPage() {
   const [showCreativePicker, setShowCreativePicker] = useState(false)
   const [isSelectingCreative, setIsSelectingCreative] = useState(false)
   const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
+  const [showMoodboardModeSelector, setShowMoodboardModeSelector] = useState(false)
+  const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
+  const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
   const { data: messages } = useMessages(projectId)
   const sendMessage = useSendMessage(projectId)
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
+  const { data: allReactions } = useProjectReactions(projectId)
 
   const currentUserId = session?.user?.id || ''
+
+  // Compute ranked assets for automatic moodboard (sorted by likes, excludes flagged)
+  const rankedAssets: RankedAsset[] = useMemo(() => {
+    if (!assets || !allReactions) return []
+
+    // Include images and links that have thumbnails
+    const visualAssets = assets.filter(a =>
+      a.asset_type === 'image' || (a.asset_type === 'link' && a.thumbnail_url)
+    )
+
+    // Calculate scores for each asset
+    const scored = visualAssets.map(asset => {
+      const assetReactions = allReactions.filter(r => r.asset_id === asset.id)
+      const likes = assetReactions.filter(r => r.reaction_type === 'like').length
+      const flags = assetReactions.filter(r => r.reaction_type === 'redflag').length
+      const score = likes - (flags * 2)
+      return { asset, score, flags }
+    })
+
+    // Filter out heavily flagged images and sort by score (highest first)
+    return scored
+      .filter(a => a.score >= -2) // Exclude images with too many flags
+      .sort((a, b) => b.score - a.score)
+      .map(({ asset, score }) => ({ asset, score }))
+  }, [assets, allReactions])
 
   // Build a role map from project users for filtering assets by uploader role
   const userRoleMap = new Map<string, string>()
@@ -132,6 +167,7 @@ export default function ProjectDetailPage() {
       await deleteAsset.mutateAsync(assetId)
     } catch (error) {
       console.error('Failed to delete asset:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete asset')
     }
   }
 
@@ -201,7 +237,16 @@ export default function ProjectDetailPage() {
   }
 
   const handleOpenMoodboardCreator = () => {
-    setShowMoodboardCreator(true)
+    setShowMoodboardModeSelector(true)
+  }
+
+  const handleSelectMoodboardMode = (mode: MoodboardMode) => {
+    setShowMoodboardModeSelector(false)
+    if (mode === 'automatic') {
+      setShowMoodboardCreator(true)
+    } else if (mode === 'manual') {
+      setShowManualMoodboardCreator(true)
+    }
   }
 
   const handleCreateMoodboard = async (options: MoodboardOptions) => {
@@ -215,6 +260,7 @@ export default function ProjectDetailPage() {
         borderRadius: options.borderRadius,
         borderWidth: options.borderWidth,
         spacing: options.spacing,
+        mode: 'automatic',
       })
       setShowMoodboardCreator(false)
       setActiveTab('moodboards')
@@ -224,6 +270,33 @@ export default function ProjectDetailPage() {
     } finally {
       setIsCreatingMoodboard(false)
     }
+  }
+
+  const handleCreateManualMoodboard = async (options: ManualMoodboardOptions) => {
+    setIsCreatingMoodboard(true)
+    try {
+      await createMoodboard.mutateAsync({
+        backgroundColor: options.backgroundColor,
+        gridLayout: options.gridLayout,
+        borderRadius: options.borderRadius,
+        spacing: options.spacing,
+        mode: 'manual',
+        selectedAssetIds: options.selectedAssetIds,
+      })
+      setShowManualMoodboardCreator(false)
+      setActiveTab('moodboards')
+    } catch (error) {
+      console.error('Failed to create moodboard:', error)
+      alert(error instanceof Error ? error.message : 'Failed to create moodboard')
+    } finally {
+      setIsCreatingMoodboard(false)
+    }
+  }
+
+  const handleAIImageSaved = () => {
+    // Invalidate assets query to refresh the list
+    invalidateAssets()
+    setActiveTab('uploads')
   }
 
   const handleExportPDF = async (moodboard: MoodboardWithImages) => {
@@ -405,16 +478,17 @@ export default function ProjectDetailPage() {
         {activeTab === 'uploads' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* AI Image Generator Card */}
-            <div className="aspect-square bg-moodkin-gold rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden">
-              <div className="absolute top-3 right-3">
-                <ExternalLink className="w-4 h-4 text-moodkin-dark/50" />
+            <button
+              onClick={() => setShowAIImageGenerator(true)}
+              className="aspect-square bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-violet-600 hover:to-purple-700 transition-all group"
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <div className="w-16 h-16 bg-moodkin-gold-hover/30 rounded-full flex items-center justify-center mb-3">
-                <Sparkles className="w-8 h-8 text-moodkin-dark" />
-              </div>
-              <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
-              <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
-            </div>
+              <p className="font-bold text-white text-center text-sm">AI IMAGE</p>
+              <p className="font-bold text-white text-center text-sm">GENERATOR</p>
+            </button>
 
             {/* Real Asset Cards (images only) */}
             {assets?.filter(a => a.asset_type !== 'link').map((asset) => (
@@ -424,6 +498,7 @@ export default function ProjectDetailPage() {
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
                 onImageClick={setLightboxImage}
+                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
             ))}
 
@@ -463,6 +538,7 @@ export default function ProjectDetailPage() {
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
                 onImageClick={setLightboxImage}
+                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
             ))}
 
@@ -489,6 +565,7 @@ export default function ProjectDetailPage() {
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
                 onImageClick={setLightboxImage}
+                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
             ))}
 
@@ -528,13 +605,37 @@ export default function ProjectDetailPage() {
           isLoading={isSelectingCreative}
         />
 
-        {/* Moodboard Creator Dialog */}
+        {/* Moodboard Mode Selector */}
+        <MoodboardModeSelector
+          open={showMoodboardModeSelector}
+          onClose={() => setShowMoodboardModeSelector(false)}
+          onSelectMode={handleSelectMoodboardMode}
+        />
+
+        {/* Moodboard Creator Dialog (Automatic) */}
         <MoodboardCreatorDialog
           open={showMoodboardCreator}
           onClose={() => setShowMoodboardCreator(false)}
           onCreate={handleCreateMoodboard}
-          imageCount={assets?.filter(a => a.asset_type === 'image').length || 0}
+          rankedAssets={rankedAssets}
           isLoading={isCreatingMoodboard}
+        />
+
+        {/* Manual Moodboard Creator */}
+        <ManualMoodboardCreator
+          open={showManualMoodboardCreator}
+          onClose={() => setShowManualMoodboardCreator(false)}
+          onCreate={handleCreateManualMoodboard}
+          assets={assets || []}
+          isLoading={isCreatingMoodboard}
+        />
+
+        {/* AI Image Generator */}
+        <AIImageGenerator
+          open={showAIImageGenerator}
+          onClose={() => setShowAIImageGenerator(false)}
+          conversationId={projectId}
+          onImageSaved={handleAIImageSaved}
         />
 
         {activeTab === 'links' && (
@@ -630,8 +731,13 @@ export default function ProjectDetailPage() {
             ) : moodboards && moodboards.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {moodboards.map((moodboard) => {
-                  // Filter out flagged images (negative score means more flags than likes)
-                  const displayImages = moodboard.images.filter(img => img.score >= 0)
+                  // Filter out flagged images and assets without valid image URLs
+                  // For links, we need thumbnail_url; for images, we need url
+                  const displayImages = moodboard.images.filter(img => {
+                    if (img.score < 0 || !img.asset) return false
+                    if (img.asset.asset_type === 'link') return !!img.asset.thumbnail_url
+                    return !!img.asset.url
+                  })
                   const bgColor = moodboard.background_color || '#1A1A1A'
                   const borderColor = moodboard.border_color || '#FFFFFF'
                   const borderRadius = moodboard.border_radius ?? 12
@@ -639,23 +745,284 @@ export default function ProjectDetailPage() {
                   const spacingPx = moodboard.spacing ?? 8
                   const gridLayout = moodboard.grid_layout || '2x2'
 
-                  // Calculate grid based on layout
-                  const isFeaturedLayout = gridLayout === '1+2' || gridLayout === '1+3'
-                  const isFeaturedBottomLayout = gridLayout === '2+1'
-                  const useCustomGrid = !isFeaturedLayout && !isFeaturedBottomLayout && gridLayout !== 'auto'
-
-                  let cols = 2, rows = 2
-                  if (useCustomGrid && gridLayout.includes('x')) {
-                    [cols, rows] = gridLayout.split('x').map(Number)
-                  } else if (gridLayout === 'auto') {
-                    cols = 4
-                    rows = 3
-                  }
-                  const maxImages = isFeaturedLayout ? 3 : isFeaturedBottomLayout ? 3 : useCustomGrid ? cols * rows : 6
-
                   const imageStyle = {
                     borderRadius: `${borderRadius}px`,
                     border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
+                  }
+
+                  // Helper to get image URL
+                  const getImgUrl = (img: typeof displayImages[0]) =>
+                    img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
+
+                  // Render image button
+                  const renderImage = (img: typeof displayImages[0], extraClass = '') => {
+                    const imgUrl = getImgUrl(img)
+                    if (!imgUrl) return null
+                    return (
+                      <button
+                        key={img.id}
+                        onClick={() => setLightboxImage(imgUrl)}
+                        className={`relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden ${extraClass}`}
+                        style={imageStyle}
+                      >
+                        <Image src={imgUrl} alt="" fill className="object-cover" />
+                      </button>
+                    )
+                  }
+
+                  // Render layout based on grid_layout
+                  const renderMoodboardLayout = () => {
+                    // Single image
+                    if (gridLayout === '1' || displayImages.length === 1) {
+                      return displayImages[0] ? renderImage(displayImages[0], 'w-full h-full') : null
+                    }
+
+                    // 2 images layouts
+                    if (gridLayout === '2h') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 2).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '2v') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 2).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '2-big-left') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[0])!)} />}
+                          </div>
+                          {displayImages[1] && renderImage(displayImages[1])}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '2-big-right') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages[0] && renderImage(displayImages[0])}
+                          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
+                            {displayImages[1] && <Image src={getImgUrl(displayImages[1])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[1])!)} />}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // 3 images layouts
+                    if (gridLayout === '3-top') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages[0] && renderImage(displayImages[0])}
+                          <div className="grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(1, 3).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '3-bottom') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          <div className="grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(0, 2).map(img => renderImage(img))}
+                          </div>
+                          {displayImages[2] && renderImage(displayImages[2])}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '3-left') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages[0] && renderImage(displayImages[0])}
+                          <div className="grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(1, 3).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '3-right') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                          <div className="grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(0, 2).map(img => renderImage(img))}
+                          </div>
+                          {displayImages[2] && renderImage(displayImages[2])}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '3-row') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 3).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '3-col') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 3).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+
+                    // 4 images layouts
+                    if (gridLayout === '2x2') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2 grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 4).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '4-top') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                          <div className="row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
+                          </div>
+                          <div className="grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(1, 4).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '4-left') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages[0] && renderImage(displayImages[0])}
+                          <div className="grid grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(1, 4).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '4-row') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-4" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 4).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '4-col') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-4" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 4).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '4-diagonal') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
+                          </div>
+                          {displayImages[1] && renderImage(displayImages[1])}
+                          {displayImages[2] && renderImage(displayImages[2])}
+                          <div className="col-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[3] && setLightboxImage(getImgUrl(displayImages[3])!)}>
+                            {displayImages[3] && <Image src={getImgUrl(displayImages[3])!} alt="" fill className="object-cover" />}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // 5 images layouts
+                    if (gridLayout === '5-top2') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          <div className="grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(0, 2).map(img => renderImage(img))}
+                          </div>
+                          <div className="grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(2, 5).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '5-top3') {
+                      return (
+                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          <div className="grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(0, 3).map(img => renderImage(img))}
+                          </div>
+                          <div className="grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                            {displayImages.slice(3, 5).map(img => renderImage(img))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '5-big') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
+                          </div>
+                          {displayImages.slice(1, 5).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+
+                    // 6+ images layouts
+                    if (gridLayout === '3x2') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 6).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '2x3') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-2 grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                          {displayImages.slice(0, 6).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+                    if (gridLayout === '6-big') {
+                      return (
+                        <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacingPx}px` }}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
+                          </div>
+                          {displayImages.slice(1, 6).map(img => renderImage(img))}
+                        </div>
+                      )
+                    }
+
+                    // Default: tiered layout for automatic moodboards or unknown layouts
+                    const topImages = displayImages.slice(0, 2)
+                    const midImages = displayImages.slice(2, 5)
+                    const bottomImages = displayImages.slice(5, 9)
+                    return (
+                      <>
+                        {/* Top row - largest images (most liked) */}
+                        {topImages.length > 0 && (
+                          <div className="flex-[3] flex" style={{ gap: `${spacingPx}px` }}>
+                            {topImages.map(img => renderImage(img, 'flex-1'))}
+                          </div>
+                        )}
+                        {/* Middle row - medium images */}
+                        {midImages.length > 0 && (
+                          <div className="flex-[2] flex" style={{ gap: `${spacingPx}px` }}>
+                            {midImages.map(img => renderImage(img, 'flex-1'))}
+                          </div>
+                        )}
+                        {/* Bottom row - smaller images */}
+                        {bottomImages.length > 0 && (
+                          <div className="flex-1 flex" style={{ gap: `${spacingPx}px` }}>
+                            {bottomImages.map(img => renderImage(img, 'flex-1'))}
+                            {displayImages.length > 9 && (
+                              <div className="flex-1 flex items-center justify-center" style={{ ...imageStyle, backgroundColor: 'rgba(212, 175, 55, 0.2)' }}>
+                                <span className="text-moodkin-dark font-bold text-sm">
+                                  +{displayImages.length - 9}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )
                   }
 
                   return (
@@ -663,151 +1030,42 @@ export default function ProjectDetailPage() {
                     key={moodboard.id}
                     className="bg-white rounded-2xl shadow-sm overflow-hidden"
                   >
-                    {/* Moodboard Preview Grid */}
+                    {/* Moodboard Preview - Layout Based on grid_layout */}
                     <div
-                      className="grid aspect-[4/3]"
+                      className="flex flex-col aspect-[4/3]"
                       style={{
                         backgroundColor: bgColor,
                         gap: `${spacingPx}px`,
                         padding: `${spacingPx}px`,
-                        gridTemplateColumns: isFeaturedLayout ? '1fr 1fr' : isFeaturedBottomLayout ? '1fr 1fr' : useCustomGrid ? `repeat(${cols}, 1fr)` : 'repeat(4, 1fr)',
-                        gridTemplateRows: isFeaturedLayout ? '1fr 1fr' : isFeaturedBottomLayout ? '1fr 1fr' : useCustomGrid ? `repeat(${rows}, 1fr)` : 'repeat(3, 1fr)',
                       }}
                     >
-                      {isFeaturedLayout ? (
-                        // Featured layout: 1 large on left, 2 on right
-                        <>
-                          {displayImages[0] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
-                              className="row-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {displayImages[1] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {displayImages[2] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[2].asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[2].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                        </>
-                      ) : isFeaturedBottomLayout ? (
-                        // Featured bottom layout: 2 on top, 1 large on bottom
-                        <>
-                          {displayImages[0] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {displayImages[1] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {displayImages[2] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[2].asset.url)}
-                              className="col-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[2].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                        </>
-                      ) : useCustomGrid ? (
-                        // Custom grid: equal size images
-                        <>
-                          {displayImages.slice(0, maxImages).map((img) => (
-                            <button
-                              key={img.id}
-                              onClick={() => setLightboxImage(img.asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={img.asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          ))}
-                          {displayImages.length > maxImages && (
-                            <div className="bg-moodkin-gold/20 flex items-center justify-center" style={{ borderRadius: `${borderRadius}px` }}>
-                              <span className="text-moodkin-dark font-bold text-sm">
-                                +{displayImages.length - maxImages}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        // Auto layout: featured images
-                        <>
-                          {/* First image (most liked) - large, spans 2 cols and 2 rows */}
-                          {displayImages[0] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
-                              className="col-span-2 row-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {/* Second image (2nd most liked) - medium, spans 2 cols */}
-                          {displayImages[1] && (
-                            <button
-                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
-                              className="col-span-2 row-span-1 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          )}
-                          {/* Remaining images - small */}
-                          {displayImages.slice(2, 6).map((img) => (
-                            <button
-                              key={img.id}
-                              onClick={() => setLightboxImage(img.asset.url)}
-                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
-                              style={imageStyle}
-                            >
-                              <Image src={img.asset.url} alt="" fill className="object-cover" />
-                            </button>
-                          ))}
-                          {displayImages.length > 6 && (
-                            <div className="bg-moodkin-gold/20 flex items-center justify-center" style={{ borderRadius: `${borderRadius}px` }}>
-                              <span className="text-moodkin-dark font-bold text-sm">
-                                +{displayImages.length - 6}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
+                      {renderMoodboardLayout()}
                     </div>
 
                     {/* Moodboard Info */}
                     <div className="p-4">
-                      <h3 className="font-bold text-moodkin-dark text-lg">{moodboard.title}</h3>
-                      {moodboard.description && (
-                        <p className="text-sm text-moodkin-gray mt-1">{moodboard.description}</p>
-                      )}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-bold text-moodkin-dark text-lg">{moodboard.title}</h3>
+                          {moodboard.description && (
+                            <p className="text-sm text-moodkin-gray mt-1">{moodboard.description}</p>
+                          )}
+                        </div>
+                        {/* Delete button - only show for creators or creatives */}
+                        {(moodboard.created_by_id === currentUserId || isCreative) && (
+                          <button
+                            onClick={() => {
+                              if (confirm('Delete this moodboard?')) {
+                                deleteMoodboard.mutate(moodboard.id)
+                              }
+                            }}
+                            className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete moodboard"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                       <div className="flex items-center justify-between mt-4">
                         <p className="text-xs text-moodkin-gray">
                           {displayImages.length} images • Created by {moodboard.created_by_name}

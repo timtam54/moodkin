@@ -44,7 +44,10 @@ export function useDeleteProjectAsset(conversationId: string) {
       const res = await fetch(`/api/conversations/${conversationId}/assets?assetId=${assetId}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error('Failed to delete asset')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete asset')
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -69,4 +72,11 @@ export function useUpdateAssetCreative(conversationId: string) {
       queryClient.invalidateQueries({ queryKey: ['project-assets', conversationId] })
     },
   })
+}
+
+export function useInvalidateProjectAssets(conversationId: string) {
+  const queryClient = useQueryClient()
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ['project-assets', conversationId] })
+  }
 }

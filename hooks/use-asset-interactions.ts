@@ -1,7 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AssetReaction, AssetComment } from '@/types/database'
 
-// Reactions hooks
+// Bulk reactions hook - get all reactions for a project
+export function useProjectReactions(conversationId: string) {
+  return useQuery({
+    queryKey: ['project-reactions', conversationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/conversations/${conversationId}/reactions`)
+      if (!res.ok) throw new Error('Failed to fetch reactions')
+      return res.json() as Promise<AssetReaction[]>
+    },
+    enabled: !!conversationId,
+  })
+}
+
+// Single asset reactions hooks
 export function useAssetReactions(assetId: string) {
   return useQuery({
     queryKey: ['asset-reactions', assetId],

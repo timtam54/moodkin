@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { X, Check, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
+import type { ProjectAsset } from '@/types/database'
 
 export interface MoodboardOptions {
   backgroundColor: string
@@ -14,11 +16,16 @@ export interface MoodboardOptions {
   spacing: number
 }
 
+export interface RankedAsset {
+  asset: ProjectAsset
+  score: number
+}
+
 interface MoodboardCreatorDialogProps {
   open: boolean
   onClose: () => void
   onCreate: (options: MoodboardOptions) => Promise<void>
-  imageCount: number
+  rankedAssets: RankedAsset[] // Assets sorted by score (highest first), flagged excluded
   isLoading?: boolean
 }
 
@@ -33,43 +40,15 @@ const BACKGROUND_COLORS = [
   { value: '#E8F4E8', label: 'Mint' },
 ]
 
-const BORDER_COLORS = [
-  { value: '#FFFFFF', label: 'White' },
-  { value: '#000000', label: 'Black' },
-  { value: '#F5F5F0', label: 'Cream' },
-  { value: '#D4AF37', label: 'Gold' },
-  { value: '#C0C0C0', label: 'Silver' },
-]
-
-// Layout templates - visual grid patterns like in the reference images
-const LAYOUT_TEMPLATES = [
-  { value: '2x2', label: '2×2 Grid', icon: '⊞', cols: 2, rows: 2 },
-  { value: '1+2', label: '1 Large + 2', icon: '⊟', cols: 2, rows: 2, featured: true },
-  { value: '2+1', label: '2 + 1 Large', icon: '⊡', cols: 2, rows: 2, featuredBottom: true },
-  { value: '1+3', label: '1 Large + 3', icon: '⊠', cols: 2, rows: 2, featured: true },
-  { value: '3x2', label: '3×2 Grid', icon: '⊞', cols: 3, rows: 2 },
-  { value: '2x3', label: '2×3 Grid', icon: '⊞', cols: 2, rows: 3 },
-  { value: '3x3', label: '3×3 Grid', icon: '⊞', cols: 3, rows: 3 },
-  { value: '4x2', label: '4×2 Grid', icon: '⊞', cols: 4, rows: 2 },
-  { value: 'auto', label: 'Auto', icon: '✨', cols: 0, rows: 0 },
-]
-
-type TabType = 'gallery' | 'layout' | 'border'
-
 export function MoodboardCreatorDialog({
   open,
   onClose,
   onCreate,
-  imageCount,
+  rankedAssets,
   isLoading,
 }: MoodboardCreatorDialogProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('gallery')
   const [backgroundColor, setBackgroundColor] = useState('#1A1A1A')
-  const [gridLayout, setGridLayout] = useState('2x2')
-  const [borderEnabled, setBorderEnabled] = useState(true)
-  const [borderColor, setBorderColor] = useState('#FFFFFF')
   const [borderRadius, setBorderRadius] = useState(12)
-  const [borderWidth, setBorderWidth] = useState(0)
   const [spacing, setSpacing] = useState(8)
 
   if (!open) return null
@@ -77,86 +56,228 @@ export function MoodboardCreatorDialog({
   const handleCreate = async () => {
     await onCreate({
       backgroundColor,
-      gridLayout,
-      borderEnabled,
-      borderColor,
+      gridLayout: 'auto', // Always auto for automatic mode
+      borderEnabled: true,
+      borderColor: '#FFFFFF',
       borderRadius,
-      borderWidth,
+      borderWidth: 0,
       spacing,
     })
   }
 
-  // Get preview grid dimensions
-  const getPreviewGrid = () => {
-    const layout = LAYOUT_TEMPLATES.find(l => l.value === gridLayout) || LAYOUT_TEMPLATES[0]
-    if (layout.value === 'auto') {
-      return { cols: 2, rows: 2, featured: false }
-    }
-    return { cols: layout.cols, rows: layout.rows, featured: layout.featured, featuredBottom: layout.featuredBottom }
-  }
-
-  const previewGrid = getPreviewGrid()
-
-  // Render layout icon preview
-  const renderLayoutIcon = (layout: typeof LAYOUT_TEMPLATES[0]) => {
-    const cols = layout.cols || 2
-    const rows = layout.rows || 2
-    const isFeatured = layout.featured
-    const isFeaturedBottom = layout.featuredBottom
-
-    if (layout.value === 'auto') {
+  // Calculate layout: top liked images are larger, bottom ones smaller
+  // Layout: top row has 1-2 large images, middle has medium, bottom has small grid
+  const renderMoodboardPreview = () => {
+    if (rankedAssets.length === 0) {
       return (
-        <div className="w-full h-full flex items-center justify-center">
-          <span className="text-lg">✨</span>
+        <div className="w-full h-full flex items-center justify-center text-white/50">
+          No images available
         </div>
       )
     }
 
-    if (isFeatured) {
-      // 1 large on left, smaller on right
+    const imageStyle = (radius: number) => ({
+      borderRadius: `${radius}px`,
+      overflow: 'hidden' as const,
+    })
+
+    // Different layouts based on image count
+    const count = rankedAssets.length
+
+    if (count === 1) {
+      // Single large image
       return (
-        <div className="w-full h-full grid grid-cols-2 gap-0.5">
-          <div className="bg-current rounded-sm row-span-2" />
-          <div className="grid grid-rows-2 gap-0.5">
-            <div className="bg-current rounded-sm" />
-            <div className="bg-current rounded-sm" />
+        <div className="w-full h-full p-2" style={{ padding: `${spacing}px` }}>
+          <div className="relative w-full h-full" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[0].asset.thumbnail_url || rankedAssets[0].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
           </div>
         </div>
       )
     }
 
-    if (isFeaturedBottom) {
-      // Smaller on top, 1 large on bottom
+    if (count === 2) {
+      // Two images side by side, first one slightly larger
       return (
-        <div className="w-full h-full grid grid-rows-2 gap-0.5">
-          <div className="grid grid-cols-2 gap-0.5">
-            <div className="bg-current rounded-sm" />
-            <div className="bg-current rounded-sm" />
+        <div className="w-full h-full grid grid-cols-5 gap-2" style={{ padding: `${spacing}px`, gap: `${spacing}px` }}>
+          <div className="relative col-span-3 h-full" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[0].asset.thumbnail_url || rankedAssets[0].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
           </div>
-          <div className="bg-current rounded-sm" />
+          <div className="relative col-span-2 h-full" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[1].asset.thumbnail_url || rankedAssets[1].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
         </div>
       )
     }
 
-    // Regular grid
+    if (count === 3) {
+      // One large on top, two smaller below
+      return (
+        <div className="w-full h-full grid grid-rows-5 gap-2" style={{ padding: `${spacing}px`, gap: `${spacing}px` }}>
+          <div className="relative row-span-3 w-full" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[0].asset.thumbnail_url || rankedAssets[0].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
+          <div className="row-span-2 grid grid-cols-2 gap-2" style={{ gap: `${spacing}px` }}>
+            <div className="relative w-full h-full" style={imageStyle(borderRadius)}>
+              <Image
+                src={rankedAssets[1].asset.thumbnail_url || rankedAssets[1].asset.url}
+                alt=""
+                fill
+                className="object-cover"
+                style={{ borderRadius: `${borderRadius}px` }}
+              />
+            </div>
+            <div className="relative w-full h-full" style={imageStyle(borderRadius)}>
+              <Image
+                src={rankedAssets[2].asset.thumbnail_url || rankedAssets[2].asset.url}
+                alt=""
+                fill
+                className="object-cover"
+                style={{ borderRadius: `${borderRadius}px` }}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (count === 4) {
+      // One large top-left, one medium top-right, two small bottom
+      return (
+        <div className="w-full h-full grid grid-cols-2 grid-rows-5 gap-2" style={{ padding: `${spacing}px`, gap: `${spacing}px` }}>
+          <div className="relative row-span-3" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[0].asset.thumbnail_url || rankedAssets[0].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
+          <div className="relative row-span-2" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[1].asset.thumbnail_url || rankedAssets[1].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
+          <div className="relative row-span-2" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[2].asset.thumbnail_url || rankedAssets[2].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
+          <div className="relative row-span-3" style={imageStyle(borderRadius)}>
+            <Image
+              src={rankedAssets[3].asset.thumbnail_url || rankedAssets[3].asset.url}
+              alt=""
+              fill
+              className="object-cover"
+              style={{ borderRadius: `${borderRadius}px` }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    // 5+ images: Featured layout with most liked larger
+    // Top section: 1-2 large images (most liked)
+    // Middle section: 2-3 medium images
+    // Bottom section: remaining smaller images in a row
+
+    const topImages = rankedAssets.slice(0, 2)
+    const midImages = rankedAssets.slice(2, 5)
+    const bottomImages = rankedAssets.slice(5, 9)
+
     return (
-      <div
-        className="w-full h-full grid gap-0.5"
-        style={{
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${rows}, 1fr)`,
-        }}
-      >
-        {Array.from({ length: cols * rows }).map((_, i) => (
-          <div key={i} className="bg-current rounded-sm" />
-        ))}
+      <div className="w-full h-full flex flex-col" style={{ padding: `${spacing}px`, gap: `${spacing}px` }}>
+        {/* Top row - largest images (most liked) */}
+        <div className="flex-[3] grid grid-cols-2 gap-2" style={{ gap: `${spacing}px` }}>
+          {topImages.map((item, i) => (
+            <div
+              key={item.asset.id}
+              className={`relative ${topImages.length === 1 ? 'col-span-2' : ''}`}
+              style={imageStyle(borderRadius)}
+            >
+              <Image
+                src={item.asset.thumbnail_url || item.asset.url}
+                alt=""
+                fill
+                className="object-cover"
+                style={{ borderRadius: `${borderRadius}px` }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Middle row - medium images */}
+        {midImages.length > 0 && (
+          <div className="flex-[2] grid gap-2" style={{ gridTemplateColumns: `repeat(${midImages.length}, 1fr)`, gap: `${spacing}px` }}>
+            {midImages.map((item) => (
+              <div key={item.asset.id} className="relative" style={imageStyle(borderRadius)}>
+                <Image
+                  src={item.asset.thumbnail_url || item.asset.url}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  style={{ borderRadius: `${borderRadius}px` }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bottom row - smaller images (least liked) */}
+        {bottomImages.length > 0 && (
+          <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${bottomImages.length}, 1fr)`, gap: `${spacing}px` }}>
+            {bottomImages.map((item) => (
+              <div key={item.asset.id} className="relative" style={imageStyle(borderRadius)}>
+                <Image
+                  src={item.asset.thumbnail_url || item.asset.url}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  style={{ borderRadius: `${borderRadius}px` }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
-      {/* Dark background matching the reference */}
+      {/* Dark background */}
       <div className="absolute inset-0 bg-[#1a1a1a]" />
 
       {/* Preview Area */}
@@ -170,147 +291,91 @@ export function MoodboardCreatorDialog({
           <X className="w-6 h-6" />
         </button>
 
+        {/* Title */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
+          Automatic Moodboard
+        </div>
+
         {/* Moodboard Preview */}
         <div
           className="w-full max-w-md aspect-square rounded-2xl overflow-hidden"
           style={{ backgroundColor }}
         >
-          <div
-            className="w-full h-full grid"
-            style={{
-              gap: `${spacing}px`,
-              padding: `${spacing}px`,
-              gridTemplateColumns: previewGrid.featured
-                ? '1fr 1fr'
-                : `repeat(${previewGrid.cols}, 1fr)`,
-              gridTemplateRows: previewGrid.featuredBottom
-                ? '1fr 1fr'
-                : `repeat(${previewGrid.rows}, 1fr)`,
-            }}
-          >
-            {previewGrid.featured ? (
-              // Featured layout: 1 large on left
-              <>
-                <div
-                  className="row-span-2 bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-                <div
-                  className="bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-                <div
-                  className="bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-              </>
-            ) : previewGrid.featuredBottom ? (
-              // Featured bottom layout
-              <>
-                <div
-                  className="bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-                <div
-                  className="bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-                <div
-                  className="col-span-2 bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-              </>
-            ) : (
-              // Regular grid
-              Array.from({ length: Math.min(previewGrid.cols * previewGrid.rows, imageCount || 4) }).map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-moodkin-gray/40"
-                  style={{
-                    borderRadius: `${borderRadius}px`,
-                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
-                  }}
-                />
-              ))
-            )}
-          </div>
+          {renderMoodboardPreview()}
         </div>
       </div>
 
-      {/* Bottom Panel */}
+      {/* Bottom Panel - Only Border options */}
       <div className="relative bg-[#2a2a2a] rounded-t-3xl">
-        {/* Tabs */}
+        {/* Header */}
         <div className="flex items-center justify-center gap-8 py-4 border-b border-white/10">
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`text-sm font-medium transition-colors ${
-              activeTab === 'gallery' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Gallery
-          </button>
-          <button
-            onClick={() => setActiveTab('layout')}
-            className={`text-sm font-medium transition-colors relative ${
-              activeTab === 'layout' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Layout
-            {activeTab === 'layout' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('border')}
-            className={`text-sm font-medium transition-colors relative ${
-              activeTab === 'border' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Border
-            {activeTab === 'border' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
+          <span className="text-sm font-medium text-white">
+            Border & Style
+          </span>
           <button
             onClick={handleCreate}
-            disabled={isLoading || imageCount === 0}
+            disabled={isLoading || rankedAssets.length === 0}
             className="ml-4 text-white/80 hover:text-white disabled:text-white/30"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-4 pb-8 max-h-[40vh] overflow-y-auto">
-          {activeTab === 'gallery' && (
-            <div className="space-y-4">
-              <p className="text-white/70 text-sm text-center">
-                Background Color
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
+        {/* Border Controls */}
+        <div className="p-4 pb-8 max-h-[40vh] overflow-y-auto space-y-6">
+          {/* Spacing Slider */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center text-white/60">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <rect x="1" y="7" width="6" height="2" />
+                  <rect x="9" y="7" width="6" height="2" />
+                </svg>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="24"
+                value={spacing}
+                onChange={(e) => setSpacing(Number(e.target.value))}
+                className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+              />
+            </div>
+          </div>
+
+          {/* Border Radius Slider */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center text-white/60">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="2" y="2" width="12" height="12" rx="3" />
+                </svg>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="32"
+                value={borderRadius}
+                onChange={(e) => setBorderRadius(Number(e.target.value))}
+                className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+              />
+            </div>
+          </div>
+
+          {/* Background Color */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center text-white/60">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="8" cy="8" r="6" />
+                </svg>
+              </div>
+              <div className="flex-1 flex gap-2 flex-wrap">
                 {BACKGROUND_COLORS.map((color) => (
                   <button
                     key={color.value}
                     onClick={() => setBackgroundColor(color.value)}
-                    className={`w-12 h-12 rounded-xl border-2 transition-all ${
+                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
                       backgroundColor === color.value
                         ? 'border-white scale-110'
                         : 'border-transparent hover:border-white/30'
@@ -319,7 +384,7 @@ export function MoodboardCreatorDialog({
                     title={color.label}
                   >
                     {backgroundColor === color.value && (
-                      <Check className={`w-5 h-5 mx-auto ${
+                      <Check className={`w-4 h-4 mx-auto ${
                         color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
                       }`} />
                     )}
@@ -327,116 +392,7 @@ export function MoodboardCreatorDialog({
                 ))}
               </div>
             </div>
-          )}
-
-          {activeTab === 'layout' && (
-            <div className="grid grid-cols-4 gap-3">
-              {LAYOUT_TEMPLATES.map((layout) => (
-                <button
-                  key={layout.value}
-                  onClick={() => setGridLayout(layout.value)}
-                  className={`aspect-square p-2 rounded-xl border-2 transition-all ${
-                    gridLayout === layout.value
-                      ? 'border-white bg-white/10'
-                      : 'border-white/20 hover:border-white/40'
-                  }`}
-                >
-                  <div className="w-full h-full text-white/60">
-                    {renderLayoutIcon(layout)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'border' && (
-            <div className="space-y-6">
-              {/* Spacing Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <rect x="1" y="7" width="6" height="2" />
-                      <rect x="9" y="7" width="6" height="2" />
-                      <rect x="7" y="1" width="2" height="6" />
-                      <rect x="7" y="9" width="2" height="6" />
-                    </svg>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="24"
-                    value={spacing}
-                    onChange={(e) => setSpacing(Number(e.target.value))}
-                    className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Border Radius Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <rect x="2" y="2" width="12" height="12" rx="3" />
-                    </svg>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="32"
-                    value={borderRadius}
-                    onChange={(e) => setBorderRadius(Number(e.target.value))}
-                    className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Border Width Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 12 A 8 8 0 0 1 12 4" />
-                    </svg>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="8"
-                    value={borderWidth}
-                    onChange={(e) => setBorderWidth(Number(e.target.value))}
-                    className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Border Color */}
-              {borderWidth > 0 && (
-                <div className="flex flex-wrap justify-center gap-3 pt-2">
-                  {BORDER_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      onClick={() => setBorderColor(color.value)}
-                      className={`w-10 h-10 rounded-lg border-2 transition-all ${
-                        borderColor === color.value
-                          ? 'border-white scale-110'
-                          : 'border-transparent hover:border-white/30'
-                      }`}
-                      style={{ backgroundColor: color.value }}
-                      title={color.label}
-                    >
-                      {borderColor === color.value && (
-                        <Check className={`w-4 h-4 mx-auto ${
-                          color.value === '#000000' ? 'text-white' : 'text-moodkin-dark'
-                        }`} />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Create Button */}
@@ -444,7 +400,7 @@ export function MoodboardCreatorDialog({
           <Button
             variant="primary"
             onClick={handleCreate}
-            disabled={isLoading || imageCount === 0}
+            disabled={isLoading || rankedAssets.length === 0}
             className="w-full py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
           >
             {isLoading ? (
@@ -453,7 +409,7 @@ export function MoodboardCreatorDialog({
                 Creating...
               </>
             ) : (
-              `Create Moodboard (${imageCount} images)`
+              `Create Moodboard (${rankedAssets.length} images)`
             )}
           </Button>
         </div>

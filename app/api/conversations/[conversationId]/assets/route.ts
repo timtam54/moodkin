@@ -142,20 +142,50 @@ export async function DELETE(
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
 
-    // Allow delete if user uploaded it or is the project owner
-    const isOwner = await isProjectOwner(supabase, conversationId, session.user.id)
-    const canDelete = asset.uploaded_by_id === session.user.id || isOwner
+    // Allow delete if user uploaded it, is the project owner, or is a creative
+    const { data: projectUser } = await supabase
+      .from('project_users')
+      .select('role, is_owner')
+      .eq('project_id', conversationId)
+      .eq('user_id', session.user.id)
+      .single()
+
+    const isOwnerOrCreative = projectUser?.is_owner || projectUser?.role === 'creative'
+    const canDelete = asset.uploaded_by_id === session.user.id || isOwnerOrCreative
 
     if (!canDelete) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({
+        error: 'Only the uploader or project creatives can delete this image'
+      }, { status: 403 })
     }
 
+    // Delete related records first (foreign key constraints)
+    // Delete reactions
+    await supabase
+      .from('asset_reactions')
+      .delete()
+      .eq('asset_id', assetId)
+
+    // Delete comments
+    await supabase
+      .from('asset_comments')
+      .delete()
+      .eq('asset_id', assetId)
+
+    // Delete from moodboard_images
+    await supabase
+      .from('moodboard_images')
+      .delete()
+      .eq('asset_id', assetId)
+
+    // Now delete the asset
     const { error } = await supabase
       .from('project_assets')
       .delete()
       .eq('id', assetId)
 
     if (error) {
+      console.error('Failed to delete asset:', error)
       return NextResponse.json({ error: 'Failed to delete asset' }, { status: 500 })
     }
 

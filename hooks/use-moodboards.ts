@@ -21,6 +21,8 @@ export interface MoodboardStyleOptions {
   borderRadius?: number
   borderWidth?: number
   spacing?: number
+  mode?: 'automatic' | 'manual'
+  selectedAssetIds?: string[]
 }
 
 export function useCreateMoodboard(conversationId: string) {
@@ -37,6 +39,25 @@ export function useCreateMoodboard(conversationId: string) {
         throw new Error(error.error || 'Failed to create moodboard')
       }
       return res.json() as Promise<MoodboardWithImages>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['moodboards', conversationId] })
+    },
+  })
+}
+
+export function useDeleteMoodboard(conversationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (moodboardId: string) => {
+      const res = await fetch(`/api/conversations/${conversationId}/moodboards?moodboardId=${moodboardId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to delete moodboard')
+      }
+      return res.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['moodboards', conversationId] })

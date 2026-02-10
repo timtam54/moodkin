@@ -11,9 +11,12 @@ interface AssetCardProps {
   onDelete: (id: string) => void
   currentUserId: string
   onImageClick?: (url: string) => void
+  canDelete?: boolean // If true, show delete button. If undefined, check if user is uploader
 }
 
-export function AssetCard({ asset, onDelete, currentUserId, onImageClick }: AssetCardProps) {
+export function AssetCard({ asset, onDelete, currentUserId, onImageClick, canDelete }: AssetCardProps) {
+  // Show delete if explicitly allowed OR if user uploaded this asset
+  const showDeleteButton = canDelete ?? (asset.uploaded_by_id === currentUserId)
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
 
@@ -67,13 +70,15 @@ export function AssetCard({ asset, onDelete, currentUserId, onImageClick }: Asse
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-        {/* Delete button */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(asset.id) }}
-          className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
-        >
-          <X className="w-4 h-4 text-white" />
-        </button>
+        {/* Delete button - only show if user can delete */}
+        {showDeleteButton && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(asset.id) }}
+            className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
+        )}
 
         {/* Color Palette */}
         {asset.color_palette && asset.color_palette.length > 0 && (
