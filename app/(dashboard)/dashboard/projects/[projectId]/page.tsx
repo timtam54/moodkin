@@ -313,66 +313,386 @@ export default function ProjectDetailPage() {
     const pageHeight = pdf.internal.pageSize.getHeight()
     const margin = 10
     const usableWidth = pageWidth - margin * 2
-    const usableHeight = pageHeight - margin * 2 - 20 // Leave space for title
+    const usableHeight = pageHeight - margin * 2 - 30 // Leave space for title
+
+    // Add background color
+    const bgColor = moodboard.background_color || '#1A1A1A'
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 26, g: 26, b: 26 }
+    }
+    const bg = hexToRgb(bgColor)
+    pdf.setFillColor(bg.r, bg.g, bg.b)
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
 
     // Add title
+    const titleColor = bg.r + bg.g + bg.b < 380 ? 255 : 51
     pdf.setFontSize(24)
-    pdf.setTextColor(51, 51, 51)
+    pdf.setTextColor(titleColor, titleColor, titleColor)
     pdf.text(moodboard.title, pageWidth / 2, margin + 10, { align: 'center' })
 
     if (moodboard.description) {
       pdf.setFontSize(12)
-      pdf.setTextColor(128, 128, 128)
+      pdf.setTextColor(titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128)
       pdf.text(moodboard.description, pageWidth / 2, margin + 18, { align: 'center' })
     }
 
-    // Calculate grid layout
-    const images = moodboard.images
-    const cols = 3
-    const rows = Math.ceil(images.length / cols)
-    const cellWidth = usableWidth / cols
-    const cellHeight = usableHeight / Math.min(rows, 2)
     const startY = margin + 25
+    const spacingPx = moodboard.spacing ?? 8
+    const spacing = spacingPx * 0.264583 // Convert px to mm
+    const gridLayout = moodboard.grid_layout || '2x2'
 
-    // Load and add images
-    let currentPage = 0
-    for (let i = 0; i < images.length; i++) {
-      const pageIndex = Math.floor(i / 6)
-      if (pageIndex > currentPage) {
-        pdf.addPage()
-        currentPage = pageIndex
-      }
+    // Filter valid images
+    const validImages = moodboard.images.filter(img => {
+      if (img.score < 0 || !img.asset) return false
+      if (img.asset.asset_type === 'link') return !!img.asset.thumbnail_url
+      return !!img.asset.url
+    })
 
-      const indexOnPage = i % 6
-      const col = indexOnPage % cols
-      const row = Math.floor(indexOnPage / cols)
-      const x = margin + col * cellWidth + 2
-      const y = startY + row * cellHeight + 2
-      const imgWidth = cellWidth - 4
-      const imgHeight = cellHeight - 4
+    // Helper to get image URL
+    const getImgUrl = (img: typeof validImages[0]) =>
+      img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
 
+    // Helper to load image as base64
+    const loadImage = async (url: string): Promise<string | null> => {
       try {
-        // Fetch image as base64
-        const response = await fetch(images[i].asset.url)
+        const response = await fetch(url)
         const blob = await response.blob()
-        const base64 = await new Promise<string>((resolve) => {
+        return await new Promise<string>((resolve) => {
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
           reader.readAsDataURL(blob)
         })
+      } catch {
+        return null
+      }
+    }
 
-        pdf.addImage(base64, 'JPEG', x, y, imgWidth, imgHeight)
-      } catch (error) {
-        console.error('Failed to load image:', error)
+    // Define layout positions based on grid_layout
+    type ImageRect = { x: number; y: number; w: number; h: number }
+    const getLayoutRects = (layout: string, images: typeof validImages): ImageRect[] => {
+      const count = images.length
+      const w = usableWidth
+      const h = usableHeight
+      const x = margin
+      const y = startY
+      const s = spacing
+
+      // Single image
+      if (layout === '1' || count === 1) {
+        return [{ x, y, w, h }]
+      }
+
+      // 2 images
+      if (layout === '2h') {
+        const cellW = (w - s) / 2
+        return [
+          { x, y, w: cellW, h },
+          { x: x + cellW + s, y, w: cellW, h }
+        ]
+      }
+      if (layout === '2v') {
+        const cellH = (h - s) / 2
+        return [
+          { x, y, w, h: cellH },
+          { x, y: y + cellH + s, w, h: cellH }
+        ]
+      }
+      if (layout === '2-big-left') {
+        const bigW = (w - s) * 2 / 3
+        const smallW = w - s - bigW
+        return [
+          { x, y, w: bigW, h },
+          { x: x + bigW + s, y, w: smallW, h }
+        ]
+      }
+      if (layout === '2-big-right') {
+        const smallW = (w - s) / 3
+        const bigW = w - s - smallW
+        return [
+          { x, y, w: smallW, h },
+          { x: x + smallW + s, y, w: bigW, h }
+        ]
+      }
+
+      // 3 images
+      if (layout === '3-top') {
+        const topH = (h - s) / 2
+        const bottomH = h - s - topH
+        const cellW = (w - s) / 2
+        return [
+          { x, y, w, h: topH },
+          { x, y: y + topH + s, w: cellW, h: bottomH },
+          { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH }
+        ]
+      }
+      if (layout === '3-bottom') {
+        const topH = (h - s) / 2
+        const bottomH = h - s - topH
+        const cellW = (w - s) / 2
+        return [
+          { x, y, w: cellW, h: topH },
+          { x: x + cellW + s, y, w: cellW, h: topH },
+          { x, y: y + topH + s, w, h: bottomH }
+        ]
+      }
+      if (layout === '3-left') {
+        const leftW = (w - s) / 2
+        const rightW = w - s - leftW
+        const cellH = (h - s) / 2
+        return [
+          { x, y, w: leftW, h },
+          { x: x + leftW + s, y, w: rightW, h: cellH },
+          { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH }
+        ]
+      }
+      if (layout === '3-right') {
+        const leftW = (w - s) / 2
+        const rightW = w - s - leftW
+        const cellH = (h - s) / 2
+        return [
+          { x, y, w: leftW, h: cellH },
+          { x, y: y + cellH + s, w: leftW, h: cellH },
+          { x: x + leftW + s, y, w: rightW, h }
+        ]
+      }
+      if (layout === '3-row') {
+        const cellW = (w - s * 2) / 3
+        return [
+          { x, y, w: cellW, h },
+          { x: x + cellW + s, y, w: cellW, h },
+          { x: x + cellW * 2 + s * 2, y, w: cellW, h }
+        ]
+      }
+      if (layout === '3-col') {
+        const cellH = (h - s * 2) / 3
+        return [
+          { x, y, w, h: cellH },
+          { x, y: y + cellH + s, w, h: cellH },
+          { x, y: y + cellH * 2 + s * 2, w, h: cellH }
+        ]
+      }
+
+      // 4 images
+      if (layout === '2x2') {
+        const cellW = (w - s) / 2
+        const cellH = (h - s) / 2
+        return [
+          { x, y, w: cellW, h: cellH },
+          { x: x + cellW + s, y, w: cellW, h: cellH },
+          { x, y: y + cellH + s, w: cellW, h: cellH },
+          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH }
+        ]
+      }
+      if (layout === '4-top') {
+        const topH = (h - s) * 2 / 3
+        const bottomH = h - s - topH
+        const cellW = (w - s * 2) / 3
+        return [
+          { x, y, w, h: topH },
+          { x, y: y + topH + s, w: cellW, h: bottomH },
+          { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH },
+          { x: x + cellW * 2 + s * 2, y: y + topH + s, w: cellW, h: bottomH }
+        ]
+      }
+      if (layout === '4-left') {
+        const leftW = (w - s) / 2
+        const rightW = w - s - leftW
+        const cellH = (h - s * 2) / 3
+        return [
+          { x, y, w: leftW, h },
+          { x: x + leftW + s, y, w: rightW, h: cellH },
+          { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH },
+          { x: x + leftW + s, y: y + cellH * 2 + s * 2, w: rightW, h: cellH }
+        ]
+      }
+      if (layout === '4-row') {
+        const cellW = (w - s * 3) / 4
+        return [
+          { x, y, w: cellW, h },
+          { x: x + cellW + s, y, w: cellW, h },
+          { x: x + cellW * 2 + s * 2, y, w: cellW, h },
+          { x: x + cellW * 3 + s * 3, y, w: cellW, h }
+        ]
+      }
+      if (layout === '4-col') {
+        const cellH = (h - s * 3) / 4
+        return [
+          { x, y, w, h: cellH },
+          { x, y: y + cellH + s, w, h: cellH },
+          { x, y: y + cellH * 2 + s * 2, w, h: cellH },
+          { x, y: y + cellH * 3 + s * 3, w, h: cellH }
+        ]
+      }
+      if (layout === '4-diagonal') {
+        const bigW = (w - s) * 2 / 3
+        const smallW = w - s - bigW
+        const bigH = (h - s) * 2 / 3
+        const smallH = h - s - bigH
+        return [
+          { x, y, w: bigW, h: bigH },
+          { x: x + bigW + s, y, w: smallW, h: smallH },
+          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: bigH - smallH },
+          { x, y: y + bigH + s, w: bigW, h: smallH }
+        ]
+      }
+
+      // 5 images
+      if (layout === '5-top2') {
+        const topH = (h - s) / 2
+        const bottomH = h - s - topH
+        const topCellW = (w - s) / 2
+        const bottomCellW = (w - s * 2) / 3
+        return [
+          { x, y, w: topCellW, h: topH },
+          { x: x + topCellW + s, y, w: topCellW, h: topH },
+          { x, y: y + topH + s, w: bottomCellW, h: bottomH },
+          { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH },
+          { x: x + bottomCellW * 2 + s * 2, y: y + topH + s, w: bottomCellW, h: bottomH }
+        ]
+      }
+      if (layout === '5-top3') {
+        const topH = (h - s) / 2
+        const bottomH = h - s - topH
+        const topCellW = (w - s * 2) / 3
+        const bottomCellW = (w - s) / 2
+        return [
+          { x, y, w: topCellW, h: topH },
+          { x: x + topCellW + s, y, w: topCellW, h: topH },
+          { x: x + topCellW * 2 + s * 2, y, w: topCellW, h: topH },
+          { x, y: y + topH + s, w: bottomCellW, h: bottomH },
+          { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH }
+        ]
+      }
+      if (layout === '5-big') {
+        const bigW = (w - s) * 2 / 3
+        const smallW = w - s - bigW
+        const smallH = (h - s) / 2
+        return [
+          { x, y, w: bigW, h },
+          { x: x + bigW + s, y, w: smallW, h: smallH },
+          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: smallH },
+          { x, y: y + h + s, w: smallW, h: smallH }, // These would overflow - adjust
+          { x: x + smallW + s, y: y + h + s, w: smallW, h: smallH }
+        ].slice(0, 5).map((rect, i) => {
+          // Recalculate for 5-big
+          if (i === 0) return { x, y, w: bigW, h }
+          const idx = i - 1
+          const col = idx % 2
+          const row = Math.floor(idx / 2)
+          const cellW = smallW
+          const cellH = (h - s) / 2
+          return {
+            x: x + bigW + s,
+            y: y + row * (cellH + s),
+            w: cellW,
+            h: cellH
+          }
+        })
+      }
+
+      // 6 images
+      if (layout === '3x2') {
+        const cellW = (w - s * 2) / 3
+        const cellH = (h - s) / 2
+        return [
+          { x, y, w: cellW, h: cellH },
+          { x: x + cellW + s, y, w: cellW, h: cellH },
+          { x: x + cellW * 2 + s * 2, y, w: cellW, h: cellH },
+          { x, y: y + cellH + s, w: cellW, h: cellH },
+          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
+          { x: x + cellW * 2 + s * 2, y: y + cellH + s, w: cellW, h: cellH }
+        ]
+      }
+      if (layout === '2x3') {
+        const cellW = (w - s) / 2
+        const cellH = (h - s * 2) / 3
+        return [
+          { x, y, w: cellW, h: cellH },
+          { x: x + cellW + s, y, w: cellW, h: cellH },
+          { x, y: y + cellH + s, w: cellW, h: cellH },
+          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
+          { x, y: y + cellH * 2 + s * 2, w: cellW, h: cellH },
+          { x: x + cellW + s, y: y + cellH * 2 + s * 2, w: cellW, h: cellH }
+        ]
+      }
+      if (layout === '6-big') {
+        const bigW = (w - s) * 2 / 3
+        const smallW = w - s - bigW
+        const bigH = (h - s) * 2 / 3
+        const smallH = (h - s * 2) / 3
+        return [
+          { x, y, w: bigW, h: bigH },
+          { x: x + bigW + s, y, w: smallW, h: smallH },
+          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: smallH },
+          { x, y: y + bigH + s, w: smallW, h: h - bigH - s },
+          { x: x + smallW + s, y: y + bigH + s, w: smallW, h: h - bigH - s },
+          { x: x + smallW * 2 + s * 2, y: y + bigH + s, w: w - smallW * 2 - s * 2, h: h - bigH - s }
+        ]
+      }
+
+      // Default: tiered layout
+      const topCount = Math.min(2, count)
+      const midCount = Math.min(3, count - topCount)
+      const bottomCount = Math.min(4, count - topCount - midCount)
+      const rects: ImageRect[] = []
+
+      const topH = h * 0.45
+      const midH = midCount > 0 ? h * 0.35 : 0
+      const bottomH = bottomCount > 0 ? h - topH - midH - s * 2 : 0
+
+      // Top row
+      const topCellW = (w - s * (topCount - 1)) / topCount
+      for (let i = 0; i < topCount; i++) {
+        rects.push({ x: x + i * (topCellW + s), y, w: topCellW, h: topH })
+      }
+
+      // Middle row
+      if (midCount > 0) {
+        const midCellW = (w - s * (midCount - 1)) / midCount
+        for (let i = 0; i < midCount; i++) {
+          rects.push({ x: x + i * (midCellW + s), y: y + topH + s, w: midCellW, h: midH })
+        }
+      }
+
+      // Bottom row
+      if (bottomCount > 0) {
+        const bottomCellW = (w - s * (bottomCount - 1)) / bottomCount
+        for (let i = 0; i < bottomCount; i++) {
+          rects.push({ x: x + i * (bottomCellW + s), y: y + topH + midH + s * 2, w: bottomCellW, h: bottomH })
+        }
+      }
+
+      return rects
+    }
+
+    const layoutRects = getLayoutRects(gridLayout, validImages)
+
+    // Load and add images
+    for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
+      const img = validImages[i]
+      const rect = layoutRects[i]
+      const url = getImgUrl(img)
+
+      if (!url) continue
+
+      const base64 = await loadImage(url)
+      if (base64) {
+        pdf.addImage(base64, 'JPEG', rect.x, rect.y, rect.w, rect.h)
+      } else {
         // Draw placeholder
         pdf.setFillColor(240, 240, 240)
-        pdf.rect(x, y, imgWidth, imgHeight, 'F')
+        pdf.rect(rect.x, rect.y, rect.w, rect.h, 'F')
       }
     }
 
     // Add footer
     pdf.setFontSize(8)
-    pdf.setTextColor(180, 180, 180)
+    pdf.setTextColor(titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180)
     pdf.text(`Created with Moodkin • ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' })
 
     // Download
