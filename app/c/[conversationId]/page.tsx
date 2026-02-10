@@ -25,8 +25,11 @@ export default function ClientConversationPage() {
 
   const latestCanvasData = useLatestCanvasData(messages)
 
-  function handleSendText(text: string) {
-    sendMessage.mutate({ text_content: text })
+  function handleSendMessage(text: string, imageUrl?: string) {
+    sendMessage.mutate({
+      text_content: text || undefined,
+      image_url: imageUrl,
+    })
   }
 
   async function handleSaveCanvas(data: unknown) {
@@ -66,7 +69,7 @@ export default function ClientConversationPage() {
             currentUserId={session?.user?.id || ''}
           />
           <MessageInput
-            onSend={handleSendText}
+            onSend={handleSendMessage}
             disabled={sendMessage.isPending}
           />
         </div>

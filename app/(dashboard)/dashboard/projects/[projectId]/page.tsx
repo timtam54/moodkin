@@ -3,12 +3,11 @@
 import { useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Clock, CheckCircle, Bell, BellOff, Pencil, Palette } from 'lucide-react'
+import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil } from 'lucide-react'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
-import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset } from '@/hooks/use-project-assets'
+import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard } from '@/hooks/use-moodboards'
 import { useProjectUsers } from '@/hooks/use-project-users'
-import { useProjectColours, useCreateProjectColour, useDeleteProjectColour } from '@/hooks/use-project-colours'
 import { useMessages, useSendMessage } from '@/hooks/use-messages'
 import { useSession } from '@/hooks/use-session'
 import type { MoodboardWithImages } from '@/types/database'
@@ -19,8 +18,8 @@ import { InviteUserDialog } from '@/components/projects/invite-user-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
-import { ColourCard } from '@/components/colours/colour-card'
-import { ColourPickerDialog } from '@/components/colours/colour-picker-dialog'
+import { AssetPickerDialog } from '@/components/assets/asset-picker-dialog'
+import { MoodboardCreatorDialog, type MoodboardOptions } from '@/components/moodboard/moodboard-creator-dialog'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
@@ -33,7 +32,6 @@ const tabs = [
   { id: 'creative', label: 'Creative' },
   { id: 'client', label: 'Client' },
   { id: 'links', label: 'Links' },
-  { id: 'colours', label: 'Colours' },
   { id: 'moodboards', label: 'Moodboards' },
   { id: 'conversation', label: 'Conversation' },
 ]
@@ -43,10 +41,11 @@ export default function ProjectDetailPage() {
   const router = useRouter()
   const { session } = useSession()
   const { data: project, isLoading } = useConversation(projectId)
-  const { data: assets, isLoading: assetsLoading } = useProjectAssets(projectId)
+  const { data: assets } = useProjectAssets(projectId)
   const { data: moodboards, isLoading: moodboardsLoading } = useMoodboards(projectId)
   const createAsset = useCreateProjectAsset(projectId)
   const deleteAsset = useDeleteProjectAsset(projectId)
+  const updateAssetCreative = useUpdateAssetCreative(projectId)
   const createMoodboard = useCreateMoodboard(projectId)
   const deleteProject = useDeleteConversation()
   const updateProject = useUpdateConversation(projectId)
@@ -60,12 +59,12 @@ export default function ProjectDetailPage() {
   const [linkTitle, setLinkTitle] = useState('')
   const [showMoodboardHelp, setShowMoodboardHelp] = useState(false)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
-  const [showColourPicker, setShowColourPicker] = useState(false)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const [showCreativePicker, setShowCreativePicker] = useState(false)
+  const [isSelectingCreative, setIsSelectingCreative] = useState(false)
+  const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
-  const { data: colours, isLoading: coloursLoading } = useProjectColours(projectId)
-  const createColour = useCreateProjectColour(projectId)
-  const deleteColour = useDeleteProjectColour(projectId)
   const { data: messages } = useMessages(projectId)
   const sendMessage = useSendMessage(projectId)
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
@@ -82,6 +81,22 @@ export default function ProjectDetailPage() {
       senderMap.set(pu.user_id, pu.email)
     }
   })
+
+  // Get current user's role in this project
+  const currentUserRole = userRoleMap.get(currentUserId) || null
+  const isCreative = currentUserRole === 'creative'
+  const isClient = currentUserRole === 'client'
+
+  const handleSelectForCreative = async (assetIds: string[]) => {
+    setIsSelectingCreative(true)
+    try {
+      for (const assetId of assetIds) {
+        await updateAssetCreative.mutateAsync({ assetId, creative: true })
+      }
+    } finally {
+      setIsSelectingCreative(false)
+    }
+  }
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -185,10 +200,23 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleCreateMoodboard = async () => {
+  const handleOpenMoodboardCreator = () => {
+    setShowMoodboardCreator(true)
+  }
+
+  const handleCreateMoodboard = async (options: MoodboardOptions) => {
     setIsCreatingMoodboard(true)
     try {
-      await createMoodboard.mutateAsync()
+      await createMoodboard.mutateAsync({
+        backgroundColor: options.backgroundColor,
+        gridLayout: options.gridLayout,
+        borderEnabled: options.borderEnabled,
+        borderColor: options.borderColor,
+        borderRadius: options.borderRadius,
+        borderWidth: options.borderWidth,
+        spacing: options.spacing,
+      })
+      setShowMoodboardCreator(false)
       setActiveTab('moodboards')
     } catch (error) {
       console.error('Failed to create moodboard:', error)
@@ -395,6 +423,7 @@ export default function ProjectDetailPage() {
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
+                onImageClick={setLightboxImage}
               />
             ))}
 
@@ -426,77 +455,87 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'creative' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Creative Assets (images only) */}
-            {assets?.filter(a => userRoleMap.get(a.uploaded_by_id) === 'creative' && a.asset_type !== 'link').map((asset) => (
+            {/* Creative Assets - images where creative = true */}
+            {assets?.filter(a => a.creative && a.asset_type !== 'link').map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
+                onImageClick={setLightboxImage}
               />
             ))}
 
-            {/* Add Asset Card */}
-            <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
-                  <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
-                </>
-              ) : (
-                <>
-                  <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                  <p className="text-sm text-moodkin-gray font-medium">Add Creative</p>
-                </>
-              )}
-              <input
-                type="file"
-                className="hidden"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                multiple
-                onChange={(e) => handleFileSelect(e.target.files)}
-                disabled={isUploading}
-              />
-            </label>
+            {/* Add from Uploads button - only visible to creative users */}
+            {isCreative && (
+              <button
+                onClick={() => setShowCreativePicker(true)}
+                className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors"
+              >
+                <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
+                <p className="text-sm text-moodkin-gray font-medium">Add from Uploads</p>
+              </button>
+            )}
           </div>
         )}
 
         {activeTab === 'client' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Client Assets (images only) */}
+            {/* Client Assets - images uploaded by client users */}
             {assets?.filter(a => userRoleMap.get(a.uploaded_by_id) === 'client' && a.asset_type !== 'link').map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
+                onImageClick={setLightboxImage}
               />
             ))}
 
-            {/* Add Asset Card */}
-            <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
-                  <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
-                </>
-              ) : (
-                <>
-                  <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                  <p className="text-sm text-moodkin-gray font-medium">Add Client Asset</p>
-                </>
-              )}
-              <input
-                type="file"
-                className="hidden"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                multiple
-                onChange={(e) => handleFileSelect(e.target.files)}
-                disabled={isUploading}
-              />
-            </label>
+            {/* Add Asset Card - only visible to client users */}
+            {isClient && (
+              <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
+                    <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
+                    <p className="text-sm text-moodkin-gray font-medium">Add Client</p>
+                  </>
+                )}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  multiple
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                  disabled={isUploading}
+                />
+              </label>
+            )}
           </div>
         )}
+
+        {/* Creative Picker Dialog */}
+        <AssetPickerDialog
+          open={showCreativePicker}
+          onClose={() => setShowCreativePicker(false)}
+          assets={assets || []}
+          onSelect={handleSelectForCreative}
+          isLoading={isSelectingCreative}
+        />
+
+        {/* Moodboard Creator Dialog */}
+        <MoodboardCreatorDialog
+          open={showMoodboardCreator}
+          onClose={() => setShowMoodboardCreator(false)}
+          onCreate={handleCreateMoodboard}
+          imageCount={assets?.filter(a => a.asset_type === 'image').length || 0}
+          isLoading={isCreatingMoodboard}
+        />
 
         {activeTab === 'links' && (
           <div className="space-y-6">
@@ -558,74 +597,6 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {activeTab === 'colours' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-moodkin-dark">Project Colours</h2>
-              <Button
-                onClick={() => setShowColourPicker(true)}
-                className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Colour
-              </Button>
-            </div>
-
-            {coloursLoading ? (
-              <div className="text-center py-8 text-moodkin-gray">
-                <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-moodkin-gold" />
-                <p>Loading colours...</p>
-              </div>
-            ) : colours && colours.length > 0 ? (
-              <>
-                {/* Colour strip preview */}
-                <div className="bg-white rounded-2xl shadow-sm p-4">
-                  <h3 className="text-sm font-medium text-moodkin-gray mb-3">Colour Strip</h3>
-                  <div className="flex h-12 rounded-xl overflow-hidden shadow-sm">
-                    {colours.slice(0, 12).map((colour) => (
-                      <div
-                        key={colour.id}
-                        className="flex-1"
-                        style={{ backgroundColor: colour.hex_color }}
-                        title={`${colour.hex_color}${colour.name ? ` - ${colour.name}` : ''}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Colour cards grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {colours.map((colour) => (
-                    <ColourCard
-                      key={colour.id}
-                      colour={colour}
-                      onDelete={(id) => deleteColour.mutate(id)}
-                      currentUserId={currentUserId}
-                      canDelete={colour.added_by_id === currentUserId}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-12 text-moodkin-gray">
-                <Palette className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No colours added yet</p>
-                <p className="text-sm mt-1">Click "Add Colour" to start building your palette</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Colour Picker Dialog */}
-        <ColourPickerDialog
-          open={showColourPicker}
-          onClose={() => setShowColourPicker(false)}
-          onSelect={async (colour) => {
-            await createColour.mutateAsync(colour)
-          }}
-          existingColours={colours?.map(c => c.hex_color) || []}
-        />
-
         {activeTab === 'moodboards' && (
           <div className="space-y-6">
             {/* Header with Create Button and Help */}
@@ -633,21 +604,12 @@ export default function ProjectDetailPage() {
               <h2 className="text-lg font-semibold text-moodkin-dark">Your Moodboards</h2>
               <div className="flex items-center gap-2">
                 <Button
-                  onClick={handleCreateMoodboard}
+                  onClick={handleOpenMoodboardCreator}
                   disabled={isCreatingMoodboard}
                   className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
                 >
-                  {isCreatingMoodboard ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Moodboard
-                    </>
-                  )}
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Moodboard
                 </Button>
                 <button
                   onClick={() => setShowMoodboardHelp(true)}
@@ -667,29 +629,176 @@ export default function ProjectDetailPage() {
               </div>
             ) : moodboards && moodboards.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {moodboards.map((moodboard) => (
+                {moodboards.map((moodboard) => {
+                  // Filter out flagged images (negative score means more flags than likes)
+                  const displayImages = moodboard.images.filter(img => img.score >= 0)
+                  const bgColor = moodboard.background_color || '#1A1A1A'
+                  const borderColor = moodboard.border_color || '#FFFFFF'
+                  const borderRadius = moodboard.border_radius ?? 12
+                  const borderWidth = moodboard.border_width ?? 0
+                  const spacingPx = moodboard.spacing ?? 8
+                  const gridLayout = moodboard.grid_layout || '2x2'
+
+                  // Calculate grid based on layout
+                  const isFeaturedLayout = gridLayout === '1+2' || gridLayout === '1+3'
+                  const isFeaturedBottomLayout = gridLayout === '2+1'
+                  const useCustomGrid = !isFeaturedLayout && !isFeaturedBottomLayout && gridLayout !== 'auto'
+
+                  let cols = 2, rows = 2
+                  if (useCustomGrid && gridLayout.includes('x')) {
+                    [cols, rows] = gridLayout.split('x').map(Number)
+                  } else if (gridLayout === 'auto') {
+                    cols = 4
+                    rows = 3
+                  }
+                  const maxImages = isFeaturedLayout ? 3 : isFeaturedBottomLayout ? 3 : useCustomGrid ? cols * rows : 6
+
+                  const imageStyle = {
+                    borderRadius: `${borderRadius}px`,
+                    border: borderWidth > 0 ? `${borderWidth}px solid ${borderColor}` : undefined,
+                  }
+
+                  return (
                   <div
                     key={moodboard.id}
                     className="bg-white rounded-2xl shadow-sm overflow-hidden"
                   >
                     {/* Moodboard Preview Grid */}
-                    <div className="grid grid-cols-3 gap-1 p-2 bg-moodkin-cream/30">
-                      {moodboard.images.slice(0, 6).map((img, idx) => (
-                        <div key={img.id} className="aspect-square relative">
-                          <Image
-                            src={img.asset.url}
-                            alt=""
-                            fill
-                            className="object-cover rounded-lg"
-                          />
-                        </div>
-                      ))}
-                      {moodboard.images.length > 6 && (
-                        <div className="aspect-square bg-moodkin-gold/20 rounded-lg flex items-center justify-center">
-                          <span className="text-moodkin-dark font-bold">
-                            +{moodboard.images.length - 6}
-                          </span>
-                        </div>
+                    <div
+                      className="grid aspect-[4/3]"
+                      style={{
+                        backgroundColor: bgColor,
+                        gap: `${spacingPx}px`,
+                        padding: `${spacingPx}px`,
+                        gridTemplateColumns: isFeaturedLayout ? '1fr 1fr' : isFeaturedBottomLayout ? '1fr 1fr' : useCustomGrid ? `repeat(${cols}, 1fr)` : 'repeat(4, 1fr)',
+                        gridTemplateRows: isFeaturedLayout ? '1fr 1fr' : isFeaturedBottomLayout ? '1fr 1fr' : useCustomGrid ? `repeat(${rows}, 1fr)` : 'repeat(3, 1fr)',
+                      }}
+                    >
+                      {isFeaturedLayout ? (
+                        // Featured layout: 1 large on left, 2 on right
+                        <>
+                          {displayImages[0] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
+                              className="row-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {displayImages[1] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {displayImages[2] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[2].asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[2].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                        </>
+                      ) : isFeaturedBottomLayout ? (
+                        // Featured bottom layout: 2 on top, 1 large on bottom
+                        <>
+                          {displayImages[0] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {displayImages[1] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {displayImages[2] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[2].asset.url)}
+                              className="col-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[2].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                        </>
+                      ) : useCustomGrid ? (
+                        // Custom grid: equal size images
+                        <>
+                          {displayImages.slice(0, maxImages).map((img) => (
+                            <button
+                              key={img.id}
+                              onClick={() => setLightboxImage(img.asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={img.asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          ))}
+                          {displayImages.length > maxImages && (
+                            <div className="bg-moodkin-gold/20 flex items-center justify-center" style={{ borderRadius: `${borderRadius}px` }}>
+                              <span className="text-moodkin-dark font-bold text-sm">
+                                +{displayImages.length - maxImages}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // Auto layout: featured images
+                        <>
+                          {/* First image (most liked) - large, spans 2 cols and 2 rows */}
+                          {displayImages[0] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[0].asset.url)}
+                              className="col-span-2 row-span-2 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[0].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {/* Second image (2nd most liked) - medium, spans 2 cols */}
+                          {displayImages[1] && (
+                            <button
+                              onClick={() => setLightboxImage(displayImages[1].asset.url)}
+                              className="col-span-2 row-span-1 relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={displayImages[1].asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          )}
+                          {/* Remaining images - small */}
+                          {displayImages.slice(2, 6).map((img) => (
+                            <button
+                              key={img.id}
+                              onClick={() => setLightboxImage(img.asset.url)}
+                              className="relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                              style={imageStyle}
+                            >
+                              <Image src={img.asset.url} alt="" fill className="object-cover" />
+                            </button>
+                          ))}
+                          {displayImages.length > 6 && (
+                            <div className="bg-moodkin-gold/20 flex items-center justify-center" style={{ borderRadius: `${borderRadius}px` }}>
+                              <span className="text-moodkin-dark font-bold text-sm">
+                                +{displayImages.length - 6}
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -701,7 +810,7 @@ export default function ProjectDetailPage() {
                       )}
                       <div className="flex items-center justify-between mt-4">
                         <p className="text-xs text-moodkin-gray">
-                          {moodboard.images.length} images • Created by {moodboard.created_by_name}
+                          {displayImages.length} images • Created by {moodboard.created_by_name}
                         </p>
                         <Button
                           onClick={() => handleExportPDF(moodboard)}
@@ -713,7 +822,8 @@ export default function ProjectDetailPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-moodkin-gray">
@@ -757,7 +867,10 @@ export default function ProjectDetailPage() {
               senderMap={senderMap}
             />
             <MessageInput
-              onSend={(text) => sendMessage.mutate({ text_content: text })}
+              onSend={(text, imageUrl) => sendMessage.mutate({
+                text_content: text || undefined,
+                image_url: imageUrl,
+              })}
               disabled={sendMessage.isPending}
             />
           </div>
@@ -858,6 +971,30 @@ export default function ProjectDetailPage() {
         projectId={projectId}
         projectTitle={project.title}
       />
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="relative w-[90vw] h-[90vh]">
+            <Image
+              src={lightboxImage}
+              alt=""
+              fill
+              className="object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   )

@@ -47,7 +47,7 @@ export async function GET(
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
@@ -60,6 +60,18 @@ export async function POST(
     if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    // Parse style options from request body
+    const body = await request.json().catch(() => ({}))
+    const {
+      backgroundColor = '#1A1A1A',
+      gridLayout = '2x2',
+      borderEnabled = true,
+      borderColor = '#FFFFFF',
+      borderRadius = 12,
+      borderWidth = 0,
+      spacing = 8,
+    } = body
 
     // Get conversation title
     const { data: conv } = await supabase
@@ -155,6 +167,13 @@ export async function POST(
         description: aiDescription,
         created_by_id: session.user.id,
         created_by_name: session.user.name || session.user.email,
+        background_color: backgroundColor,
+        grid_layout: gridLayout,
+        border_enabled: borderEnabled,
+        border_color: borderColor,
+        border_radius: borderRadius,
+        border_width: borderWidth,
+        spacing: spacing,
       })
       .select()
       .single()

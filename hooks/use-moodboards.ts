@@ -13,12 +13,24 @@ export function useMoodboards(conversationId: string) {
   })
 }
 
+export interface MoodboardStyleOptions {
+  backgroundColor?: string
+  gridLayout?: string
+  borderEnabled?: boolean
+  borderColor?: string
+  borderRadius?: number
+  borderWidth?: number
+  spacing?: number
+}
+
 export function useCreateMoodboard(conversationId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (options?: MoodboardStyleOptions) => {
       const res = await fetch(`/api/conversations/${conversationId}/moodboards`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options || {}),
       })
       if (!res.ok) {
         const error = await res.json()

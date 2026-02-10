@@ -13,6 +13,11 @@ const createAssetSchema = z.object({
   thumbnail_url: z.string().url().optional().nullable(),
 })
 
+const updateCreativeSchema = z.object({
+  assetId: z.string().uuid(),
+  creative: z.boolean(),
+})
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
@@ -71,6 +76,16 @@ export async function POST(
       if (colorPalette.length === 0) colorPalette = null
     }
 
+    // Check if user is a creative (owner or creative role)
+    const { data: projectUser } = await supabase
+      .from('project_users')
+      .select('role, is_owner')
+      .eq('project_id', conversationId)
+      .eq('user_id', session.user.id)
+      .single()
+
+    const isCreative = projectUser?.is_owner || projectUser?.role === 'creative'
+
     const { data: asset, error } = await supabase
       .from('project_assets')
       .insert({
@@ -83,6 +98,7 @@ export async function POST(
         color_palette: colorPalette,
         uploaded_by_id: session.user.id,
         uploaded_by_name: session.user.name || session.user.email,
+        creative: isCreative,
       })
       .select()
       .single()
@@ -144,6 +160,56 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ conversationId: string }> }
+) {
+  try {
+    const session = await requireSession()
+    const supabase = await createServiceClient()
+    const { conversationId } = await params
+
+    const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const parsed = updateCreativeSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    }
+
+    // Verify asset exists in this conversation
+    const { data: asset } = await supabase
+      .from('project_assets')
+      .select('id')
+      .eq('id', parsed.data.assetId)
+      .eq('conversation_id', conversationId)
+      .single()
+
+    if (!asset) {
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
+    }
+
+    const { data: updatedAsset, error } = await supabase
+      .from('project_assets')
+      .update({ creative: parsed.data.creative })
+      .eq('id', parsed.data.assetId)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to update asset' }, { status: 500 })
+    }
+
+    return NextResponse.json(updatedAsset)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

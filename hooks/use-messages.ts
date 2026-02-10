@@ -18,7 +18,7 @@ export function useMessages(conversationId: string) {
 export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { text_content?: string; canvas_data?: Json }) => {
+    mutationFn: async (data: { text_content?: string; canvas_data?: Json; image_url?: string }) => {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

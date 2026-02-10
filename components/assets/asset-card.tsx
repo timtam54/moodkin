@@ -10,9 +10,10 @@ interface AssetCardProps {
   asset: ProjectAsset
   onDelete: (id: string) => void
   currentUserId: string
+  onImageClick?: (url: string) => void
 }
 
-export function AssetCard({ asset, onDelete, currentUserId }: AssetCardProps) {
+export function AssetCard({ asset, onDelete, currentUserId, onImageClick }: AssetCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
 
@@ -54,7 +55,10 @@ export function AssetCard({ asset, onDelete, currentUserId }: AssetCardProps) {
   return (
     <div className="relative">
       {/* Image */}
-      <div className="aspect-square relative rounded-2xl overflow-hidden group">
+      <div
+        className={`aspect-square relative rounded-2xl overflow-hidden group ${onImageClick ? 'cursor-pointer' : ''}`}
+        onClick={() => onImageClick?.(asset.url)}
+      >
         <Image
           src={asset.url}
           alt={asset.filename}
@@ -65,7 +69,7 @@ export function AssetCard({ asset, onDelete, currentUserId }: AssetCardProps) {
 
         {/* Delete button */}
         <button
-          onClick={() => onDelete(asset.id)}
+          onClick={(e) => { e.stopPropagation(); onDelete(asset.id) }}
           className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
         >
           <X className="w-4 h-4 text-white" />
@@ -95,7 +99,7 @@ export function AssetCard({ asset, onDelete, currentUserId }: AssetCardProps) {
           </p>
 
           {/* Interaction buttons */}
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handleLike}
               disabled={addReaction.isPending || removeReaction.isPending}

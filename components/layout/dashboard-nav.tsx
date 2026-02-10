@@ -11,9 +11,11 @@ import {
   LogOut,
   Menu,
   X,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import type { SessionUser } from '@/lib/auth/session'
@@ -31,6 +33,7 @@ const navItems = [
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false)
 
   return (
     <header className="sticky top-0 z-50 bg-moodkin-dark">
@@ -72,11 +75,16 @@ export function DashboardNav({ user }: DashboardNavProps) {
 
           {/* Desktop User section */}
           <div className="hidden md:flex items-center gap-3">
-            <Avatar
-              src={user.avatarUrl}
-              fallback={user.name || user.email}
-              size="sm"
-            />
+            <button
+              onClick={() => setProfileDialogOpen(true)}
+              className="hover:opacity-80 transition-opacity"
+            >
+              <Avatar
+                src={user.avatarUrl}
+                fallback={user.name || user.email}
+                size="sm"
+              />
+            </button>
             <span className="text-sm text-white/70 hidden lg:block">
               {user.name || user.email}
             </span>
@@ -132,11 +140,19 @@ export function DashboardNav({ user }: DashboardNavProps) {
           {/* Mobile user section */}
           <div className="px-4 py-4 border-t border-white/10">
             <div className="flex items-center gap-3">
-              <Avatar
-                src={user.avatarUrl}
-                fallback={user.name || user.email}
-                size="md"
-              />
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  setProfileDialogOpen(true)
+                }}
+                className="hover:opacity-80 transition-opacity"
+              >
+                <Avatar
+                  src={user.avatarUrl}
+                  fallback={user.name || user.email}
+                  size="md"
+                />
+              </button>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
                   {user.name || 'User'}
@@ -157,6 +173,49 @@ export function DashboardNav({ user }: DashboardNavProps) {
 
       {/* Push notification prompt */}
       <PushNotificationPrompt />
+
+      {/* User Profile Dialog */}
+      <Dialog open={profileDialogOpen} onClose={() => setProfileDialogOpen(false)}>
+        <div className="flex flex-col items-center text-center">
+          {user.avatarUrl ? (
+            <Image
+              src={user.avatarUrl}
+              alt={user.name || 'Profile photo'}
+              width={120}
+              height={120}
+              className="rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-[120px] h-[120px] rounded-full bg-moodkin-gold flex items-center justify-center">
+              <span className="text-4xl font-bold text-moodkin-dark">
+                {(user.name || user.email).charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+          <h2 className="text-xl font-bold text-moodkin-dark mt-4">
+            {user.name || 'User'}
+          </h2>
+          <div className="flex items-center gap-2 text-moodkin-gray mt-1">
+            <Mail className="w-4 h-4" />
+            <span className="text-sm">{user.email}</span>
+          </div>
+          <div className="mt-6 flex gap-3">
+            <Link
+              href="/dashboard/settings"
+              onClick={() => setProfileDialogOpen(false)}
+              className="px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+            >
+              Edit Profile
+            </Link>
+            <button
+              onClick={() => logout()}
+              className="px-4 py-2 border border-moodkin-light-gray hover:bg-moodkin-cream text-moodkin-dark font-medium rounded-xl transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </header>
   )
 }

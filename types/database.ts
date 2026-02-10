@@ -126,6 +126,7 @@ export interface Database {
           sender_id: string
           text_content: string | null
           canvas_data: Json | null
+          image_url: string | null
           created_at: string
         }
         Insert: {
@@ -134,6 +135,7 @@ export interface Database {
           sender_id: string
           text_content?: string | null
           canvas_data?: Json | null
+          image_url?: string | null
           created_at?: string
         }
         Update: {
@@ -142,6 +144,7 @@ export interface Database {
           sender_id?: string
           text_content?: string | null
           canvas_data?: Json | null
+          image_url?: string | null
           created_at?: string
         }
       }
@@ -229,6 +232,7 @@ export interface Database {
           color_palette: string[] | null
           uploaded_by_id: string
           uploaded_by_name: string | null
+          creative: boolean
           created_at: string
         }
         Insert: {
@@ -242,6 +246,7 @@ export interface Database {
           color_palette?: string[] | null
           uploaded_by_id: string
           uploaded_by_name?: string | null
+          creative?: boolean
           created_at?: string
         }
         Update: {
@@ -255,6 +260,7 @@ export interface Database {
           color_palette?: string[] | null
           uploaded_by_id?: string
           uploaded_by_name?: string | null
+          creative?: boolean
           created_at?: string
         }
       }
@@ -318,6 +324,13 @@ export interface Database {
           description: string | null
           created_by_id: string
           created_by_name: string | null
+          background_color: string
+          grid_layout: string
+          border_enabled: boolean
+          border_color: string
+          border_radius: number
+          border_width: number
+          spacing: number
           created_at: string
         }
         Insert: {
@@ -327,6 +340,13 @@ export interface Database {
           description?: string | null
           created_by_id: string
           created_by_name?: string | null
+          background_color?: string
+          grid_layout?: string
+          border_enabled?: boolean
+          border_color?: string
+          border_radius?: number
+          border_width?: number
+          spacing?: number
           created_at?: string
         }
         Update: {
@@ -336,6 +356,13 @@ export interface Database {
           description?: string | null
           created_by_id?: string
           created_by_name?: string | null
+          background_color?: string
+          grid_layout?: string
+          border_enabled?: boolean
+          border_color?: string
+          border_radius?: number
+          border_width?: number
+          spacing?: number
           created_at?: string
         }
       }

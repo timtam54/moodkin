@@ -52,3 +52,21 @@ export function useDeleteProjectAsset(conversationId: string) {
     },
   })
 }
+
+export function useUpdateAssetCreative(conversationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: { assetId: string; creative: boolean }) => {
+      const res = await fetch(`/api/conversations/${conversationId}/assets`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error('Failed to update asset')
+      return res.json() as Promise<ProjectAsset>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-assets', conversationId] })
+    },
+  })
+}

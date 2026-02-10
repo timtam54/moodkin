@@ -38,6 +38,14 @@ export function EditProjectDialog({ open, onClose, project, onSubmit, isLoading 
   // Find current client in project
   const currentClient = projectUsers?.find(pu => pu.role === 'client' && !pu.is_owner)
 
+  // Sync title and cover when dialog opens or project changes
+  useEffect(() => {
+    if (open) {
+      setTitle(project.title)
+      setCoverUrl(project.cover_image_url || '')
+    }
+  }, [open, project.title, project.cover_image_url])
+
   // Set initial selected client when dialog opens or projectUsers loads
   useEffect(() => {
     if (currentClient?.user_id) {
@@ -118,7 +126,7 @@ export function EditProjectDialog({ open, onClose, project, onSubmit, isLoading 
   return (
     <Dialog open={open} onClose={onClose} className="max-w-md">
       <DialogHeader>
-        <DialogTitle>Edit Project.</DialogTitle>
+        <DialogTitle>Edit Project</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Cover Image */}

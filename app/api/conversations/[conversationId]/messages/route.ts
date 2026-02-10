@@ -65,6 +65,7 @@ export async function POST(
         sender_id: session.user.id,
         text_content: parsed.data.text_content || null,
         canvas_data: parsed.data.canvas_data || null,
+        image_url: parsed.data.image_url || null,
       })
       .select()
       .single()
@@ -90,6 +91,8 @@ export async function POST(
       title: conversation?.title || 'New message',
       body: parsed.data.text_content
         ? parsed.data.text_content.slice(0, 100)
+        : parsed.data.image_url
+        ? 'Shared an image'
         : 'Canvas updated',
       conversationId,
     }).catch(() => {})
