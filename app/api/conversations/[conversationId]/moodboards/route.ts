@@ -63,7 +63,7 @@ export async function POST(
 
     // Parse style options from request body
     const body = await request.json().catch(() => ({}))
-    const {
+    let {
       backgroundColor = '#1A1A1A',
       gridLayout = '2x2',
       borderEnabled = true,
@@ -74,6 +74,16 @@ export async function POST(
       mode = 'automatic', // 'automatic' or 'manual'
       selectedAssetIds = [], // Only used in manual mode
     } = body
+
+    // Helper to determine layout based on image count for automatic mode
+    const getAutoLayout = (count: number): string => {
+      if (count === 1) return '1'
+      if (count === 2) return '2-big-left'
+      if (count === 3) return '3-top'
+      if (count === 4) return '4-diagonal'
+      if (count <= 6) return '3x2'
+      return 'auto' // Fallback for tiered layout
+    }
 
     // Get conversation title
     const { data: conv } = await supabase
@@ -187,6 +197,11 @@ export async function POST(
       console.error('AI generation failed, using defaults:', aiError)
     }
 
+    // Calculate actual layout for automatic mode
+    const finalGridLayout = gridLayout === 'auto'
+      ? getAutoLayout(sortedAssets.length)
+      : gridLayout
+
     // Create the moodboard
     const { data: moodboard, error: moodboardError } = await supabase
       .from('moodboards')
@@ -197,7 +212,7 @@ export async function POST(
         created_by_id: session.user.id,
         created_by_name: session.user.name || session.user.email,
         background_color: backgroundColor,
-        grid_layout: gridLayout,
+        grid_layout: finalGridLayout,
         border_enabled: borderEnabled,
         border_color: borderColor,
         border_radius: borderRadius,

@@ -445,10 +445,10 @@ export default function ProjectDetailPage() {
         ]
       }
 
-      // 3 images
-      if (layout === '3-top') {
-        const topH = (h - s) / 2
-        const bottomH = h - s - topH
+      // 3 images (also handle 'auto' with 3 images)
+      if (layout === '3-top' || (layout === 'auto' && count === 3)) {
+        const topH = (h - s) * 0.6  // 60% for top image
+        const bottomH = h - s - topH  // 40% for bottom row
         const cellW = (w - s) / 2
         return [
           { x, y, w, h: topH },
@@ -1199,12 +1199,14 @@ export default function ProjectDetailPage() {
                       )
                     }
 
-                    // 3 images layouts
-                    if (gridLayout === '3-top') {
+                    // 3 images layouts (also handle 'auto' with 3 images)
+                    if (gridLayout === '3-top' || (gridLayout === 'auto' && displayImages.length === 3)) {
                       return (
-                        <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacingPx}px` }}>
-                          {displayImages[0] && renderImage(displayImages[0])}
-                          <div className="grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
+                        <div className="w-full h-full grid grid-rows-5" style={{ gap: `${spacingPx}px` }}>
+                          <div className="row-span-3 relative overflow-hidden" style={imageStyle}>
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[0])!)} />}
+                          </div>
+                          <div className="row-span-2 grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
                             {displayImages.slice(1, 3).map(img => renderImage(img))}
                           </div>
                         </div>
@@ -1418,7 +1420,7 @@ export default function ProjectDetailPage() {
                   >
                     {/* Moodboard Preview - Layout Based on grid_layout */}
                     <div
-                      className="flex flex-col aspect-[4/3]"
+                      className="flex flex-col aspect-square"
                       style={{
                         backgroundColor: bgColor,
                         gap: `${spacingPx}px`,
