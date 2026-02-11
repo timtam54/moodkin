@@ -326,6 +326,11 @@ export default function ProjectDetailPage() {
       } : { r: 26, g: 26, b: 26 }
     }
     const bg = hexToRgb(bgColor)
+
+    // Reset any default stroke settings
+    pdf.setDrawColor(bg.r, bg.g, bg.b)
+    pdf.setLineWidth(0)
+
     pdf.setFillColor(bg.r, bg.g, bg.b)
     pdf.rect(0, 0, pageWidth, pageHeight, 'F')
 
@@ -345,6 +350,12 @@ export default function ProjectDetailPage() {
     const spacingPx = moodboard.spacing ?? 8
     const spacing = spacingPx * 0.264583 // Convert px to mm
     const gridLayout = moodboard.grid_layout || '2x2'
+    const borderEnabled = moodboard.border_enabled ?? false
+    const borderWidth = moodboard.border_width ?? 0
+    const borderWidthMm = borderWidth * 0.264583 // Convert px to mm
+    const borderColor = moodboard.border_color || '#FFFFFF'
+    const borderRadius = moodboard.border_radius ?? 12
+    const borderRadiusMm = borderRadius * 0.264583 // Convert px to mm
 
     // Filter valid images
     const validImages = moodboard.images.filter(img => {
@@ -357,16 +368,31 @@ export default function ProjectDetailPage() {
     const getImgUrl = (img: typeof validImages[0]) =>
       img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
 
-    // Helper to load image as base64
-    const loadImage = async (url: string): Promise<string | null> => {
+    // Helper to load image as base64 and get dimensions
+    const loadImage = async (url: string, isExternal: boolean): Promise<{ base64: string; width: number; height: number } | null> => {
       try {
-        const response = await fetch(url)
+        // For external URLs (like link thumbnails), use the proxy to avoid CORS
+        const fetchUrl = isExternal
+          ? `/api/image-proxy?url=${encodeURIComponent(url)}`
+          : url
+        const response = await fetch(fetchUrl)
+        if (!response.ok) return null
         const blob = await response.blob()
-        return await new Promise<string>((resolve) => {
+        const base64 = await new Promise<string>((resolve) => {
           const reader = new FileReader()
           reader.onloadend = () => resolve(reader.result as string)
           reader.readAsDataURL(blob)
         })
+
+        // Get image dimensions
+        const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+          const img = new window.Image()
+          img.onload = () => resolve({ width: img.width, height: img.height })
+          img.onerror = () => resolve({ width: 1, height: 1 })
+          img.src = base64
+        })
+
+        return { base64, ...dimensions }
       } catch {
         return null
       }
@@ -677,12 +703,52 @@ export default function ProjectDetailPage() {
       const img = validImages[i]
       const rect = layoutRects[i]
       const url = getImgUrl(img)
+      const isExternal = img.asset.asset_type === 'link'
 
       if (!url) continue
 
-      const base64 = await loadImage(url)
-      if (base64) {
-        pdf.addImage(base64, 'JPEG', rect.x, rect.y, rect.w, rect.h)
+      const imageData = await loadImage(url, isExternal)
+      if (imageData) {
+        // Calculate dimensions to maintain aspect ratio (cover style - fill rect, crop overflow)
+        const imgRatio = imageData.width / imageData.height
+        const rectRatio = rect.w / rect.h
+
+        let drawW: number, drawH: number, drawX: number, drawY: number
+
+        if (imgRatio > rectRatio) {
+          // Image is wider than rect - fit height, crop sides
+          drawH = rect.h
+          drawW = rect.h * imgRatio
+          drawX = rect.x - (drawW - rect.w) / 2
+          drawY = rect.y
+        } else {
+          // Image is taller than rect - fit width, crop top/bottom
+          drawW = rect.w
+          drawH = rect.w / imgRatio
+          drawX = rect.x
+          drawY = rect.y - (drawH - rect.h) / 2
+        }
+
+        // Use jsPDF context2d for proper clipping without border artifacts
+        const ctx = pdf.context2d
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(rect.x, rect.y, rect.w, rect.h)
+        ctx.clip()
+        pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
+        ctx.restore()
+
+        // Draw border if enabled
+        if (borderEnabled && borderWidthMm > 0) {
+          const border = hexToRgb(borderColor)
+          pdf.setDrawColor(border.r, border.g, border.b)
+          pdf.setLineWidth(borderWidthMm)
+          if (borderRadiusMm > 0) {
+            pdf.roundedRect(rect.x, rect.y, rect.w, rect.h, borderRadiusMm, borderRadiusMm, 'S')
+          } else {
+            pdf.rect(rect.x, rect.y, rect.w, rect.h, 'S')
+          }
+        }
       } else {
         // Draw placeholder
         pdf.setFillColor(240, 240, 240)
