@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   FolderOpen,
+  Users,
   Settings,
   LogOut,
   Menu,
@@ -25,6 +26,7 @@ interface DashboardNavProps {
 
 const navItems = [
   { href: '/dashboard/projects', icon: FolderOpen, label: 'Projects' },
+  { href: '/dashboard/clients', icon: Users, label: 'Clients' },
   { href: '/dashboard/settings', icon: Settings, label: 'Profile' },
 ]
 

@@ -32,9 +32,9 @@ import Link from 'next/link'
 import { Loading } from '@/components/ui/loading'
 
 const tabs = [
-  { id: 'uploads', label: 'Uploads' },
+  { id: 'uploads', label: 'Client' },
   { id: 'creative', label: 'Creative' },
-  { id: 'client', label: 'Client' },
+
   { id: 'links', label: 'Links' },
   { id: 'moodboards', label: 'Moodboards' },
   { id: 'conversation', label: 'Conversation' },
