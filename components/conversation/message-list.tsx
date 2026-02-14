@@ -14,17 +14,20 @@ interface MessageListProps {
 
 // Convert URLs in text to clickable links
 function renderTextWithLinks(text: string, isOwn: boolean) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g
+  // Match URLs with http(s):// or starting with www.
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+)/gi
   const parts = text.split(urlRegex)
 
   return parts.map((part, index) => {
     if (urlRegex.test(part)) {
       // Reset regex lastIndex since we're testing again
       urlRegex.lastIndex = 0
+      // Add https:// prefix if URL starts with www.
+      const href = part.startsWith('www.') ? `https://${part}` : part
       return (
         <a
           key={index}
-          href={part}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           className={`underline break-all ${isOwn ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}

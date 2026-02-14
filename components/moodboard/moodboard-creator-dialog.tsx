@@ -370,7 +370,7 @@ export function MoodboardCreatorDialog({
                   <circle cx="8" cy="8" r="6" />
                 </svg>
               </div>
-              <div className="flex-1 flex gap-2 flex-wrap">
+              <div className="flex-1 flex gap-2 flex-wrap items-center">
                 {BACKGROUND_COLORS.map((color) => (
                   <button
                     key={color.value}
@@ -390,6 +390,36 @@ export function MoodboardCreatorDialog({
                     )}
                   </button>
                 ))}
+                {/* Custom color picker */}
+                <label
+                  className={`relative w-8 h-8 rounded-lg border-2 transition-all cursor-pointer overflow-hidden ${
+                    !BACKGROUND_COLORS.some(c => c.value === backgroundColor)
+                      ? 'border-white scale-110'
+                      : 'border-transparent hover:border-white/30'
+                  }`}
+                  title="Custom color"
+                >
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
+                  />
+                  <div
+                    className="w-full h-full"
+                    style={{
+                      background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)',
+                    }}
+                  />
+                  {!BACKGROUND_COLORS.some(c => c.value === backgroundColor) && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backgroundColor }}
+                    >
+                      <Check className="w-4 h-4 text-white mix-blend-difference" />
+                    </div>
+                  )}
+                </label>
               </div>
             </div>
           </div>
