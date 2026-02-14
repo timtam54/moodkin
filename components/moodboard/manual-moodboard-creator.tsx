@@ -59,11 +59,14 @@ export function ManualMoodboardCreator({
 }: ManualMoodboardCreatorProps) {
   const [currentStep, setCurrentStep] = useState<StepType>('gallery')
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set())
+  const [assetOrder, setAssetOrder] = useState<string[]>([]) // Track order for drag-and-drop
   const [backgroundColor, setBackgroundColor] = useState('#1A1A1A')
   const [gridLayout, setGridLayout] = useState('2x2')
   const [borderRadius, setBorderRadius] = useState(12)
   const [spacing, setSpacing] = useState(8)
   const [hasInitialized, setHasInitialized] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // Filter to visual assets (images and links with thumbnails)
   const visualAssets = useMemo(() =>
@@ -74,21 +77,37 @@ export function ManualMoodboardCreator({
   // Initialize selection when dialog opens with assets
   useEffect(() => {
     if (open && visualAssets.length > 0 && !hasInitialized) {
-      setSelectedAssetIds(new Set(visualAssets.slice(0, 4).map(a => a.id)))
+      const initialIds = visualAssets.slice(0, 4).map(a => a.id)
+      setSelectedAssetIds(new Set(initialIds))
+      setAssetOrder(initialIds)
       setHasInitialized(true)
     }
     // Reset when closing
     if (!open) {
       setHasInitialized(false)
       setCurrentStep('gallery')
+      setAssetOrder([])
     }
   }, [open, visualAssets, hasInitialized])
 
-  // Selected assets in order
-  const selectedAssets = useMemo(() =>
-    visualAssets.filter(a => selectedAssetIds.has(a.id)),
-    [visualAssets, selectedAssetIds]
-  )
+  // Selected assets in order (respecting drag-and-drop order)
+  const selectedAssets = useMemo(() => {
+    // Use assetOrder to maintain the order, filtering to only selected assets
+    const orderedAssets: ProjectAsset[] = []
+    for (const id of assetOrder) {
+      if (selectedAssetIds.has(id)) {
+        const asset = visualAssets.find(a => a.id === id)
+        if (asset) orderedAssets.push(asset)
+      }
+    }
+    // Add any selected assets not in order (newly selected)
+    for (const asset of visualAssets) {
+      if (selectedAssetIds.has(asset.id) && !assetOrder.includes(asset.id)) {
+        orderedAssets.push(asset)
+      }
+    }
+    return orderedAssets
+  }, [visualAssets, selectedAssetIds, assetOrder])
 
   // Update layout when selection count changes
   useEffect(() => {
@@ -339,11 +358,62 @@ export function ManualMoodboardCreator({
       const next = new Set(prev)
       if (next.has(assetId)) {
         next.delete(assetId)
+        // Remove from order
+        setAssetOrder(order => order.filter(id => id !== assetId))
       } else {
         next.add(assetId)
+        // Add to order
+        setAssetOrder(order => [...order, assetId])
       }
       return next
     })
+  }
+
+  // Drag and drop handlers for swapping images
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (_e: React.DragEvent, index: number) => {
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    if (draggedIndex !== null && draggedIndex !== dropIndex) {
+      // Swap the assets in the order
+      const selectedIds = selectedAssets.map(a => a.id)
+      const newOrder = [...selectedIds]
+      const temp = newOrder[draggedIndex]
+      newOrder[draggedIndex] = newOrder[dropIndex]
+      newOrder[dropIndex] = temp
+
+      // Update the full assetOrder by replacing the selected portion
+      setAssetOrder(prevOrder => {
+        const result = [...prevOrder]
+        // Map old positions to new positions
+        selectedIds.forEach((id, i) => {
+          const pos = result.indexOf(id)
+          if (pos !== -1) {
+            result[pos] = newOrder[i]
+          }
+        })
+        return newOrder
+      })
+    }
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOverIndex(null)
   }
 
   const goToStep = (step: StepType) => {
@@ -356,23 +426,59 @@ export function ManualMoodboardCreator({
   const canProceed = currentStep === 'gallery' ? selectedAssetIds.size >= 1 : true
   const isLastStep = currentStep === 'border'
 
+  // Draggable image cell component
+  const DraggableImage = ({ asset, index, className = '', style = {} }: {
+    asset: ProjectAsset | undefined
+    index: number
+    className?: string
+    style?: React.CSSProperties
+  }) => {
+    if (!asset) return null
+    const isDragging = draggedIndex === index
+    const isDragOver = dragOverIndex === index
+
+    return (
+      <div
+        draggable={true}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', String(index))
+          handleDragStart(index)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          handleDragOver(e, index)
+        }}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(e, index)}
+        onDragEnd={handleDragEnd}
+        className={`relative overflow-hidden cursor-grab active:cursor-grabbing transition-all ${className} ${
+          isDragging ? 'opacity-50 scale-95' : ''
+        } ${isDragOver ? 'ring-2 ring-moodkin-gold ring-offset-2 ring-offset-transparent' : ''}`}
+        style={{ ...style, borderRadius: `${borderRadius}px` }}
+      >
+        <Image
+          src={getImageUrl(asset)}
+          alt=""
+          fill
+          className="object-cover pointer-events-none select-none"
+          draggable={false}
+          style={{ borderRadius: `${borderRadius}px` }}
+        />
+      </div>
+    )
+  }
+
   // Render live preview based on selected layout
   const renderLivePreview = () => {
     const previewAssets = selectedAssets
     const count = previewAssets.length
 
-    const imageStyle = {
-      borderRadius: `${borderRadius}px`,
-    }
-
     // Single image
     if (gridLayout === '1' || count === 1) {
       return (
-        <div className="w-full h-full relative overflow-hidden" style={imageStyle}>
-          {previewAssets[0] && (
-            <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />
-          )}
-        </div>
+        <DraggableImage asset={previewAssets[0]} index={0} className="w-full h-full" />
       )
     }
 
@@ -381,9 +487,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -392,9 +496,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -402,24 +504,16 @@ export function ManualMoodboardCreator({
     if (gridLayout === '2-big-left') {
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2" />
+          <DraggableImage asset={previewAssets[1]} index={1} />
         </div>
       )
     }
     if (gridLayout === '2-big-right') {
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} />
+          <DraggableImage asset={previewAssets[1]} index={1} className="col-span-2" />
         </div>
       )
     }
@@ -428,16 +522,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '3-top') {
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[2] && <Image src={getImageUrl(previewAssets[2])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
+            <DraggableImage asset={previewAssets[1]} index={1} />
+            <DraggableImage asset={previewAssets[2]} index={2} />
           </div>
         </div>
       )
@@ -446,32 +534,20 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
+            <DraggableImage asset={previewAssets[0]} index={0} />
+            <DraggableImage asset={previewAssets[1]} index={1} />
           </div>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[2] && <Image src={getImageUrl(previewAssets[2])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[2]} index={2} />
         </div>
       )
     }
     if (gridLayout === '3-left') {
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[2] && <Image src={getImageUrl(previewAssets[2])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
+            <DraggableImage asset={previewAssets[1]} index={1} />
+            <DraggableImage asset={previewAssets[2]} index={2} />
           </div>
         </div>
       )
@@ -480,26 +556,18 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
-            <div className="relative overflow-hidden" style={imageStyle}>
-              {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-            </div>
+            <DraggableImage asset={previewAssets[0]} index={0} />
+            <DraggableImage asset={previewAssets[1]} index={1} />
           </div>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[2] && <Image src={getImageUrl(previewAssets[2])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[2]} index={2} />
         </div>
       )
     }
     if (gridLayout === '3-row') {
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 3).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 3).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -507,10 +575,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '3-col') {
       return (
         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 3).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 3).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -520,10 +586,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '2x2') {
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-2" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 4).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 4).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -531,14 +595,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-top') {
       return (
         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <div className="row-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} className="row-span-2" />
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(1, 4).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(1, 4).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -547,14 +607,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-left') {
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-rows-3" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(1, 4).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(1, 4).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -563,10 +619,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-row') {
       return (
         <div className="w-full h-full grid grid-cols-4" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 4).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 4).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -574,10 +628,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-col') {
       return (
         <div className="w-full h-full grid grid-rows-4" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 4).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 4).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -585,18 +637,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-diagonal') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[1] && <Image src={getImageUrl(previewAssets[1])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          <div className="relative overflow-hidden" style={imageStyle}>
-            {previewAssets[2] && <Image src={getImageUrl(previewAssets[2])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[3] && <Image src={getImageUrl(previewAssets[3])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
+          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          <DraggableImage asset={previewAssets[1]} index={1} />
+          <DraggableImage asset={previewAssets[2]} index={2} />
+          <DraggableImage asset={previewAssets[3]} index={3} className="col-span-2" />
         </div>
       )
     }
@@ -606,17 +650,13 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(0, 2).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(0, 2).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(2, 5).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(2, 5).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i + 2} />
             ))}
           </div>
         </div>
@@ -626,17 +666,13 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(0, 3).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(0, 3).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            {previewAssets.slice(3, 5).map((a) => (
-              <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-                <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-              </div>
+            {previewAssets.slice(3, 5).map((a, i) => (
+              <DraggableImage key={a.id} asset={a} index={i + 3} />
             ))}
           </div>
         </div>
@@ -645,13 +681,9 @@ export function ManualMoodboardCreator({
     if (gridLayout === '5-big') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
-          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          {previewAssets.slice(1, 5).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          {previewAssets.slice(1, 5).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -661,10 +693,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '3x2') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 6).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 6).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -672,10 +702,8 @@ export function ManualMoodboardCreator({
     if (gridLayout === '2x3') {
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-3" style={{ gap: `${spacing}px` }}>
-          {previewAssets.slice(0, 6).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          {previewAssets.slice(0, 6).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i} />
           ))}
         </div>
       )
@@ -683,13 +711,9 @@ export function ManualMoodboardCreator({
     if (gridLayout === '6-big') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
-            {previewAssets[0] && <Image src={getImageUrl(previewAssets[0])} alt="" fill className="object-cover" style={imageStyle} />}
-          </div>
-          {previewAssets.slice(1, 6).map((a) => (
-            <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-              <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-            </div>
+          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          {previewAssets.slice(1, 6).map((a, i) => (
+            <DraggableImage key={a.id} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -707,10 +731,8 @@ export function ManualMoodboardCreator({
           gap: `${spacing}px`,
         }}
       >
-        {previewAssets.map((a) => (
-          <div key={a.id} className="relative overflow-hidden" style={imageStyle}>
-            <Image src={getImageUrl(a)} alt="" fill className="object-cover" style={imageStyle} />
-          </div>
+        {previewAssets.map((a, i) => (
+          <DraggableImage key={a.id} asset={a} index={i} />
         ))}
       </div>
     )
@@ -863,27 +885,58 @@ export function ManualMoodboardCreator({
           )}
 
           {currentStep === 'layout' && (
-            <div className="grid grid-cols-4 gap-3">
-              {layoutTemplates.map((layout) => (
-                <button
-                  key={layout.value}
-                  onClick={() => setGridLayout(layout.value)}
-                  className={`aspect-square p-1 rounded-xl border-2 transition-all ${
-                    gridLayout === layout.value
-                      ? 'border-white bg-white/10'
-                      : 'border-white/20 hover:border-white/40'
-                  }`}
-                >
-                  <div className="w-full h-full text-white/60">
-                    {layout.render(spacing, borderRadius)}
-                  </div>
-                </button>
-              ))}
+            <div className="space-y-4">
+              {/* Layout templates */}
+              <div className="grid grid-cols-4 gap-3">
+                {layoutTemplates.map((layout) => (
+                  <button
+                    key={layout.value}
+                    onClick={() => setGridLayout(layout.value)}
+                    className={`aspect-square p-1 rounded-xl border-2 transition-all ${
+                      gridLayout === layout.value
+                        ? 'border-white bg-white/10'
+                        : 'border-white/20 hover:border-white/40'
+                    }`}
+                  >
+                    <div className="w-full h-full text-white/60">
+                      {layout.render(spacing, borderRadius)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Color Palette */}
+              <div className="flex items-center justify-center gap-2 pt-2">
+                {BACKGROUND_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    onClick={() => setBackgroundColor(color.value)}
+                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                      backgroundColor === color.value
+                        ? 'border-white scale-110'
+                        : 'border-transparent hover:border-white/30'
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                    title={color.label}
+                  >
+                    {backgroundColor === color.value && (
+                      <Check className={`w-4 h-4 mx-auto ${
+                        color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
+                      }`} />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {currentStep === 'border' && (
             <div className="space-y-6">
+              {/* Drag hint */}
+              <p className="text-center text-white/50 text-sm">
+                Drag images in the preview to swap positions
+              </p>
+
               {/* Spacing/Gap Slider */}
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
