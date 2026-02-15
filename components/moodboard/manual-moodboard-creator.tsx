@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { X, Check, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Check, Loader2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import type { ProjectAsset } from '@/types/database'
@@ -23,9 +23,9 @@ interface ManualMoodboardCreatorProps {
   isLoading?: boolean
 }
 
-type StepType = 'gallery' | 'layout' | 'border'
+type StepType = 'gallery' | 'layout' | 'position' | 'border'
 
-const BACKGROUND_COLORS = [
+const DEFAULT_BACKGROUND_COLORS = [
   { value: '#FFFFFF', label: 'White' },
   { value: '#F5F5F0', label: 'Cream' },
   { value: '#1A1A1A', label: 'Black' },
@@ -67,6 +67,25 @@ export function ManualMoodboardCreator({
   const [hasInitialized, setHasInitialized] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [showColorPicker, setShowColorPicker] = useState(false)
+  const [customColors, setCustomColors] = useState<string[]>([])
+
+  // Combined background colors (defaults + custom)
+  const BACKGROUND_COLORS = useMemo(() => [
+    ...DEFAULT_BACKGROUND_COLORS,
+    ...customColors.map(c => ({ value: c, label: 'Custom' }))
+  ], [customColors])
+
+  const handleAddCustomColor = (color: string) => {
+    const upperColor = color.toUpperCase()
+    // Don't add if it already exists
+    if (!customColors.includes(upperColor) &&
+        !DEFAULT_BACKGROUND_COLORS.some(c => c.value.toUpperCase() === upperColor)) {
+      setCustomColors(prev => [...prev, upperColor])
+    }
+    setBackgroundColor(upperColor)
+    setShowColorPicker(false)
+  }
 
   // Filter to visual assets (images and links with thumbnails)
   const visualAssets = useMemo(() =>
@@ -94,16 +113,21 @@ export function ManualMoodboardCreator({
   const selectedAssets = useMemo(() => {
     // Use assetOrder to maintain the order, filtering to only selected assets
     const orderedAssets: ProjectAsset[] = []
+    const addedIds = new Set<string>() // Track added IDs to prevent duplicates
     for (const id of assetOrder) {
-      if (selectedAssetIds.has(id)) {
+      if (selectedAssetIds.has(id) && !addedIds.has(id)) {
         const asset = visualAssets.find(a => a.id === id)
-        if (asset) orderedAssets.push(asset)
+        if (asset) {
+          orderedAssets.push(asset)
+          addedIds.add(id)
+        }
       }
     }
     // Add any selected assets not in order (newly selected)
     for (const asset of visualAssets) {
-      if (selectedAssetIds.has(asset.id) && !assetOrder.includes(asset.id)) {
+      if (selectedAssetIds.has(asset.id) && !addedIds.has(asset.id)) {
         orderedAssets.push(asset)
+        addedIds.add(asset.id)
       }
     }
     return orderedAssets
@@ -119,7 +143,7 @@ export function ManualMoodboardCreator({
     else if (count === 4) setGridLayout('2x2')
     else if (count === 5) setGridLayout('5-top2')
     else if (count === 6) setGridLayout('3x2')
-    else setGridLayout('2x2')
+    else setGridLayout('auto') // 7+ images use auto grid
   }, [selectedAssetIds.size])
 
   // Layout templates based on image count
@@ -309,7 +333,22 @@ export function ManualMoodboardCreator({
       ]
     }
     if (count >= 6) {
+      const cols = Math.ceil(Math.sqrt(count))
+      const rows = Math.ceil(count / cols)
       return [
+        { value: 'auto', label: 'Auto Grid', imageCount: count, render: () => (
+          <div
+            className="w-full h-full grid gap-0.5"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gridTemplateRows: `repeat(${rows}, 1fr)`,
+            }}
+          >
+            {Array.from({ length: Math.min(count, 16) }).map((_, i) => (
+              <div key={i} className="bg-white/30 rounded-sm" />
+            ))}
+          </div>
+        )},
         { value: '3x2', label: '3×2', imageCount: 6, render: () => (
           <div className="w-full h-full grid grid-cols-3 grid-rows-2 gap-0.5">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -420,13 +459,13 @@ export function ManualMoodboardCreator({
     setCurrentStep(step)
   }
 
-  const steps: StepType[] = ['gallery', 'layout', 'border']
+  const steps: StepType[] = ['gallery', 'layout', 'position', 'border']
   const currentStepIndex = steps.indexOf(currentStep)
 
   const canProceed = currentStep === 'gallery' ? selectedAssetIds.size >= 1 : true
   const isLastStep = currentStep === 'border'
 
-  // Draggable image cell component
+  // Image cell component (draggable only on position step)
   const DraggableImage = ({ asset, index, className = '', style = {} }: {
     asset: ProjectAsset | undefined
     index: number
@@ -436,26 +475,29 @@ export function ManualMoodboardCreator({
     if (!asset) return null
     const isDragging = draggedIndex === index
     const isDragOver = dragOverIndex === index
+    const canDrag = currentStep === 'position'
 
     return (
       <div
-        draggable={true}
-        onDragStart={(e) => {
+        draggable={canDrag}
+        onDragStart={canDrag ? (e) => {
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', String(index))
           handleDragStart(index)
-        }}
-        onDragOver={(e) => {
+        } : undefined}
+        onDragOver={canDrag ? (e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
           handleDragOver(e, index)
-        }}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, index)}
-        onDragEnd={handleDragEnd}
-        className={`relative overflow-hidden cursor-grab active:cursor-grabbing transition-all ${className} ${
-          isDragging ? 'opacity-50 scale-95' : ''
-        } ${isDragOver ? 'ring-2 ring-moodkin-gold ring-offset-2 ring-offset-transparent' : ''}`}
+        } : undefined}
+        onDragLeave={canDrag ? handleDragLeave : undefined}
+        onDrop={canDrag ? (e) => handleDrop(e, index) : undefined}
+        onDragEnd={canDrag ? handleDragEnd : undefined}
+        className={`relative overflow-hidden transition-all ${className} ${
+          canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+        } ${isDragging ? 'opacity-50 scale-95' : ''} ${
+          isDragOver ? 'ring-2 ring-moodkin-gold ring-offset-2 ring-offset-transparent' : ''
+        }`}
         style={{ ...style, borderRadius: `${borderRadius}px` }}
       >
         <Image
@@ -466,6 +508,12 @@ export function ManualMoodboardCreator({
           draggable={false}
           style={{ borderRadius: `${borderRadius}px` }}
         />
+        {/* Position number overlay on position step */}
+        {canDrag && (
+          <div className="absolute top-2 left-2 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
+            {index + 1}
+          </div>
+        )}
       </div>
     )
   }
@@ -487,7 +535,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-2h-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -496,7 +544,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-2v-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -567,7 +615,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 3).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-3row-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -576,7 +624,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 3).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-3col-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -587,7 +635,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-2x2-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -598,7 +646,7 @@ export function ManualMoodboardCreator({
           <DraggableImage asset={previewAssets[0]} index={0} className="row-span-2" />
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(1, 4).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i + 1} />
+              <DraggableImage key={`preview-4top-${i}`} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -610,7 +658,7 @@ export function ManualMoodboardCreator({
           <DraggableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-rows-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(1, 4).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i + 1} />
+              <DraggableImage key={`preview-4left-${i}`} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -620,7 +668,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-4" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-4row-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -629,7 +677,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-4" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-4col-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -651,12 +699,12 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(0, 2).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i} />
+              <DraggableImage key={`preview-5top2a-${i}`} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(2, 5).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i + 2} />
+              <DraggableImage key={`preview-5top2b-${i}`} asset={a} index={i + 2} />
             ))}
           </div>
         </div>
@@ -667,12 +715,12 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(0, 3).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i} />
+              <DraggableImage key={`preview-5top3a-${i}`} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(3, 5).map((a, i) => (
-              <DraggableImage key={a.id} asset={a} index={i + 3} />
+              <DraggableImage key={`preview-5top3b-${i}`} asset={a} index={i + 3} />
             ))}
           </div>
         </div>
@@ -683,7 +731,7 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
           <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
           {previewAssets.slice(1, 5).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i + 1} />
+            <DraggableImage key={`preview-5big-${i}`} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -694,7 +742,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 6).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-3x2-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -703,7 +751,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 6).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i} />
+            <DraggableImage key={`preview-2x3-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -713,7 +761,7 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacing}px` }}>
           <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
           {previewAssets.slice(1, 6).map((a, i) => (
-            <DraggableImage key={a.id} asset={a} index={i + 1} />
+            <DraggableImage key={`preview-6big-${i}`} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -732,7 +780,7 @@ export function ManualMoodboardCreator({
         }}
       >
         {previewAssets.map((a, i) => (
-          <DraggableImage key={a.id} asset={a} index={i} />
+          <DraggableImage key={`preview-auto-${i}-${a.id}`} asset={a} index={i} />
         ))}
       </div>
     )
@@ -773,11 +821,11 @@ export function ManualMoodboardCreator({
 
         {/* Preview based on step */}
         {currentStep === 'gallery' ? (
-          <div className="w-full max-w-md">
+          <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl px-4">
             <p className="text-white/70 text-center mb-4">
               {selectedAssetIds.size} photos selected
             </p>
-            <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto">
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 md:gap-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto">
               {visualAssets.map((asset) => {
                 const isSelected = selectedAssetIds.has(asset.id)
                 const isFlagged = flaggedAssetIds.has(asset.id)
@@ -815,9 +863,9 @@ export function ManualMoodboardCreator({
             </div>
           </div>
         ) : (
-          // Layout and Border steps show the preview
+          // Layout, Position and Border steps show the preview
           <div
-            className="w-full max-w-md aspect-square rounded-2xl overflow-hidden"
+            className="w-full max-w-md md:max-w-2xl lg:max-w-4xl aspect-square md:aspect-video lg:aspect-[4/3] rounded-2xl overflow-hidden"
             style={{ backgroundColor }}
           >
             <div
@@ -857,6 +905,17 @@ export function ManualMoodboardCreator({
             )}
           </button>
           <button
+            onClick={() => goToStep('position')}
+            className={`text-sm font-medium transition-colors relative ${
+              currentStep === 'position' ? 'text-white' : 'text-white/50'
+            }`}
+          >
+            Position
+            {currentStep === 'position' && (
+              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
+            )}
+          </button>
+          <button
             onClick={() => goToStep('border')}
             className={`text-sm font-medium transition-colors relative ${
               currentStep === 'border' ? 'text-white' : 'text-white/50'
@@ -887,7 +946,7 @@ export function ManualMoodboardCreator({
           {currentStep === 'layout' && (
             <div className="space-y-4">
               {/* Layout templates */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
                 {layoutTemplates.map((layout) => (
                   <button
                     key={layout.value}
@@ -906,7 +965,7 @@ export function ManualMoodboardCreator({
               </div>
 
               {/* Color Palette */}
-              <div className="flex items-center justify-center gap-2 pt-2">
+              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
                 {BACKGROUND_COLORS.map((color) => (
                   <button
                     key={color.value}
@@ -926,17 +985,80 @@ export function ManualMoodboardCreator({
                     )}
                   </button>
                 ))}
+                {/* Custom color picker */}
+                {showColorPicker ? (
+                  <input
+                    type="color"
+                    autoFocus
+                    className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
+                    onChange={(e) => handleAddCustomColor(e.target.value)}
+                    onBlur={() => setShowColorPicker(false)}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setShowColorPicker(true)}
+                    className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
+                    title="Custom color"
+                  >
+                    <Plus className="w-4 h-4 text-white/50" />
+                  </button>
+                )}
               </div>
+            </div>
+          )}
+
+          {currentStep === 'position' && (
+            <div className="space-y-4">
+              <p className="text-center text-white/70 text-sm">
+                Drag images in the preview to swap their positions
+              </p>
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {selectedAssets.map((asset, index) => {
+                  const imgUrl = getImageUrl(asset)
+                  if (!imgUrl) return null
+                  return (
+                    <div
+                      key={`position-thumb-${index}`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', String(index))
+                        handleDragStart(index)
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        handleDragOver(e, index)
+                      }}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={`relative aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all ${
+                        draggedIndex === index ? 'opacity-50 scale-95' : ''
+                      } ${dragOverIndex === index ? 'ring-2 ring-moodkin-gold' : ''}`}
+                    >
+                      <Image
+                        src={imgUrl}
+                        alt=""
+                        fill
+                        className="object-cover pointer-events-none"
+                        draggable={false}
+                      />
+                      <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        {index + 1}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-center text-white/40 text-xs">
+                Numbers show position in the layout (top-left to bottom-right)
+              </p>
             </div>
           )}
 
           {currentStep === 'border' && (
             <div className="space-y-6">
-              {/* Drag hint */}
-              <p className="text-center text-white/50 text-sm">
-                Drag images in the preview to swap positions
-              </p>
-
               {/* Spacing/Gap Slider */}
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
@@ -984,7 +1106,7 @@ export function ManualMoodboardCreator({
                       <circle cx="8" cy="8" r="6" />
                     </svg>
                   </div>
-                  <div className="flex-1 flex gap-2">
+                  <div className="flex-1 flex gap-2 flex-wrap">
                     {BACKGROUND_COLORS.map((color) => (
                       <button
                         key={color.value}
@@ -1004,6 +1126,24 @@ export function ManualMoodboardCreator({
                         )}
                       </button>
                     ))}
+                    {/* Custom color picker */}
+                    {showColorPicker ? (
+                      <input
+                        type="color"
+                        autoFocus
+                        className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
+                        onChange={(e) => handleAddCustomColor(e.target.value)}
+                        onBlur={() => setShowColorPicker(false)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setShowColorPicker(true)}
+                        className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
+                        title="Custom color"
+                      >
+                        <Plus className="w-4 h-4 text-white/50" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

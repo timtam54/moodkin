@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil } from 'lucide-react'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard, useDeleteMoodboard } from '@/hooks/use-moodboards'
@@ -66,6 +66,8 @@ export default function ProjectDetailPage() {
   const [showMoodboardHelp, setShowMoodboardHelp] = useState(false)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const [showCreativePicker, setShowCreativePicker] = useState(false)
   const [isSelectingCreative, setIsSelectingCreative] = useState(false)
   const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
@@ -121,6 +123,57 @@ export default function ProjectDetailPage() {
   const currentUserRole = userRoleMap.get(currentUserId) || null
   const isCreative = currentUserRole === 'creative'
   const isClient = currentUserRole === 'client'
+
+  // Compute image arrays for each tab for lightbox navigation
+  const clientTabImages = useMemo(() =>
+    assets?.filter(a => a.asset_type !== 'link').map(a => a.url) || [],
+    [assets]
+  )
+  const creativeTabImages = useMemo(() =>
+    assets?.filter(a => a.creative && a.asset_type !== 'link').map(a => a.url) || [],
+    [assets]
+  )
+
+  // Open lightbox with navigation context
+  const openLightbox = useCallback((imageUrl: string, imageList: string[]) => {
+    const index = imageList.indexOf(imageUrl)
+    setLightboxImages(imageList)
+    setLightboxIndex(index >= 0 ? index : 0)
+    setLightboxImage(imageUrl)
+  }, [])
+
+  // Lightbox navigation
+  const goToPrevImage = useCallback(() => {
+    if (lightboxImages.length === 0) return
+    const newIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length
+    setLightboxIndex(newIndex)
+    setLightboxImage(lightboxImages[newIndex])
+  }, [lightboxImages, lightboxIndex])
+
+  const goToNextImage = useCallback(() => {
+    if (lightboxImages.length === 0) return
+    const newIndex = (lightboxIndex + 1) % lightboxImages.length
+    setLightboxIndex(newIndex)
+    setLightboxImage(lightboxImages[newIndex])
+  }, [lightboxImages, lightboxIndex])
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightboxImage) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        goToPrevImage()
+      } else if (e.key === 'ArrowRight') {
+        goToNextImage()
+      } else if (e.key === 'Escape') {
+        setLightboxImage(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [lightboxImage, goToPrevImage, goToNextImage])
 
   const handleSelectForCreative = async (assetIds: string[]) => {
     setIsSelectingCreative(true)
@@ -883,7 +936,7 @@ export default function ProjectDetailPage() {
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
-                onImageClick={setLightboxImage}
+                onImageClick={(url) => openLightbox(url, clientTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
             ))}
@@ -923,7 +976,7 @@ export default function ProjectDetailPage() {
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
-                onImageClick={setLightboxImage}
+                onImageClick={(url) => openLightbox(url, creativeTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
             ))}
@@ -1624,12 +1677,48 @@ export default function ProjectDetailPage() {
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
           onClick={() => setLightboxImage(null)}
         >
+          {/* Close button */}
           <button
             onClick={() => setLightboxImage(null)}
-            className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+            className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-full transition-colors z-10"
           >
             <X className="w-8 h-8" />
           </button>
+
+          {/* Image counter */}
+          {lightboxImages.length > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium z-10">
+              {lightboxIndex + 1} / {lightboxImages.length}
+            </div>
+          )}
+
+          {/* Previous arrow */}
+          {lightboxImages.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                goToPrevImage()
+              }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
+            >
+              <ChevronLeft className="w-10 h-10" />
+            </button>
+          )}
+
+          {/* Next arrow */}
+          {lightboxImages.length > 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                goToNextImage()
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
+            >
+              <ChevronRight className="w-10 h-10" />
+            </button>
+          )}
+
+          {/* Image */}
           <div className="relative w-[90vw] h-[90vh]">
             <Image
               src={lightboxImage}
