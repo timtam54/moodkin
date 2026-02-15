@@ -332,23 +332,8 @@ export function ManualMoodboardCreator({
         )},
       ]
     }
-    if (count >= 6) {
-      const cols = Math.ceil(Math.sqrt(count))
-      const rows = Math.ceil(count / cols)
+    if (count === 6) {
       return [
-        { value: 'auto', label: 'Auto Grid', imageCount: count, render: () => (
-          <div
-            className="w-full h-full grid gap-0.5"
-            style={{
-              gridTemplateColumns: `repeat(${cols}, 1fr)`,
-              gridTemplateRows: `repeat(${rows}, 1fr)`,
-            }}
-          >
-            {Array.from({ length: Math.min(count, 16) }).map((_, i) => (
-              <div key={i} className="bg-white/30 rounded-sm" />
-            ))}
-          </div>
-        )},
         { value: '3x2', label: '3×2', imageCount: 6, render: () => (
           <div className="w-full h-full grid grid-cols-3 grid-rows-2 gap-0.5">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -371,6 +356,25 @@ export function ManualMoodboardCreator({
             <div className="bg-white/30 rounded-sm" />
             <div className="bg-white/30 rounded-sm" />
             <div className="bg-white/30 rounded-sm" />
+          </div>
+        )},
+      ]
+    }
+    if (count >= 7) {
+      const cols = Math.ceil(Math.sqrt(count))
+      const rows = Math.ceil(count / cols)
+      return [
+        { value: 'auto', label: 'Auto Grid', imageCount: count, render: () => (
+          <div
+            className="w-full h-full grid gap-0.5"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gridTemplateRows: `repeat(${rows}, 1fr)`,
+            }}
+          >
+            {Array.from({ length: Math.min(count, 16) }).map((_, i) => (
+              <div key={i} className="bg-white/30 rounded-sm" />
+            ))}
           </div>
         )},
       ]
@@ -865,7 +869,7 @@ export function ManualMoodboardCreator({
         ) : (
           // Layout, Position and Border steps show the preview
           <div
-            className="w-full max-w-md md:max-w-2xl lg:max-w-4xl aspect-square md:aspect-video lg:aspect-[4/3] rounded-2xl overflow-hidden"
+            className="w-full max-w-md md:max-w-2xl lg:max-w-4xl max-h-[50vh] aspect-square rounded-2xl overflow-hidden"
             style={{ backgroundColor }}
           >
             <div
@@ -936,7 +940,7 @@ export function ManualMoodboardCreator({
         </div>
 
         {/* Step Content */}
-        <div className="p-4 pb-8 max-h-[40vh] overflow-y-auto">
+        <div className="p-4 pb-8 min-h-[150px] overflow-y-auto">
           {currentStep === 'gallery' && (
             <div className="text-center text-white/50 text-sm">
               Tap photos to select or deselect
