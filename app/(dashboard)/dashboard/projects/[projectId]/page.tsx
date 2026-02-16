@@ -230,6 +230,16 @@ export default function ProjectDetailPage() {
     }
   }
 
+  const handleRemoveFromCreative = async (assetId: string) => {
+    if (!confirm('Remove this image from creative selection?')) return
+    try {
+      await updateAssetCreative.mutateAsync({ assetId, creative: false })
+    } catch (error) {
+      console.error('Failed to remove from creative:', error)
+      alert(error instanceof Error ? error.message : 'Failed to remove from creative')
+    }
+  }
+
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       return
@@ -973,7 +983,7 @@ export default function ProjectDetailPage() {
               ) : (
                 <>
                   <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                  <p className="text-sm text-moodkin-gray font-medium">Add Asset</p>
+                  <p className="text-sm text-moodkin-gray font-medium">Add Image</p>
                 </>
               )}
               <input
@@ -996,7 +1006,7 @@ export default function ProjectDetailPage() {
               <AssetCard
                 key={asset.id}
                 asset={asset}
-                onDelete={handleDeleteAsset}
+                onDelete={handleRemoveFromCreative}
                 currentUserId={currentUserId}
                 onImageClick={(url) => openLightbox(url, creativeTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
@@ -1010,7 +1020,7 @@ export default function ProjectDetailPage() {
                 className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors"
               >
                 <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
-                <p className="text-sm text-moodkin-gray font-medium">Add from Uploads</p>
+                <p className="text-sm text-moodkin-gray font-medium">Add from Client</p>
               </button>
             )}
           </div>

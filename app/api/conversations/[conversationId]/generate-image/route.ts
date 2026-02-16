@@ -25,10 +25,55 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { prompt, style, size = '1024x1024', saveToProject = false } = body
+    const { prompt, style, size = '1024x1024', saveToProject = false, imageUrl } = body
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
+    }
+
+    // If we have an existing imageUrl and saveToProject is true, skip generation
+    // This happens when the user previewed an image and now wants to save it
+    if (saveToProject && imageUrl) {
+      // Download the image from the existing URL
+      const imageResponse = await fetch(imageUrl)
+      if (!imageResponse.ok) {
+        return NextResponse.json({ error: 'Failed to download generated image' }, { status: 500 })
+      }
+
+      const imageBuffer = await imageResponse.arrayBuffer()
+      const filename = `ai-generated-${Date.now()}.png`
+
+      // Upload to Vercel Blob
+      const blob = await put(filename, imageBuffer, {
+        access: 'public',
+        contentType: 'image/png',
+      })
+
+      // Save to project assets
+      const { data: asset, error: assetError } = await supabase
+        .from('project_assets')
+        .insert({
+          conversation_id: conversationId,
+          url: blob.url,
+          filename: filename,
+          asset_type: 'image',
+          title: prompt.slice(0, 100),
+          uploaded_by_id: session.user.id,
+          uploaded_by_name: session.user.name || session.user.email,
+        })
+        .select()
+        .single()
+
+      if (assetError) {
+        console.error('Failed to save asset:', assetError)
+        return NextResponse.json({ error: 'Failed to save image to project' }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        url: blob.url,
+        saved: true,
+        asset,
+      })
     }
 
     // Get project context for better generation
@@ -65,7 +110,7 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to generate image' }, { status: 500 })
     }
 
-    // If saveToProject is true, download and re-upload to Vercel Blob
+    // If saveToProject is true but no imageUrl was provided (shouldn't happen in normal flow)
     if (saveToProject) {
       // Download the image from OpenAI
       const imageResponse = await fetch(openaiImageUrl)

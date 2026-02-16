@@ -81,7 +81,7 @@ export function AIImageGenerator({
 
     setIsSaving(true)
     try {
-      // Call the API again with saveToProject=true to save server-side
+      // Pass the already-generated imageUrl to save the same image the user previewed
       const res = await fetch(`/api/conversations/${conversationId}/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,6 +90,7 @@ export function AIImageGenerator({
           style,
           size,
           saveToProject: true,
+          imageUrl: generatedImage.url,
         }),
       })
 
