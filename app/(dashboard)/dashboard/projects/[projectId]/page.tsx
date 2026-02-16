@@ -23,6 +23,7 @@ import { MoodboardCreatorDialog, type MoodboardOptions, type RankedAsset } from 
 import { MoodboardModeSelector, type MoodboardMode } from '@/components/moodboard/moodboard-mode-selector'
 import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
 import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
+import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
@@ -74,6 +75,7 @@ export default function ProjectDetailPage() {
   const [showMoodboardModeSelector, setShowMoodboardModeSelector] = useState(false)
   const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
+  const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
   const { data: messages } = useMessages(projectId)
@@ -101,9 +103,9 @@ export default function ProjectDetailPage() {
       return { asset, score, flags }
     })
 
-    // Filter out heavily flagged images and sort by score (highest first)
+    // Filter out flagged images and sort by score (highest first)
     return scored
-      .filter(a => a.score >= -2) // Exclude images with too many flags
+      .filter(a => a.flags === 0) // Exclude any image with red flags
       .sort((a, b) => b.score - a.score)
       .map(({ asset, score }) => ({ asset, score }))
   }, [assets, allReactions])
@@ -123,6 +125,10 @@ export default function ProjectDetailPage() {
   const currentUserRole = userRoleMap.get(currentUserId) || null
   const isCreative = currentUserRole === 'creative'
   const isClient = currentUserRole === 'client'
+
+  // Check if project owner has subscription (stripeid)
+  const projectOwner = projectUsers?.find(pu => pu.is_owner)
+  const ownerHasSubscription = projectOwner?.user?.stripeid === 'subscribed'
 
   // Compute image arrays for each tab for lightbox navigation
   const clientTabImages = useMemo(() =>
@@ -917,17 +923,33 @@ export default function ProjectDetailPage() {
         {activeTab === 'uploads' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* AI Image Generator Card */}
-            <button
-              onClick={() => setShowAIImageGenerator(true)}
-              className="aspect-square bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-violet-600 hover:to-purple-700 transition-all group"
-            >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <p className="font-bold text-white text-center text-sm">AI IMAGE</p>
-              <p className="font-bold text-white text-center text-sm">GENERATOR</p>
-            </button>
+            {ownerHasSubscription ? (
+              <button
+                onClick={() => setShowAIImageGenerator(true)}
+                className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
+                <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowSubscribeDialog(true)}
+                className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <p className="font-bold text-moodkin-dark text-center text-xs">AI IMAGE</p>
+                <p className="font-bold text-moodkin-dark text-center text-xs mb-2">GENERATOR</p>
+                <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Premium feature</p>
+                <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Subscribers only</p>
+              </button>
+            )}
 
             {/* Real Asset Cards (images only) */}
             {assets?.filter(a => a.asset_type !== 'link').map((asset) => (
@@ -1075,6 +1097,24 @@ export default function ProjectDetailPage() {
           onClose={() => setShowAIImageGenerator(false)}
           conversationId={projectId}
           onImageSaved={handleAIImageSaved}
+        />
+
+        {/* Subscribe Dialog */}
+        <SubscribeDialog
+          open={showSubscribeDialog}
+          onClose={() => setShowSubscribeDialog(false)}
+          onSubscribe={async () => {
+            // Mock subscription - in production this would redirect to Stripe
+            const response = await fetch('/api/user/subscription', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subscribed: true }),
+            })
+            if (response.ok) {
+              // Refresh the page to get updated subscription status
+              window.location.reload()
+            }
+          }}
         />
 
         {activeTab === 'links' && (

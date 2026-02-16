@@ -29,6 +29,7 @@ export interface Database {
           auth_provider: string | null
           auth_provider_id: string | null
           stripe_customer_id: string | null
+          stripeid: string | null
           subscription_status: SubscriptionStatus
           subscription_ends_at: string | null
           creative_client: CreativeClientType | null
@@ -46,6 +47,7 @@ export interface Database {
           auth_provider?: string | null
           auth_provider_id?: string | null
           stripe_customer_id?: string | null
+          stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
@@ -63,6 +65,7 @@ export interface Database {
           auth_provider?: string | null
           auth_provider_id?: string | null
           stripe_customer_id?: string | null
+          stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
@@ -564,7 +567,7 @@ export type Moodboard = Database['public']['Tables']['moodboards']['Row']
 export type MoodboardImage = Database['public']['Tables']['moodboard_images']['Row']
 export type ProjectUser = Database['public']['Tables']['project_users']['Row']
 export type ProjectUserWithUser = ProjectUser & {
-  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url'> | null
+  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url' | 'stripeid'> | null
 }
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
 export type ProjectColour = Database['public']['Tables']['project_colours']['Row']

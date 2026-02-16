@@ -13,6 +13,7 @@ export interface SessionUser {
   creativeClient: CreativeClientType | null
   subscriptionStatus?: SubscriptionStatus
   subscriptionEndsAt?: string | null
+  stripeid?: string | null
 }
 
 export interface Session {
@@ -92,6 +93,7 @@ export async function getSession(): Promise<Session | null> {
         creativeClient: user.creative_client,
         subscriptionStatus: user.subscription_status,
         subscriptionEndsAt: user.subscription_ends_at,
+        stripeid: user.stripeid,
       },
       expiresAt: sessionData.expiresAt,
     }

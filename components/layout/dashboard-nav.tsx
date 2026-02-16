@@ -34,6 +34,27 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState(user.stripeid === 'subscribed')
+  const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false)
+
+  const handleSubscriptionToggle = async () => {
+    setIsUpdatingSubscription(true)
+    try {
+      const newSubscribed = !isSubscribed
+      const response = await fetch('/api/user/subscription', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscribed: newSubscribed }),
+      })
+      if (response.ok) {
+        setIsSubscribed(newSubscribed)
+      }
+    } catch (error) {
+      console.error('Failed to update subscription:', error)
+    } finally {
+      setIsUpdatingSubscription(false)
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-moodkin-dark">
@@ -199,6 +220,37 @@ export function DashboardNav({ user }: DashboardNavProps) {
             <Mail className="w-4 h-4" />
             <span className="text-sm">{user.email}</span>
           </div>
+
+          {/* Subscription Status Switch */}
+          <div className="mt-4 flex items-center gap-3">
+            <span className={cn(
+              "text-sm font-medium",
+              !isSubscribed ? "text-moodkin-dark" : "text-moodkin-gray"
+            )}>
+              Free
+            </span>
+            <button
+              onClick={handleSubscriptionToggle}
+              disabled={isUpdatingSubscription}
+              className={cn(
+                "relative w-12 h-6 rounded-full transition-colors",
+                isSubscribed ? "bg-moodkin-gold" : "bg-moodkin-light-gray",
+                isUpdatingSubscription && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <div className={cn(
+                "absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                isSubscribed ? "translate-x-7" : "translate-x-1"
+              )} />
+            </button>
+            <span className={cn(
+              "text-sm font-medium",
+              isSubscribed ? "text-moodkin-dark" : "text-moodkin-gray"
+            )}>
+              Subscribed
+            </span>
+          </div>
+
           <div className="mt-6 flex gap-3">
             <Link
               href="/dashboard/settings"

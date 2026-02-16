@@ -211,11 +211,11 @@ export function MoodboardCreatorDialog({
     // 5+ images: Featured layout with most liked larger
     // Top section: 1-2 large images (most liked)
     // Middle section: 2-3 medium images
-    // Bottom section: remaining smaller images in a row
+    // Bottom section: remaining smaller images in rows
 
     const topImages = rankedAssets.slice(0, 2)
     const midImages = rankedAssets.slice(2, 5)
-    const bottomImages = rankedAssets.slice(5, 9)
+    const bottomImages = rankedAssets.slice(5) // All remaining images
 
     return (
       <div className="w-full h-full flex flex-col" style={{ padding: `${spacing}px`, gap: `${spacing}px` }}>
@@ -255,9 +255,13 @@ export function MoodboardCreatorDialog({
           </div>
         )}
 
-        {/* Bottom row - smaller images (least liked) */}
+        {/* Bottom rows - smaller images (least liked) */}
         {bottomImages.length > 0 && (
-          <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${bottomImages.length}, 1fr)`, gap: `${spacing}px` }}>
+          <div className="flex-1 grid gap-2" style={{
+            gridTemplateColumns: `repeat(${Math.min(bottomImages.length, 4)}, 1fr)`,
+            gridTemplateRows: `repeat(${Math.ceil(bottomImages.length / 4)}, 1fr)`,
+            gap: `${spacing}px`
+          }}>
             {bottomImages.map((item) => (
               <div key={item.asset.id} className="relative" style={imageStyle(borderRadius)}>
                 <Image
@@ -286,14 +290,14 @@ export function MoodboardCreatorDialog({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           <X className="w-6 h-6" />
         </button>
 
         {/* Title */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
-          Automatic Moodboard
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center">
+          <div className="text-white/70 text-sm">Automatic Moodboard</div>
+          <div className="text-white/50 text-xs">{rankedAssets.length} photos available</div>
         </div>
 
         {/* Moodboard Preview */}
