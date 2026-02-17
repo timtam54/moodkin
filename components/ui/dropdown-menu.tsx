@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import { cn } from '@/lib/utils'
+
+const DropdownContext = createContext<{ close: () => void } | null>(null)
 
 interface DropdownMenuProps {
   trigger: React.ReactNode
@@ -29,23 +31,23 @@ export function DropdownMenu({ trigger, children, align = 'right' }: DropdownMen
   }, [open])
 
   return (
-    <div className="relative" ref={menuRef}>
-      <div onClick={() => setOpen(!open)}>
-        {trigger}
-      </div>
-      {open && (
-        <div
-          className={cn(
-            'absolute top-full mt-2 min-w-[180px] bg-white rounded-xl shadow-lg border border-moodkin-light-gray/50 py-2 z-50',
-            align === 'right' ? 'right-0' : 'left-0'
-          )}
-        >
-          <div onClick={() => setOpen(false)}>
+    <DropdownContext.Provider value={{ close: () => setOpen(false) }}>
+      <div className="relative" ref={menuRef}>
+        <div onClick={() => setOpen(!open)}>
+          {trigger}
+        </div>
+        {open && (
+          <div
+            className={cn(
+              'absolute top-full mt-2 min-w-[180px] bg-white rounded-xl shadow-lg border border-moodkin-light-gray/50 py-2 z-50',
+              align === 'right' ? 'right-0' : 'left-0'
+            )}
+          >
             {children}
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </DropdownContext.Provider>
   )
 }
 
@@ -57,9 +59,15 @@ interface DropdownMenuItemProps {
 }
 
 export function DropdownMenuItem({ onClick, children, className, destructive }: DropdownMenuItemProps) {
+  const context = useContext(DropdownContext)
+
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.()
+        context?.close()
+      }}
       className={cn(
         'w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 transition-colors',
         destructive

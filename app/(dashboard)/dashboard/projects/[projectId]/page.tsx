@@ -33,12 +33,31 @@ import Link from 'next/link'
 import { Loading } from '@/components/ui/loading'
 
 const tabs = [
-  { id: 'uploads', label: 'Client' },
+  { id: 'clients', label: 'Client' },
   { id: 'creative', label: 'Creative' },
 
   { id: 'links', label: 'Links' },
   { id: 'moodboards', label: 'Moodboards' },
   { id: 'conversation', label: 'Conversation' },
+]
+
+type ExportFormat =
+  | 'a4-pdf'
+  | 'high-res-png'
+  | 'high-res-jpg'
+  | 'instagram-square'
+  | 'instagram-story'
+  | 'desktop-wallpaper'
+  | 'custom'
+
+const exportFormats: { id: ExportFormat; label: string; icon: string; width: number; height: number; type: 'pdf' | 'image' }[] = [
+  { id: 'a4-pdf', label: 'A4 PDF (Print)', icon: '📄', width: 297, height: 210, type: 'pdf' },
+  { id: 'high-res-png', label: 'High-res PNG', icon: '🖼️', width: 3840, height: 2160, type: 'image' },
+  { id: 'high-res-jpg', label: 'High-res JPG', icon: '🖼️', width: 3840, height: 2160, type: 'image' },
+  { id: 'instagram-square', label: 'Instagram Square', icon: '📱', width: 1080, height: 1080, type: 'image' },
+  { id: 'instagram-story', label: 'Instagram Story', icon: '📱', width: 1080, height: 1920, type: 'image' },
+  { id: 'desktop-wallpaper', label: 'Desktop Wallpaper', icon: '💻', width: 1920, height: 1080, type: 'image' },
+  { id: 'custom', label: 'Custom Size', icon: '📋', width: 0, height: 0, type: 'image' },
 ]
 
 export default function ProjectDetailPage() {
@@ -56,7 +75,7 @@ export default function ProjectDetailPage() {
   const deleteMoodboard = useDeleteMoodboard(projectId)
   const deleteProject = useDeleteConversation()
   const updateProject = useUpdateConversation(projectId)
-  const [activeTab, setActiveTab] = useState('uploads')
+  const [activeTab, setActiveTab] = useState('clients')
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -76,6 +95,13 @@ export default function ProjectDetailPage() {
   const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
+  const [showCustomSizeDialog, setShowCustomSizeDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [exportMoodboard, setExportMoodboard] = useState<MoodboardWithImages | null>(null)
+  const [customExportMoodboard, setCustomExportMoodboard] = useState<MoodboardWithImages | null>(null)
+  const [customWidth, setCustomWidth] = useState('1920')
+  const [customHeight, setCustomHeight] = useState('1080')
+  const [isExporting, setIsExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
   const { data: messages } = useMessages(projectId)
@@ -365,473 +391,640 @@ export default function ProjectDetailPage() {
   const handleAIImageSaved = () => {
     // Invalidate assets query to refresh the list
     invalidateAssets()
-    setActiveTab('uploads')
+    setActiveTab('clients')
   }
 
-  const handleExportPDF = async (moodboard: MoodboardWithImages) => {
-    // Dynamic import for PDF generation (client-side only)
-    const { jsPDF } = await import('jspdf')
+  // Helper function to convert hex to RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 26, g: 26, b: 26 }
+  }
 
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4',
-    })
+  // Helper to load image as base64 and get dimensions
+  const loadImage = async (url: string, isExternal: boolean): Promise<{ base64: string; width: number; height: number } | null> => {
+    try {
+      const fetchUrl = isExternal
+        ? `/api/image-proxy?url=${encodeURIComponent(url)}`
+        : url
+      const response = await fetch(fetchUrl)
+      if (!response.ok) return null
+      const blob = await response.blob()
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob)
+      })
 
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    const margin = 10
-    const usableWidth = pageWidth - margin * 2
-    const usableHeight = pageHeight - margin * 2 - 30 // Leave space for title
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+        const img = new window.Image()
+        img.onload = () => resolve({ width: img.width, height: img.height })
+        img.onerror = () => resolve({ width: 1, height: 1 })
+        img.src = base64
+      })
 
-    // Add background color
-    const bgColor = moodboard.background_color || '#1A1A1A'
-    const hexToRgb = (hex: string) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-      return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      } : { r: 26, g: 26, b: 26 }
+      return { base64, ...dimensions }
+    } catch {
+      return null
     }
-    const bg = hexToRgb(bgColor)
+  }
 
-    // Reset any default stroke settings
-    pdf.setDrawColor(bg.r, bg.g, bg.b)
-    pdf.setLineWidth(0)
+  // Get layout rectangles for canvas rendering (in pixels)
+  type ImageRect = { x: number; y: number; w: number; h: number }
+  const getLayoutRectsPixels = (
+    layout: string,
+    imageCount: number,
+    canvasWidth: number,
+    canvasHeight: number,
+    spacing: number,
+    margin: number,
+    titleHeight: number
+  ): ImageRect[] => {
+    const count = imageCount
+    const w = canvasWidth - margin * 2
+    const h = canvasHeight - margin * 2 - titleHeight
+    const x = margin
+    const y = margin + titleHeight
+    const s = spacing
 
-    pdf.setFillColor(bg.r, bg.g, bg.b)
-    pdf.rect(0, 0, pageWidth, pageHeight, 'F')
-
-    // Add title
-    const titleColor = bg.r + bg.g + bg.b < 380 ? 255 : 51
-    pdf.setFontSize(24)
-    pdf.setTextColor(titleColor, titleColor, titleColor)
-    pdf.text(moodboard.title, pageWidth / 2, margin + 10, { align: 'center' })
-
-    if (moodboard.description) {
-      pdf.setFontSize(12)
-      pdf.setTextColor(titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128)
-      pdf.text(moodboard.description, pageWidth / 2, margin + 18, { align: 'center' })
+    if (layout === '1' || count === 1) {
+      return [{ x, y, w, h }]
     }
 
-    const startY = margin + 25
-    const spacingPx = moodboard.spacing ?? 8
-    const spacing = spacingPx * 0.264583 // Convert px to mm
-    const gridLayout = moodboard.grid_layout || '2x2'
-    const borderEnabled = moodboard.border_enabled ?? false
-    const borderWidth = moodboard.border_width ?? 0
-    const borderWidthMm = borderWidth * 0.264583 // Convert px to mm
-    const borderColor = moodboard.border_color || '#FFFFFF'
-    const borderRadius = moodboard.border_radius ?? 12
-    const borderRadiusMm = borderRadius * 0.264583 // Convert px to mm
+    if (layout === '2h') {
+      const cellW = (w - s) / 2
+      return [
+        { x, y, w: cellW, h },
+        { x: x + cellW + s, y, w: cellW, h }
+      ]
+    }
+    if (layout === '2v') {
+      const cellH = (h - s) / 2
+      return [
+        { x, y, w, h: cellH },
+        { x, y: y + cellH + s, w, h: cellH }
+      ]
+    }
+    if (layout === '2-big-left') {
+      const bigW = (w - s) * 2 / 3
+      const smallW = w - s - bigW
+      return [
+        { x, y, w: bigW, h },
+        { x: x + bigW + s, y, w: smallW, h }
+      ]
+    }
+    if (layout === '2-big-right') {
+      const smallW = (w - s) / 3
+      const bigW = w - s - smallW
+      return [
+        { x, y, w: smallW, h },
+        { x: x + smallW + s, y, w: bigW, h }
+      ]
+    }
 
-    // Filter valid images
-    const validImages = moodboard.images.filter(img => {
-      if (img.score < 0 || !img.asset) return false
-      if (img.asset.asset_type === 'link') return !!img.asset.thumbnail_url
-      return !!img.asset.url
-    })
+    if (layout === '3-top' || (layout === 'auto' && count === 3)) {
+      const topH = (h - s) * 0.6
+      const bottomH = h - s - topH
+      const cellW = (w - s) / 2
+      return [
+        { x, y, w, h: topH },
+        { x, y: y + topH + s, w: cellW, h: bottomH },
+        { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH }
+      ]
+    }
+    if (layout === '3-bottom') {
+      const topH = (h - s) / 2
+      const bottomH = h - s - topH
+      const cellW = (w - s) / 2
+      return [
+        { x, y, w: cellW, h: topH },
+        { x: x + cellW + s, y, w: cellW, h: topH },
+        { x, y: y + topH + s, w, h: bottomH }
+      ]
+    }
+    if (layout === '3-left') {
+      const leftW = (w - s) / 2
+      const rightW = w - s - leftW
+      const cellH = (h - s) / 2
+      return [
+        { x, y, w: leftW, h },
+        { x: x + leftW + s, y, w: rightW, h: cellH },
+        { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH }
+      ]
+    }
+    if (layout === '3-right') {
+      const leftW = (w - s) / 2
+      const rightW = w - s - leftW
+      const cellH = (h - s) / 2
+      return [
+        { x, y, w: leftW, h: cellH },
+        { x, y: y + cellH + s, w: leftW, h: cellH },
+        { x: x + leftW + s, y, w: rightW, h }
+      ]
+    }
+    if (layout === '3-row') {
+      const cellW = (w - s * 2) / 3
+      return [
+        { x, y, w: cellW, h },
+        { x: x + cellW + s, y, w: cellW, h },
+        { x: x + cellW * 2 + s * 2, y, w: cellW, h }
+      ]
+    }
+    if (layout === '3-col') {
+      const cellH = (h - s * 2) / 3
+      return [
+        { x, y, w, h: cellH },
+        { x, y: y + cellH + s, w, h: cellH },
+        { x, y: y + cellH * 2 + s * 2, w, h: cellH }
+      ]
+    }
 
-    // Helper to get image URL
-    const getImgUrl = (img: typeof validImages[0]) =>
-      img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
+    if (layout === '2x2') {
+      const cellW = (w - s) / 2
+      const cellH = (h - s) / 2
+      return [
+        { x, y, w: cellW, h: cellH },
+        { x: x + cellW + s, y, w: cellW, h: cellH },
+        { x, y: y + cellH + s, w: cellW, h: cellH },
+        { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH }
+      ]
+    }
+    if (layout === '4-top') {
+      const topH = (h - s) * 2 / 3
+      const bottomH = h - s - topH
+      const cellW = (w - s * 2) / 3
+      return [
+        { x, y, w, h: topH },
+        { x, y: y + topH + s, w: cellW, h: bottomH },
+        { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH },
+        { x: x + cellW * 2 + s * 2, y: y + topH + s, w: cellW, h: bottomH }
+      ]
+    }
+    if (layout === '4-left') {
+      const leftW = (w - s) / 2
+      const rightW = w - s - leftW
+      const cellH = (h - s * 2) / 3
+      return [
+        { x, y, w: leftW, h },
+        { x: x + leftW + s, y, w: rightW, h: cellH },
+        { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH },
+        { x: x + leftW + s, y: y + cellH * 2 + s * 2, w: rightW, h: cellH }
+      ]
+    }
+    if (layout === '4-row') {
+      const cellW = (w - s * 3) / 4
+      return [
+        { x, y, w: cellW, h },
+        { x: x + cellW + s, y, w: cellW, h },
+        { x: x + cellW * 2 + s * 2, y, w: cellW, h },
+        { x: x + cellW * 3 + s * 3, y, w: cellW, h }
+      ]
+    }
+    if (layout === '4-col') {
+      const cellH = (h - s * 3) / 4
+      return [
+        { x, y, w, h: cellH },
+        { x, y: y + cellH + s, w, h: cellH },
+        { x, y: y + cellH * 2 + s * 2, w, h: cellH },
+        { x, y: y + cellH * 3 + s * 3, w, h: cellH }
+      ]
+    }
+    if (layout === '4-diagonal') {
+      const bigW = (w - s) * 2 / 3
+      const smallW = w - s - bigW
+      const bigH = (h - s) * 2 / 3
+      const smallH = h - s - bigH
+      return [
+        { x, y, w: bigW, h: bigH },
+        { x: x + bigW + s, y, w: smallW, h: smallH },
+        { x: x + bigW + s, y: y + smallH + s, w: smallW, h: bigH - smallH },
+        { x, y: y + bigH + s, w: bigW, h: smallH }
+      ]
+    }
 
-    // Helper to load image as base64 and get dimensions
-    const loadImage = async (url: string, isExternal: boolean): Promise<{ base64: string; width: number; height: number } | null> => {
-      try {
-        // For external URLs (like link thumbnails), use the proxy to avoid CORS
-        const fetchUrl = isExternal
-          ? `/api/image-proxy?url=${encodeURIComponent(url)}`
-          : url
-        const response = await fetch(fetchUrl)
-        if (!response.ok) return null
-        const blob = await response.blob()
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.readAsDataURL(blob)
+    if (layout === '5-top2') {
+      const topH = (h - s) / 2
+      const bottomH = h - s - topH
+      const topCellW = (w - s) / 2
+      const bottomCellW = (w - s * 2) / 3
+      return [
+        { x, y, w: topCellW, h: topH },
+        { x: x + topCellW + s, y, w: topCellW, h: topH },
+        { x, y: y + topH + s, w: bottomCellW, h: bottomH },
+        { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH },
+        { x: x + bottomCellW * 2 + s * 2, y: y + topH + s, w: bottomCellW, h: bottomH }
+      ]
+    }
+    if (layout === '5-top3') {
+      const topH = (h - s) / 2
+      const bottomH = h - s - topH
+      const topCellW = (w - s * 2) / 3
+      const bottomCellW = (w - s) / 2
+      return [
+        { x, y, w: topCellW, h: topH },
+        { x: x + topCellW + s, y, w: topCellW, h: topH },
+        { x: x + topCellW * 2 + s * 2, y, w: topCellW, h: topH },
+        { x, y: y + topH + s, w: bottomCellW, h: bottomH },
+        { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH }
+      ]
+    }
+    if (layout === '5-big') {
+      const bigW = (w - s) * 2 / 3
+      const smallW = w - s - bigW
+      return [
+        { x, y, w: bigW, h },
+        { x: x + bigW + s, y, w: smallW, h: (h - s) / 2 },
+        { x: x + bigW + s, y: y + (h - s) / 2 + s, w: smallW, h: (h - s) / 2 },
+        { x: x + bigW + s, y: y + (h - s) / 2 + s, w: smallW, h: (h - s) / 2 },
+        { x: x + bigW + s, y: y + (h - s) / 2 + s, w: smallW, h: (h - s) / 2 }
+      ].slice(0, Math.min(5, count)).map((rect, i) => {
+        if (i === 0) return { x, y, w: bigW, h }
+        const cellH = (h - s) / 2
+        return {
+          x: x + bigW + s,
+          y: y + Math.floor((i - 1) / 1) * (cellH + s),
+          w: smallW,
+          h: cellH
+        }
+      })
+    }
+
+    if (layout === '3x2') {
+      const cellW = (w - s * 2) / 3
+      const cellH = (h - s) / 2
+      return [
+        { x, y, w: cellW, h: cellH },
+        { x: x + cellW + s, y, w: cellW, h: cellH },
+        { x: x + cellW * 2 + s * 2, y, w: cellW, h: cellH },
+        { x, y: y + cellH + s, w: cellW, h: cellH },
+        { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
+        { x: x + cellW * 2 + s * 2, y: y + cellH + s, w: cellW, h: cellH }
+      ]
+    }
+    if (layout === '2x3') {
+      const cellW = (w - s) / 2
+      const cellH = (h - s * 2) / 3
+      return [
+        { x, y, w: cellW, h: cellH },
+        { x: x + cellW + s, y, w: cellW, h: cellH },
+        { x, y: y + cellH + s, w: cellW, h: cellH },
+        { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
+        { x, y: y + cellH * 2 + s * 2, w: cellW, h: cellH },
+        { x: x + cellW + s, y: y + cellH * 2 + s * 2, w: cellW, h: cellH }
+      ]
+    }
+    if (layout === '6-big') {
+      const bigW = (w - s) * 2 / 3
+      const smallW = w - s - bigW
+      const bigH = (h - s) * 2 / 3
+      const smallH = (h - s * 2) / 3
+      return [
+        { x, y, w: bigW, h: bigH },
+        { x: x + bigW + s, y, w: smallW, h: smallH },
+        { x: x + bigW + s, y: y + smallH + s, w: smallW, h: smallH },
+        { x, y: y + bigH + s, w: smallW, h: h - bigH - s },
+        { x: x + smallW + s, y: y + bigH + s, w: smallW, h: h - bigH - s },
+        { x: x + smallW * 2 + s * 2, y: y + bigH + s, w: w - smallW * 2 - s * 2, h: h - bigH - s }
+      ]
+    }
+
+    // Default tiered layout
+    const topCount = Math.min(2, count)
+    const midCount = Math.min(3, count - topCount)
+    const bottomCount = Math.min(4, count - topCount - midCount)
+    const rects: ImageRect[] = []
+
+    const topH = h * 0.45
+    const midH = midCount > 0 ? h * 0.35 : 0
+    const bottomH = bottomCount > 0 ? h - topH - midH - s * 2 : 0
+
+    const topCellW = (w - s * (topCount - 1)) / topCount
+    for (let i = 0; i < topCount; i++) {
+      rects.push({ x: x + i * (topCellW + s), y, w: topCellW, h: topH })
+    }
+
+    if (midCount > 0) {
+      const midCellW = (w - s * (midCount - 1)) / midCount
+      for (let i = 0; i < midCount; i++) {
+        rects.push({ x: x + i * (midCellW + s), y: y + topH + s, w: midCellW, h: midH })
+      }
+    }
+
+    if (bottomCount > 0) {
+      const bottomCellW = (w - s * (bottomCount - 1)) / bottomCount
+      for (let i = 0; i < bottomCount; i++) {
+        rects.push({ x: x + i * (bottomCellW + s), y: y + topH + midH + s * 2, w: bottomCellW, h: bottomH })
+      }
+    }
+
+    return rects
+  }
+
+  // Unified export handler
+  const handleExport = async (moodboard: MoodboardWithImages, format: ExportFormat, customDimensions?: { width: number; height: number }) => {
+    setIsExporting(true)
+
+    try {
+      const formatConfig = exportFormats.find(f => f.id === format)
+      if (!formatConfig) return
+
+      const bgColor = moodboard.background_color || '#1A1A1A'
+      const bg = hexToRgb(bgColor)
+      const gridLayout = moodboard.grid_layout || '2x2'
+      const spacingPx = moodboard.spacing ?? 8
+      const borderEnabled = moodboard.border_enabled ?? false
+      const borderWidth = moodboard.border_width ?? 0
+      const borderColor = moodboard.border_color || '#FFFFFF'
+      const borderRadius = moodboard.border_radius ?? 12
+
+      // Filter valid images
+      const validImages = moodboard.images.filter(img => {
+        if (img.score < 0 || !img.asset) return false
+        if (img.asset.asset_type === 'link') return !!img.asset.thumbnail_url
+        return !!img.asset.url
+      })
+
+      const getImgUrl = (img: typeof validImages[0]) =>
+        img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
+
+      if (format === 'a4-pdf') {
+        // PDF export using jsPDF
+        const { jsPDF } = await import('jspdf')
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
         })
 
-        // Get image dimensions
-        const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
-          const img = new window.Image()
-          img.onload = () => resolve({ width: img.width, height: img.height })
-          img.onerror = () => resolve({ width: 1, height: 1 })
-          img.src = base64
-        })
+        const pageWidth = pdf.internal.pageSize.getWidth()
+        const pageHeight = pdf.internal.pageSize.getHeight()
+        const margin = 10
+        const usableWidth = pageWidth - margin * 2
+        const usableHeight = pageHeight - margin * 2 - 30
 
-        return { base64, ...dimensions }
-      } catch {
-        return null
-      }
-    }
+        pdf.setDrawColor(bg.r, bg.g, bg.b)
+        pdf.setLineWidth(0)
+        pdf.setFillColor(bg.r, bg.g, bg.b)
+        pdf.rect(0, 0, pageWidth, pageHeight, 'F')
 
-    // Define layout positions based on grid_layout
-    type ImageRect = { x: number; y: number; w: number; h: number }
-    const getLayoutRects = (layout: string, images: typeof validImages): ImageRect[] => {
-      const count = images.length
-      const w = usableWidth
-      const h = usableHeight
-      const x = margin
-      const y = startY
-      const s = spacing
+        const titleColor = bg.r + bg.g + bg.b < 380 ? 255 : 51
+        pdf.setFontSize(24)
+        pdf.setTextColor(titleColor, titleColor, titleColor)
+        pdf.text(moodboard.title, pageWidth / 2, margin + 10, { align: 'center' })
 
-      // Single image
-      if (layout === '1' || count === 1) {
-        return [{ x, y, w, h }]
-      }
-
-      // 2 images
-      if (layout === '2h') {
-        const cellW = (w - s) / 2
-        return [
-          { x, y, w: cellW, h },
-          { x: x + cellW + s, y, w: cellW, h }
-        ]
-      }
-      if (layout === '2v') {
-        const cellH = (h - s) / 2
-        return [
-          { x, y, w, h: cellH },
-          { x, y: y + cellH + s, w, h: cellH }
-        ]
-      }
-      if (layout === '2-big-left') {
-        const bigW = (w - s) * 2 / 3
-        const smallW = w - s - bigW
-        return [
-          { x, y, w: bigW, h },
-          { x: x + bigW + s, y, w: smallW, h }
-        ]
-      }
-      if (layout === '2-big-right') {
-        const smallW = (w - s) / 3
-        const bigW = w - s - smallW
-        return [
-          { x, y, w: smallW, h },
-          { x: x + smallW + s, y, w: bigW, h }
-        ]
-      }
-
-      // 3 images (also handle 'auto' with 3 images)
-      if (layout === '3-top' || (layout === 'auto' && count === 3)) {
-        const topH = (h - s) * 0.6  // 60% for top image
-        const bottomH = h - s - topH  // 40% for bottom row
-        const cellW = (w - s) / 2
-        return [
-          { x, y, w, h: topH },
-          { x, y: y + topH + s, w: cellW, h: bottomH },
-          { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH }
-        ]
-      }
-      if (layout === '3-bottom') {
-        const topH = (h - s) / 2
-        const bottomH = h - s - topH
-        const cellW = (w - s) / 2
-        return [
-          { x, y, w: cellW, h: topH },
-          { x: x + cellW + s, y, w: cellW, h: topH },
-          { x, y: y + topH + s, w, h: bottomH }
-        ]
-      }
-      if (layout === '3-left') {
-        const leftW = (w - s) / 2
-        const rightW = w - s - leftW
-        const cellH = (h - s) / 2
-        return [
-          { x, y, w: leftW, h },
-          { x: x + leftW + s, y, w: rightW, h: cellH },
-          { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH }
-        ]
-      }
-      if (layout === '3-right') {
-        const leftW = (w - s) / 2
-        const rightW = w - s - leftW
-        const cellH = (h - s) / 2
-        return [
-          { x, y, w: leftW, h: cellH },
-          { x, y: y + cellH + s, w: leftW, h: cellH },
-          { x: x + leftW + s, y, w: rightW, h }
-        ]
-      }
-      if (layout === '3-row') {
-        const cellW = (w - s * 2) / 3
-        return [
-          { x, y, w: cellW, h },
-          { x: x + cellW + s, y, w: cellW, h },
-          { x: x + cellW * 2 + s * 2, y, w: cellW, h }
-        ]
-      }
-      if (layout === '3-col') {
-        const cellH = (h - s * 2) / 3
-        return [
-          { x, y, w, h: cellH },
-          { x, y: y + cellH + s, w, h: cellH },
-          { x, y: y + cellH * 2 + s * 2, w, h: cellH }
-        ]
-      }
-
-      // 4 images
-      if (layout === '2x2') {
-        const cellW = (w - s) / 2
-        const cellH = (h - s) / 2
-        return [
-          { x, y, w: cellW, h: cellH },
-          { x: x + cellW + s, y, w: cellW, h: cellH },
-          { x, y: y + cellH + s, w: cellW, h: cellH },
-          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH }
-        ]
-      }
-      if (layout === '4-top') {
-        const topH = (h - s) * 2 / 3
-        const bottomH = h - s - topH
-        const cellW = (w - s * 2) / 3
-        return [
-          { x, y, w, h: topH },
-          { x, y: y + topH + s, w: cellW, h: bottomH },
-          { x: x + cellW + s, y: y + topH + s, w: cellW, h: bottomH },
-          { x: x + cellW * 2 + s * 2, y: y + topH + s, w: cellW, h: bottomH }
-        ]
-      }
-      if (layout === '4-left') {
-        const leftW = (w - s) / 2
-        const rightW = w - s - leftW
-        const cellH = (h - s * 2) / 3
-        return [
-          { x, y, w: leftW, h },
-          { x: x + leftW + s, y, w: rightW, h: cellH },
-          { x: x + leftW + s, y: y + cellH + s, w: rightW, h: cellH },
-          { x: x + leftW + s, y: y + cellH * 2 + s * 2, w: rightW, h: cellH }
-        ]
-      }
-      if (layout === '4-row') {
-        const cellW = (w - s * 3) / 4
-        return [
-          { x, y, w: cellW, h },
-          { x: x + cellW + s, y, w: cellW, h },
-          { x: x + cellW * 2 + s * 2, y, w: cellW, h },
-          { x: x + cellW * 3 + s * 3, y, w: cellW, h }
-        ]
-      }
-      if (layout === '4-col') {
-        const cellH = (h - s * 3) / 4
-        return [
-          { x, y, w, h: cellH },
-          { x, y: y + cellH + s, w, h: cellH },
-          { x, y: y + cellH * 2 + s * 2, w, h: cellH },
-          { x, y: y + cellH * 3 + s * 3, w, h: cellH }
-        ]
-      }
-      if (layout === '4-diagonal') {
-        const bigW = (w - s) * 2 / 3
-        const smallW = w - s - bigW
-        const bigH = (h - s) * 2 / 3
-        const smallH = h - s - bigH
-        return [
-          { x, y, w: bigW, h: bigH },
-          { x: x + bigW + s, y, w: smallW, h: smallH },
-          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: bigH - smallH },
-          { x, y: y + bigH + s, w: bigW, h: smallH }
-        ]
-      }
-
-      // 5 images
-      if (layout === '5-top2') {
-        const topH = (h - s) / 2
-        const bottomH = h - s - topH
-        const topCellW = (w - s) / 2
-        const bottomCellW = (w - s * 2) / 3
-        return [
-          { x, y, w: topCellW, h: topH },
-          { x: x + topCellW + s, y, w: topCellW, h: topH },
-          { x, y: y + topH + s, w: bottomCellW, h: bottomH },
-          { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH },
-          { x: x + bottomCellW * 2 + s * 2, y: y + topH + s, w: bottomCellW, h: bottomH }
-        ]
-      }
-      if (layout === '5-top3') {
-        const topH = (h - s) / 2
-        const bottomH = h - s - topH
-        const topCellW = (w - s * 2) / 3
-        const bottomCellW = (w - s) / 2
-        return [
-          { x, y, w: topCellW, h: topH },
-          { x: x + topCellW + s, y, w: topCellW, h: topH },
-          { x: x + topCellW * 2 + s * 2, y, w: topCellW, h: topH },
-          { x, y: y + topH + s, w: bottomCellW, h: bottomH },
-          { x: x + bottomCellW + s, y: y + topH + s, w: bottomCellW, h: bottomH }
-        ]
-      }
-      if (layout === '5-big') {
-        const bigW = (w - s) * 2 / 3
-        const smallW = w - s - bigW
-        const smallH = (h - s) / 2
-        return [
-          { x, y, w: bigW, h },
-          { x: x + bigW + s, y, w: smallW, h: smallH },
-          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: smallH },
-          { x, y: y + h + s, w: smallW, h: smallH }, // These would overflow - adjust
-          { x: x + smallW + s, y: y + h + s, w: smallW, h: smallH }
-        ].slice(0, 5).map((rect, i) => {
-          // Recalculate for 5-big
-          if (i === 0) return { x, y, w: bigW, h }
-          const idx = i - 1
-          const col = idx % 2
-          const row = Math.floor(idx / 2)
-          const cellW = smallW
-          const cellH = (h - s) / 2
-          return {
-            x: x + bigW + s,
-            y: y + row * (cellH + s),
-            w: cellW,
-            h: cellH
-          }
-        })
-      }
-
-      // 6 images
-      if (layout === '3x2') {
-        const cellW = (w - s * 2) / 3
-        const cellH = (h - s) / 2
-        return [
-          { x, y, w: cellW, h: cellH },
-          { x: x + cellW + s, y, w: cellW, h: cellH },
-          { x: x + cellW * 2 + s * 2, y, w: cellW, h: cellH },
-          { x, y: y + cellH + s, w: cellW, h: cellH },
-          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
-          { x: x + cellW * 2 + s * 2, y: y + cellH + s, w: cellW, h: cellH }
-        ]
-      }
-      if (layout === '2x3') {
-        const cellW = (w - s) / 2
-        const cellH = (h - s * 2) / 3
-        return [
-          { x, y, w: cellW, h: cellH },
-          { x: x + cellW + s, y, w: cellW, h: cellH },
-          { x, y: y + cellH + s, w: cellW, h: cellH },
-          { x: x + cellW + s, y: y + cellH + s, w: cellW, h: cellH },
-          { x, y: y + cellH * 2 + s * 2, w: cellW, h: cellH },
-          { x: x + cellW + s, y: y + cellH * 2 + s * 2, w: cellW, h: cellH }
-        ]
-      }
-      if (layout === '6-big') {
-        const bigW = (w - s) * 2 / 3
-        const smallW = w - s - bigW
-        const bigH = (h - s) * 2 / 3
-        const smallH = (h - s * 2) / 3
-        return [
-          { x, y, w: bigW, h: bigH },
-          { x: x + bigW + s, y, w: smallW, h: smallH },
-          { x: x + bigW + s, y: y + smallH + s, w: smallW, h: smallH },
-          { x, y: y + bigH + s, w: smallW, h: h - bigH - s },
-          { x: x + smallW + s, y: y + bigH + s, w: smallW, h: h - bigH - s },
-          { x: x + smallW * 2 + s * 2, y: y + bigH + s, w: w - smallW * 2 - s * 2, h: h - bigH - s }
-        ]
-      }
-
-      // Default: tiered layout
-      const topCount = Math.min(2, count)
-      const midCount = Math.min(3, count - topCount)
-      const bottomCount = Math.min(4, count - topCount - midCount)
-      const rects: ImageRect[] = []
-
-      const topH = h * 0.45
-      const midH = midCount > 0 ? h * 0.35 : 0
-      const bottomH = bottomCount > 0 ? h - topH - midH - s * 2 : 0
-
-      // Top row
-      const topCellW = (w - s * (topCount - 1)) / topCount
-      for (let i = 0; i < topCount; i++) {
-        rects.push({ x: x + i * (topCellW + s), y, w: topCellW, h: topH })
-      }
-
-      // Middle row
-      if (midCount > 0) {
-        const midCellW = (w - s * (midCount - 1)) / midCount
-        for (let i = 0; i < midCount; i++) {
-          rects.push({ x: x + i * (midCellW + s), y: y + topH + s, w: midCellW, h: midH })
-        }
-      }
-
-      // Bottom row
-      if (bottomCount > 0) {
-        const bottomCellW = (w - s * (bottomCount - 1)) / bottomCount
-        for (let i = 0; i < bottomCount; i++) {
-          rects.push({ x: x + i * (bottomCellW + s), y: y + topH + midH + s * 2, w: bottomCellW, h: bottomH })
-        }
-      }
-
-      return rects
-    }
-
-    const layoutRects = getLayoutRects(gridLayout, validImages)
-
-    // Load and add images
-    for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
-      const img = validImages[i]
-      const rect = layoutRects[i]
-      const url = getImgUrl(img)
-      const isExternal = img.asset.asset_type === 'link'
-
-      if (!url) continue
-
-      const imageData = await loadImage(url, isExternal)
-      if (imageData) {
-        // Calculate dimensions to maintain aspect ratio (cover style - fill rect, crop overflow)
-        const imgRatio = imageData.width / imageData.height
-        const rectRatio = rect.w / rect.h
-
-        let drawW: number, drawH: number, drawX: number, drawY: number
-
-        if (imgRatio > rectRatio) {
-          // Image is wider than rect - fit height, crop sides
-          drawH = rect.h
-          drawW = rect.h * imgRatio
-          drawX = rect.x - (drawW - rect.w) / 2
-          drawY = rect.y
-        } else {
-          // Image is taller than rect - fit width, crop top/bottom
-          drawW = rect.w
-          drawH = rect.w / imgRatio
-          drawX = rect.x
-          drawY = rect.y - (drawH - rect.h) / 2
+        if (moodboard.description) {
+          pdf.setFontSize(12)
+          pdf.setTextColor(titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128, titleColor === 255 ? 180 : 128)
+          pdf.text(moodboard.description, pageWidth / 2, margin + 18, { align: 'center' })
         }
 
-        // Use jsPDF context2d for proper clipping without border artifacts
-        const ctx = pdf.context2d
-        ctx.save()
-        ctx.beginPath()
-        ctx.rect(rect.x, rect.y, rect.w, rect.h)
-        ctx.clip()
-        pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
-        ctx.restore()
+        const startY = margin + 25
+        const spacing = spacingPx * 0.264583
+        const borderWidthMm = borderWidth * 0.264583
+        const borderRadiusMm = borderRadius * 0.264583
 
-        // Draw border if enabled
-        if (borderEnabled && borderWidthMm > 0) {
-          const border = hexToRgb(borderColor)
-          pdf.setDrawColor(border.r, border.g, border.b)
-          pdf.setLineWidth(borderWidthMm)
-          if (borderRadiusMm > 0) {
-            pdf.roundedRect(rect.x, rect.y, rect.w, rect.h, borderRadiusMm, borderRadiusMm, 'S')
+        // Get layout rects for PDF (using mm units)
+        const layoutRects = getLayoutRectsPixels(
+          gridLayout,
+          validImages.length,
+          usableWidth + margin * 2,
+          usableHeight + startY,
+          spacing,
+          margin,
+          startY - margin
+        )
+
+        for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
+          const img = validImages[i]
+          const rect = layoutRects[i]
+          const url = getImgUrl(img)
+          const isExternal = img.asset.asset_type === 'link'
+
+          if (!url) continue
+
+          const imageData = await loadImage(url, isExternal)
+          if (imageData) {
+            const imgRatio = imageData.width / imageData.height
+            const rectRatio = rect.w / rect.h
+
+            let drawW: number, drawH: number, drawX: number, drawY: number
+
+            if (imgRatio > rectRatio) {
+              drawH = rect.h
+              drawW = rect.h * imgRatio
+              drawX = rect.x - (drawW - rect.w) / 2
+              drawY = rect.y
+            } else {
+              drawW = rect.w
+              drawH = rect.w / imgRatio
+              drawX = rect.x
+              drawY = rect.y - (drawH - rect.h) / 2
+            }
+
+            const ctx = pdf.context2d
+            ctx.save()
+            ctx.beginPath()
+            ctx.rect(rect.x, rect.y, rect.w, rect.h)
+            ctx.clip()
+            pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
+            ctx.restore()
+
+            if (borderEnabled && borderWidthMm > 0) {
+              const border = hexToRgb(borderColor)
+              pdf.setDrawColor(border.r, border.g, border.b)
+              pdf.setLineWidth(borderWidthMm)
+              if (borderRadiusMm > 0) {
+                pdf.roundedRect(rect.x, rect.y, rect.w, rect.h, borderRadiusMm, borderRadiusMm, 'S')
+              } else {
+                pdf.rect(rect.x, rect.y, rect.w, rect.h, 'S')
+              }
+            }
           } else {
-            pdf.rect(rect.x, rect.y, rect.w, rect.h, 'S')
+            pdf.setFillColor(240, 240, 240)
+            pdf.rect(rect.x, rect.y, rect.w, rect.h, 'F')
           }
         }
+
+        pdf.setFontSize(8)
+        pdf.setTextColor(titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180)
+        pdf.text(`Created with Moodkin • ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' })
+
+        pdf.save(`${moodboard.title.replace(/[^a-z0-9]/gi, '_')}_moodboard.pdf`)
       } else {
-        // Draw placeholder
-        pdf.setFillColor(240, 240, 240)
-        pdf.rect(rect.x, rect.y, rect.w, rect.h, 'F')
+        // Image export using Canvas
+        const width = customDimensions?.width || formatConfig.width
+        const height = customDimensions?.height || formatConfig.height
+        const margin = Math.round(Math.min(width, height) * 0.03)
+        const titleHeight = Math.round(height * 0.08)
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')!
+
+        // Fill background
+        ctx.fillStyle = bgColor
+        ctx.fillRect(0, 0, width, height)
+
+        // Draw title
+        const titleColor = bg.r + bg.g + bg.b < 380 ? '#FFFFFF' : '#333333'
+        const fontSize = Math.round(height * 0.035)
+        ctx.fillStyle = titleColor
+        ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(moodboard.title, width / 2, margin + fontSize)
+
+        // Draw description if exists
+        if (moodboard.description) {
+          const descFontSize = Math.round(fontSize * 0.6)
+          ctx.fillStyle = bg.r + bg.g + bg.b < 380 ? '#AAAAAA' : '#666666'
+          ctx.font = `${descFontSize}px system-ui, -apple-system, sans-serif`
+          ctx.fillText(moodboard.description, width / 2, margin + fontSize + descFontSize + 5)
+        }
+
+        // Get layout rectangles
+        const layoutRects = getLayoutRectsPixels(
+          gridLayout,
+          validImages.length,
+          width,
+          height - Math.round(height * 0.03), // Leave space for footer
+          spacingPx,
+          margin,
+          titleHeight
+        )
+
+        // Load and draw images
+        for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
+          const img = validImages[i]
+          const rect = layoutRects[i]
+          const url = getImgUrl(img)
+          const isExternal = img.asset.asset_type === 'link'
+
+          if (!url) continue
+
+          const imageData = await loadImage(url, isExternal)
+          if (imageData) {
+            const imgRatio = imageData.width / imageData.height
+            const rectRatio = rect.w / rect.h
+
+            let drawW: number, drawH: number, drawX: number, drawY: number
+
+            if (imgRatio > rectRatio) {
+              drawH = rect.h
+              drawW = rect.h * imgRatio
+              drawX = rect.x - (drawW - rect.w) / 2
+              drawY = rect.y
+            } else {
+              drawW = rect.w
+              drawH = rect.w / imgRatio
+              drawX = rect.x
+              drawY = rect.y - (drawH - rect.h) / 2
+            }
+
+            // Create temporary image element
+            const tempImg = new window.Image()
+            tempImg.crossOrigin = 'anonymous'
+            await new Promise<void>((resolve) => {
+              tempImg.onload = () => resolve()
+              tempImg.onerror = () => resolve()
+              tempImg.src = imageData.base64
+            })
+
+            // Save context, clip to rect, draw image
+            ctx.save()
+            if (borderRadius > 0) {
+              const r = borderRadius
+              ctx.beginPath()
+              ctx.moveTo(rect.x + r, rect.y)
+              ctx.lineTo(rect.x + rect.w - r, rect.y)
+              ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r)
+              ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r)
+              ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h)
+              ctx.lineTo(rect.x + r, rect.y + rect.h)
+              ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r)
+              ctx.lineTo(rect.x, rect.y + r)
+              ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y)
+              ctx.closePath()
+              ctx.clip()
+            } else {
+              ctx.beginPath()
+              ctx.rect(rect.x, rect.y, rect.w, rect.h)
+              ctx.clip()
+            }
+            ctx.drawImage(tempImg, drawX, drawY, drawW, drawH)
+            ctx.restore()
+
+            // Draw border if enabled
+            if (borderEnabled && borderWidth > 0) {
+              ctx.strokeStyle = borderColor
+              ctx.lineWidth = borderWidth
+              if (borderRadius > 0) {
+                const r = borderRadius
+                ctx.beginPath()
+                ctx.moveTo(rect.x + r, rect.y)
+                ctx.lineTo(rect.x + rect.w - r, rect.y)
+                ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r)
+                ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r)
+                ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h)
+                ctx.lineTo(rect.x + r, rect.y + rect.h)
+                ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r)
+                ctx.lineTo(rect.x, rect.y + r)
+                ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y)
+                ctx.closePath()
+                ctx.stroke()
+              } else {
+                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+              }
+            }
+          } else {
+            // Placeholder
+            ctx.fillStyle = '#F0F0F0'
+            ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+          }
+        }
+
+        // Draw footer
+        const footerFontSize = Math.round(height * 0.015)
+        ctx.fillStyle = bg.r + bg.g + bg.b < 380 ? '#888888' : '#AAAAAA'
+        ctx.font = `${footerFontSize}px system-ui, -apple-system, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText(`Created with Moodkin • ${new Date().toLocaleDateString()}`, width / 2, height - margin)
+
+        // Download
+        const extension = format === 'high-res-jpg' ? 'jpg' : 'png'
+        const mimeType = format === 'high-res-jpg' ? 'image/jpeg' : 'image/png'
+        const quality = format === 'high-res-jpg' ? 0.95 : undefined
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${moodboard.title.replace(/[^a-z0-9]/gi, '_')}_moodboard.${extension}`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+          }
+        }, mimeType, quality)
       }
+    } finally {
+      setIsExporting(false)
     }
+  }
 
-    // Add footer
-    pdf.setFontSize(8)
-    pdf.setTextColor(titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180, titleColor === 255 ? 120 : 180)
-    pdf.text(`Created with Moodkin • ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' })
-
-    // Download
-    pdf.save(`${moodboard.title.replace(/[^a-z0-9]/gi, '_')}_moodboard.pdf`)
+  // Handler for custom export with user dimensions
+  const handleCustomExport = () => {
+    if (customExportMoodboard) {
+      const width = parseInt(customWidth) || 1920
+      const height = parseInt(customHeight) || 1080
+      handleExport(customExportMoodboard, 'custom', { width, height })
+      setShowCustomSizeDialog(false)
+      setCustomExportMoodboard(null)
+    }
   }
 
   if (isLoading) {
@@ -930,7 +1123,7 @@ export default function ProjectDetailPage() {
 
       {/* Content */}
       <div className="flex-1">
-        {activeTab === 'uploads' && (
+        {activeTab === 'clients' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* AI Image Generator Card */}
             {ownerHasSubscription ? (
@@ -973,29 +1166,31 @@ export default function ProjectDetailPage() {
               />
             ))}
 
-            {/* Add Asset Card */}
-            <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
-                  <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
-                </>
-              ) : (
-                <>
-                  <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                  <p className="text-sm text-moodkin-gray font-medium">Add Image</p>
-                </>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                multiple
-                onChange={(e) => handleFileSelect(e.target.files)}
-                disabled={isUploading}
-              />
-            </label>
+            {/* Add Asset Card - only visible to client users */}
+            {isClient && (
+              <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
+                    <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
+                    <p className="text-sm text-moodkin-gray font-medium">Add Image</p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  multiple
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                  disabled={isUploading}
+                />
+              </label>
+            )}
           </div>
         )}
 
@@ -1022,47 +1217,6 @@ export default function ProjectDetailPage() {
                 <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
                 <p className="text-sm text-moodkin-gray font-medium">Add from Client</p>
               </button>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'client' && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Client Assets - images uploaded by client users */}
-            {assets?.filter(a => userRoleMap.get(a.uploaded_by_id) === 'client' && a.asset_type !== 'link').map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                onDelete={handleDeleteAsset}
-                currentUserId={currentUserId}
-                onImageClick={setLightboxImage}
-                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
-              />
-            ))}
-
-            {/* Add Asset Card - only visible to client users */}
-            {isClient && (
-              <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
-                {isUploading ? (
-                  <>
-                    <Loader2 className="w-8 h-8 text-moodkin-gold mb-2 animate-spin" />
-                    <p className="text-sm text-moodkin-gray font-medium">Uploading...</p>
-                  </>
-                ) : (
-                  <>
-                    <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                    <p className="text-sm text-moodkin-gray font-medium">Add Client</p>
-                  </>
-                )}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  multiple
-                  onChange={(e) => handleFileSelect(e.target.files)}
-                  disabled={isUploading}
-                />
-              </label>
             )}
           </div>
         )}
@@ -1126,6 +1280,140 @@ export default function ProjectDetailPage() {
             }
           }}
         />
+
+        {/* Custom Size Export Dialog */}
+        <Dialog open={showCustomSizeDialog} onClose={() => {
+          setShowCustomSizeDialog(false)
+          setCustomExportMoodboard(null)
+        }}>
+          <DialogHeader>
+            <DialogTitle>Custom Export Size</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-moodkin-gray">
+              Enter your desired dimensions in pixels:
+            </p>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-moodkin-dark mb-1">Width (px)</label>
+                <input
+                  type="number"
+                  value={customWidth}
+                  onChange={(e) => setCustomWidth(e.target.value)}
+                  min="100"
+                  max="8000"
+                  className="w-full px-4 py-2 rounded-xl border border-moodkin-light-gray focus:outline-none focus:border-moodkin-gold"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-moodkin-dark mb-1">Height (px)</label>
+                <input
+                  type="number"
+                  value={customHeight}
+                  onChange={(e) => setCustomHeight(e.target.value)}
+                  min="100"
+                  max="8000"
+                  className="w-full px-4 py-2 rounded-xl border border-moodkin-light-gray focus:outline-none focus:border-moodkin-gold"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 text-xs text-moodkin-gray">
+              <button
+                type="button"
+                onClick={() => { setCustomWidth('1920'); setCustomHeight('1080') }}
+                className="px-2 py-1 rounded-lg bg-moodkin-cream hover:bg-moodkin-light-gray transition-colors"
+              >
+                1920×1080
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCustomWidth('2560'); setCustomHeight('1440') }}
+                className="px-2 py-1 rounded-lg bg-moodkin-cream hover:bg-moodkin-light-gray transition-colors"
+              >
+                2560×1440
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCustomWidth('3840'); setCustomHeight('2160') }}
+                className="px-2 py-1 rounded-lg bg-moodkin-cream hover:bg-moodkin-light-gray transition-colors"
+              >
+                4K
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCustomWidth('1200'); setCustomHeight('1200') }}
+                className="px-2 py-1 rounded-lg bg-moodkin-cream hover:bg-moodkin-light-gray transition-colors"
+              >
+                Square
+              </button>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                onClick={() => {
+                  setShowCustomSizeDialog(false)
+                  setCustomExportMoodboard(null)
+                }}
+                className="flex-1 bg-moodkin-cream hover:bg-moodkin-light-gray text-moodkin-dark font-semibold rounded-xl py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCustomExport}
+                disabled={isExporting || !customWidth || !customHeight}
+                className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl py-2"
+              >
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Export PNG
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+
+        {/* Export Format Dialog */}
+        <Dialog open={showExportDialog} onClose={() => {
+          setShowExportDialog(false)
+          setExportMoodboard(null)
+        }}>
+          <DialogHeader>
+            <DialogTitle>Export Moodboard</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-3">
+            <p className="text-sm text-moodkin-gray mb-4">
+              Choose an export format:
+            </p>
+            {exportFormats.map((format) => (
+              <button
+                key={format.id}
+                type="button"
+                disabled={isExporting}
+                onClick={() => {
+                  if (format.id === 'custom') {
+                    setShowExportDialog(false)
+                    setCustomExportMoodboard(exportMoodboard)
+                    setShowCustomSizeDialog(true)
+                  } else if (exportMoodboard) {
+                    handleExport(exportMoodboard, format.id)
+                    setShowExportDialog(false)
+                    setExportMoodboard(null)
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-moodkin-light-gray hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors text-left"
+              >
+                <span className="text-xl">{format.icon}</span>
+                <span className="flex-1 font-medium text-moodkin-dark">{format.label}</span>
+                {format.id !== 'custom' && (
+                  <span className="text-sm text-moodkin-gray">
+                    {format.width}×{format.height}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </Dialog>
 
         {activeTab === 'links' && (
           <div className="space-y-6">
@@ -1561,13 +1849,22 @@ export default function ProjectDetailPage() {
                         <p className="text-xs text-moodkin-gray">
                           {displayImages.length} images • Created by {moodboard.created_by_name}
                         </p>
-                        <Button
-                          onClick={() => handleExportPDF(moodboard)}
-                          className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl px-4 py-2 text-sm"
+                        <button
+                          type="button"
+                          disabled={isExporting}
+                          onClick={() => {
+                            setExportMoodboard(moodboard)
+                            setShowExportDialog(true)
+                          }}
+                          className={`inline-flex items-center bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl px-4 py-2 text-sm cursor-pointer ${isExporting ? 'opacity-50' : ''}`}
                         >
-                          <Download className="w-4 h-4 mr-1" />
-                          Export PDF
-                        </Button>
+                          {isExporting ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4 mr-1" />
+                          )}
+                          Export
+                        </button>
                       </div>
                     </div>
                   </div>
