@@ -21,6 +21,7 @@ export interface MoodboardStyleOptions {
   borderRadius?: number
   borderWidth?: number
   spacing?: number
+  aspectRatio?: 'portrait' | 'square' | 'landscape'
   mode?: 'automatic' | 'manual'
   selectedAssetIds?: string[]
 }

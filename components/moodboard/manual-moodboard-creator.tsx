@@ -12,6 +12,7 @@ export interface ManualMoodboardOptions {
   gridLayout: string
   borderRadius: number
   spacing: number
+  aspectRatio: 'portrait' | 'square' | 'landscape'
 }
 
 interface ManualMoodboardCreatorProps {
@@ -23,7 +24,42 @@ interface ManualMoodboardCreatorProps {
   isLoading?: boolean
 }
 
-type StepType = 'gallery' | 'layout' | 'position' | 'border'
+type StepType = 'aspect' | 'gallery' | 'layout' | 'position' | 'border'
+
+type AspectRatioType = 'portrait' | 'square' | 'landscape'
+
+const ASPECT_RATIOS: { value: AspectRatioType; label: string; icon: React.ReactNode; dimensions: string }[] = [
+  {
+    value: 'portrait',
+    label: 'Portrait',
+    dimensions: '3:4',
+    icon: (
+      <svg width="32" height="40" viewBox="0 0 32 40" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="1" y="1" width="30" height="38" rx="4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'square',
+    label: 'Square',
+    dimensions: '1:1',
+    icon: (
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="1" y="1" width="34" height="34" rx="4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'landscape',
+    label: 'Landscape',
+    dimensions: '4:3',
+    icon: (
+      <svg width="40" height="32" viewBox="0 0 40 32" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="1" y="1" width="38" height="30" rx="4" />
+      </svg>
+    ),
+  },
+]
 
 const DEFAULT_BACKGROUND_COLORS = [
   { value: '#FFFFFF', label: 'White' },
@@ -57,7 +93,8 @@ export function ManualMoodboardCreator({
   flaggedAssetIds = new Set(),
   isLoading,
 }: ManualMoodboardCreatorProps) {
-  const [currentStep, setCurrentStep] = useState<StepType>('gallery')
+  const [currentStep, setCurrentStep] = useState<StepType>('aspect')
+  const [aspectRatio, setAspectRatio] = useState<AspectRatioType>('square')
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set())
   const [assetOrder, setAssetOrder] = useState<string[]>([]) // Track order for drag-and-drop
   const [backgroundColor, setBackgroundColor] = useState('#1A1A1A')
@@ -104,7 +141,8 @@ export function ManualMoodboardCreator({
     // Reset when closing
     if (!open) {
       setHasInitialized(false)
-      setCurrentStep('gallery')
+      setCurrentStep('aspect')
+      setAspectRatio('square')
       setAssetOrder([])
     }
   }, [open, visualAssets, hasInitialized])
@@ -393,6 +431,7 @@ export function ManualMoodboardCreator({
       gridLayout,
       borderRadius,
       spacing,
+      aspectRatio,
     })
   }
 
@@ -463,11 +502,20 @@ export function ManualMoodboardCreator({
     setCurrentStep(step)
   }
 
-  const steps: StepType[] = ['gallery', 'layout', 'position', 'border']
+  const steps: StepType[] = ['aspect', 'gallery', 'layout', 'position', 'border']
   const currentStepIndex = steps.indexOf(currentStep)
 
   const canProceed = currentStep === 'gallery' ? selectedAssetIds.size >= 1 : true
   const isLastStep = currentStep === 'border'
+
+  // Get aspect ratio class for preview container
+  const getAspectRatioClass = () => {
+    switch (aspectRatio) {
+      case 'portrait': return 'aspect-[3/4]'
+      case 'landscape': return 'aspect-[4/3]'
+      default: return 'aspect-square'
+    }
+  }
 
   // Image cell component (draggable only on position step)
   const DraggableImage = ({ asset, index, className = '', style = {} }: {
@@ -790,24 +838,213 @@ export function ManualMoodboardCreator({
     )
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col">
-      {/* Dark background */}
-      <div className="absolute inset-0 bg-[#1a1a1a]" />
+  // Check if we're in a step that needs side-by-side layout
+  const isSideBySideStep = currentStep === 'layout' || currentStep === 'position' || currentStep === 'border'
 
-      {/* Preview Area */}
-      <div className="relative flex-1 flex items-center justify-center p-4 pt-16">
-        {/* Close button */}
+  // Render the step controls (for side-by-side layout)
+  const renderStepControls = () => {
+    if (currentStep === 'layout') {
+      return (
+        <div className="space-y-6">
+          <div>
+            <p className="text-white/50 text-sm mb-3">Layout</p>
+            <div className="grid grid-cols-3 gap-2">
+              {layoutTemplates.map((layout) => (
+                <button
+                  key={layout.value}
+                  onClick={() => setGridLayout(layout.value)}
+                  className={`aspect-square p-1 rounded-xl border-2 transition-all ${
+                    gridLayout === layout.value
+                      ? 'border-white bg-white/10'
+                      : 'border-white/20 hover:border-white/40'
+                  }`}
+                >
+                  <div className="w-full h-full text-white/60">
+                    {layout.render(spacing, borderRadius)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-white/50 text-sm mb-3">Background Color</p>
+            <div className="flex gap-2 flex-wrap">
+              {BACKGROUND_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  onClick={() => setBackgroundColor(color.value)}
+                  className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                    backgroundColor === color.value
+                      ? 'border-white scale-110'
+                      : 'border-transparent hover:border-white/30'
+                  }`}
+                  style={{ backgroundColor: color.value }}
+                  title={color.label}
+                >
+                  {backgroundColor === color.value && (
+                    <Check className={`w-4 h-4 mx-auto ${
+                      color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
+                    }`} />
+                  )}
+                </button>
+              ))}
+              {showColorPicker ? (
+                <input
+                  type="color"
+                  autoFocus
+                  className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
+                  onChange={(e) => handleAddCustomColor(e.target.value)}
+                  onBlur={() => setShowColorPicker(false)}
+                />
+              ) : (
+                <button
+                  onClick={() => setShowColorPicker(true)}
+                  className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
+                  title="Custom color"
+                >
+                  <Plus className="w-4 h-4 text-white/50" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    if (currentStep === 'position') {
+      return (
+        <div className="space-y-4">
+          <p className="text-white/50 text-sm">Drag to reorder images</p>
+          <div className="grid grid-cols-3 gap-2">
+            {selectedAssets.map((asset, index) => {
+              const imgUrl = getImageUrl(asset)
+              if (!imgUrl) return null
+              return (
+                <div
+                  key={`position-thumb-${index}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', String(index))
+                    handleDragStart(index)
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    handleDragOver(e, index)
+                  }}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                  className={`relative aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all ${
+                    draggedIndex === index ? 'opacity-50 scale-95' : ''
+                  } ${dragOverIndex === index ? 'ring-2 ring-moodkin-gold' : ''}`}
+                >
+                  <Image
+                    src={imgUrl}
+                    alt=""
+                    fill
+                    className="object-cover pointer-events-none"
+                    draggable={false}
+                  />
+                  <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    {index + 1}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-white/40 text-xs">
+            Numbers show position in the layout
+          </p>
+        </div>
+      )
+    }
+    if (currentStep === 'border') {
+      return (
+        <div className="space-y-6">
+          <div>
+            <p className="text-white/50 text-sm mb-3">Spacing</p>
+            <input
+              type="range"
+              min="0"
+              max="32"
+              value={spacing}
+              onChange={(e) => setSpacing(Number(e.target.value))}
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            />
+          </div>
+          <div>
+            <p className="text-white/50 text-sm mb-3">Corner Radius</p>
+            <input
+              type="range"
+              min="0"
+              max="32"
+              value={borderRadius}
+              onChange={(e) => setBorderRadius(Number(e.target.value))}
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            />
+          </div>
+          <div>
+            <p className="text-white/50 text-sm mb-3">Background Color</p>
+            <div className="flex gap-2 flex-wrap">
+              {BACKGROUND_COLORS.map((color) => (
+                <button
+                  key={color.value}
+                  onClick={() => setBackgroundColor(color.value)}
+                  className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                    backgroundColor === color.value
+                      ? 'border-white scale-110'
+                      : 'border-transparent hover:border-white/30'
+                  }`}
+                  style={{ backgroundColor: color.value }}
+                  title={color.label}
+                >
+                  {backgroundColor === color.value && (
+                    <Check className={`w-4 h-4 mx-auto ${
+                      color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
+                    }`} />
+                  )}
+                </button>
+              ))}
+              {showColorPicker ? (
+                <input
+                  type="color"
+                  autoFocus
+                  className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
+                  onChange={(e) => handleAddCustomColor(e.target.value)}
+                  onBlur={() => setShowColorPicker(false)}
+                />
+              ) : (
+                <button
+                  onClick={() => setShowColorPicker(true)}
+                  className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
+                  title="Custom color"
+                >
+                  <Plus className="w-4 h-4 text-white/50" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#1a1a1a]">
+      {/* Header with close button and step indicator */}
+      <div className="relative flex items-center justify-center p-4">
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors z-10"
+          className="absolute left-4 p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
           disabled={isLoading}
         >
           <X className="w-6 h-6" />
         </button>
 
         {/* Step indicator */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {steps.map((step, index) => (
             <button
               key={step}
@@ -822,372 +1059,247 @@ export function ManualMoodboardCreator({
             />
           ))}
         </div>
-
-        {/* Preview based on step */}
-        {currentStep === 'gallery' ? (
-          <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl px-4">
-            <p className="text-white/70 text-center mb-4">
-              {selectedAssetIds.size} photos selected
-            </p>
-            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 md:gap-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto">
-              {visualAssets.map((asset) => {
-                const isSelected = selectedAssetIds.has(asset.id)
-                const isFlagged = flaggedAssetIds.has(asset.id)
-                const imgUrl = getImageUrl(asset)
-                if (!imgUrl) return null
-                return (
-                  <button
-                    key={asset.id}
-                    onClick={() => toggleAsset(asset.id)}
-                    className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                      isSelected
-                        ? 'border-moodkin-gold scale-95'
-                        : 'border-transparent hover:border-white/30'
-                    } ${isFlagged ? 'opacity-50' : ''}`}
-                  >
-                    <Image
-                      src={imgUrl}
-                      alt={asset.filename}
-                      fill
-                      className="object-cover"
-                    />
-                    {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-                    {isFlagged && (
-                      <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                        <span className="text-xs text-white bg-red-500/80 px-2 py-1 rounded">Flagged</span>
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          // Layout, Position and Border steps show the preview
-          <div
-            className="w-full max-w-md md:max-w-2xl lg:max-w-4xl max-h-[50vh] aspect-square rounded-2xl overflow-hidden"
-            style={{ backgroundColor }}
-          >
-            <div
-              className="w-full h-full"
-              style={{ padding: `${spacing}px` }}
-            >
-              {renderLivePreview()}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Bottom Panel */}
-      <div className="relative bg-[#2a2a2a] rounded-t-3xl">
-        {/* Step Tabs */}
-        <div className="flex items-center justify-center gap-8 py-4 border-b border-white/10">
-          <button
-            onClick={() => goToStep('gallery')}
-            className={`text-sm font-medium transition-colors relative ${
-              currentStep === 'gallery' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Gallery
-            {currentStep === 'gallery' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
-          <button
-            onClick={() => goToStep('layout')}
-            className={`text-sm font-medium transition-colors relative ${
-              currentStep === 'layout' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Layout
-            {currentStep === 'layout' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
-          <button
-            onClick={() => goToStep('position')}
-            className={`text-sm font-medium transition-colors relative ${
-              currentStep === 'position' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Position
-            {currentStep === 'position' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
-          <button
-            onClick={() => goToStep('border')}
-            className={`text-sm font-medium transition-colors relative ${
-              currentStep === 'border' ? 'text-white' : 'text-white/50'
-            }`}
-          >
-            Border
-            {currentStep === 'border' && (
-              <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-            )}
-          </button>
-          <button
-            onClick={isLastStep ? handleCreate : () => goToStep(steps[currentStepIndex + 1])}
-            disabled={isLoading || !canProceed}
-            className="ml-4 text-white/80 hover:text-white disabled:text-white/30"
-          >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-          </button>
-        </div>
-
-        {/* Step Content */}
-        <div className="p-4 pb-8 min-h-[150px] overflow-y-auto">
-          {currentStep === 'gallery' && (
-            <div className="text-center text-white/50 text-sm">
-              Tap photos to select or deselect
-            </div>
-          )}
-
-          {currentStep === 'layout' && (
-            <div className="space-y-4">
-              {/* Layout templates */}
-              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
-                {layoutTemplates.map((layout) => (
-                  <button
-                    key={layout.value}
-                    onClick={() => setGridLayout(layout.value)}
-                    className={`aspect-square p-1 rounded-xl border-2 transition-all ${
-                      gridLayout === layout.value
-                        ? 'border-white bg-white/10'
-                        : 'border-white/20 hover:border-white/40'
-                    }`}
-                  >
-                    <div className="w-full h-full text-white/60">
-                      {layout.render(spacing, borderRadius)}
-                    </div>
-                  </button>
-                ))}
+      {/* Main content area */}
+      {isSideBySideStep ? (
+        // Side-by-side layout for layout/position/border steps
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left side - Preview */}
+          <div className="flex-1 flex items-center justify-center p-4">
+            <div
+              className={`${
+                aspectRatio === 'portrait' ? 'h-full max-h-[80vh] aspect-[3/4]' :
+                aspectRatio === 'landscape' ? 'w-full max-w-[80%] aspect-[4/3]' :
+                'w-full max-w-[60vh] aspect-square'
+              } rounded-2xl overflow-hidden`}
+              style={{ backgroundColor }}
+            >
+              <div
+                className="w-full h-full"
+                style={{ padding: `${spacing}px` }}
+              >
+                {renderLivePreview()}
               </div>
+            </div>
+          </div>
 
-              {/* Color Palette */}
-              <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
-                {BACKGROUND_COLORS.map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => setBackgroundColor(color.value)}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                      backgroundColor === color.value
-                        ? 'border-white scale-110'
-                        : 'border-transparent hover:border-white/30'
-                    }`}
-                    style={{ backgroundColor: color.value }}
-                    title={color.label}
-                  >
-                    {backgroundColor === color.value && (
-                      <Check className={`w-4 h-4 mx-auto ${
-                        color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
-                      }`} />
-                    )}
-                  </button>
-                ))}
-                {/* Custom color picker */}
-                {showColorPicker ? (
-                  <input
-                    type="color"
-                    autoFocus
-                    className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
-                    onChange={(e) => handleAddCustomColor(e.target.value)}
-                    onBlur={() => setShowColorPicker(false)}
-                  />
+          {/* Right side - Controls */}
+          <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
+            {/* Step tabs */}
+            <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
+              {['layout', 'position', 'border'].map((step) => (
+                <button
+                  key={step}
+                  onClick={() => goToStep(step as StepType)}
+                  className={`text-sm font-medium capitalize transition-colors ${
+                    currentStep === step ? 'text-white' : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+
+            {/* Step controls */}
+            <div className="flex-1">
+              {renderStepControls()}
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => goToStep(steps[currentStepIndex - 1])}
+                className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="primary"
+                onClick={isLastStep ? handleCreate : () => goToStep(steps[currentStepIndex + 1])}
+                disabled={isLoading || !canProceed}
+                className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : isLastStep ? (
+                  'Create Moodboard'
                 ) : (
-                  <button
-                    onClick={() => setShowColorPicker(true)}
-                    className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
-                    title="Custom color"
-                  >
-                    <Plus className="w-4 h-4 text-white/50" />
-                  </button>
+                  <>
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </>
                 )}
-              </div>
+              </Button>
             </div>
-          )}
-
-          {currentStep === 'position' && (
-            <div className="space-y-4">
-              <p className="text-center text-white/70 text-sm">
-                Drag images in the preview to swap their positions
-              </p>
-              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
-                {selectedAssets.map((asset, index) => {
-                  const imgUrl = getImageUrl(asset)
-                  if (!imgUrl) return null
-                  return (
-                    <div
-                      key={`position-thumb-${index}`}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = 'move'
-                        e.dataTransfer.setData('text/plain', String(index))
-                        handleDragStart(index)
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault()
-                        e.dataTransfer.dropEffect = 'move'
-                        handleDragOver(e, index)
-                      }}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, index)}
-                      onDragEnd={handleDragEnd}
-                      className={`relative aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all ${
-                        draggedIndex === index ? 'opacity-50 scale-95' : ''
-                      } ${dragOverIndex === index ? 'ring-2 ring-moodkin-gold' : ''}`}
+          </div>
+        </div>
+      ) : (
+        // Original vertical layout for aspect/gallery steps
+        <>
+          <div className="flex-1 flex items-center justify-center p-4">
+            {currentStep === 'aspect' ? (
+              <div className="w-full max-w-md px-4">
+                <p className="text-white/70 text-center mb-8 text-lg">
+                  Choose output aspect ratio
+                </p>
+                <div className="flex justify-center gap-6">
+                  {ASPECT_RATIOS.map((ratio) => (
+                    <button
+                      key={ratio.value}
+                      onClick={() => setAspectRatio(ratio.value)}
+                      className={`flex flex-col items-center gap-3 p-6 rounded-2xl transition-all ${
+                        aspectRatio === ratio.value
+                          ? 'bg-white/20 ring-2 ring-moodkin-gold'
+                          : 'bg-white/5 hover:bg-white/10'
+                      }`}
                     >
-                      <Image
-                        src={imgUrl}
-                        alt=""
-                        fill
-                        className="object-cover pointer-events-none"
-                        draggable={false}
-                      />
-                      <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {index + 1}
+                      <div className={`${aspectRatio === ratio.value ? 'text-moodkin-gold' : 'text-white/60'}`}>
+                        {ratio.icon}
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-center text-white/40 text-xs">
-                Numbers show position in the layout (top-left to bottom-right)
-              </p>
-            </div>
-          )}
-
-          {currentStep === 'border' && (
-            <div className="space-y-6">
-              {/* Spacing/Gap Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <rect x="1" y="7" width="6" height="2" />
-                      <rect x="9" y="7" width="6" height="2" />
-                    </svg>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="32"
-                    value={spacing}
-                    onChange={(e) => setSpacing(Number(e.target.value))}
-                    className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
+                      <div className="text-center">
+                        <p className={`font-medium ${aspectRatio === ratio.value ? 'text-white' : 'text-white/70'}`}>
+                          {ratio.label}
+                        </p>
+                        <p className="text-white/40 text-sm">{ratio.dimensions}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              {/* Border Radius Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <rect x="2" y="2" width="12" height="12" rx="3" />
-                    </svg>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="32"
-                    value={borderRadius}
-                    onChange={(e) => setBorderRadius(Number(e.target.value))}
-                    className="flex-1 h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                </div>
-              </div>
-
-              {/* Color Palette */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 flex items-center justify-center text-white/60">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                      <circle cx="8" cy="8" r="6" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 flex gap-2 flex-wrap">
-                    {BACKGROUND_COLORS.map((color) => (
+            ) : currentStep === 'gallery' ? (
+              <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl px-4">
+                <p className="text-white/70 text-center mb-4">
+                  {selectedAssetIds.size} photos selected
+                </p>
+                <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 md:gap-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto">
+                  {visualAssets.map((asset) => {
+                    const isSelected = selectedAssetIds.has(asset.id)
+                    const isFlagged = flaggedAssetIds.has(asset.id)
+                    const imgUrl = getImageUrl(asset)
+                    if (!imgUrl) return null
+                    return (
                       <button
-                        key={color.value}
-                        onClick={() => setBackgroundColor(color.value)}
-                        className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                          backgroundColor === color.value
-                            ? 'border-white scale-110'
+                        key={asset.id}
+                        onClick={() => toggleAsset(asset.id)}
+                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                          isSelected
+                            ? 'border-moodkin-gold scale-95'
                             : 'border-transparent hover:border-white/30'
-                        }`}
-                        style={{ backgroundColor: color.value }}
-                        title={color.label}
+                        } ${isFlagged ? 'opacity-50' : ''}`}
                       >
-                        {backgroundColor === color.value && (
-                          <Check className={`w-4 h-4 mx-auto ${
-                            color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
-                          }`} />
+                        <Image
+                          src={imgUrl}
+                          alt={asset.filename}
+                          fill
+                          className="object-cover"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        {isFlagged && (
+                          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                            <span className="text-xs text-white bg-red-500/80 px-2 py-1 rounded">Flagged</span>
+                          </div>
                         )}
                       </button>
-                    ))}
-                    {/* Custom color picker */}
-                    {showColorPicker ? (
-                      <input
-                        type="color"
-                        autoFocus
-                        className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
-                        onChange={(e) => handleAddCustomColor(e.target.value)}
-                        onBlur={() => setShowColorPicker(false)}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => setShowColorPicker(true)}
-                        className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
-                        title="Custom color"
-                      >
-                        <Plus className="w-4 h-4 text-white/50" />
-                      </button>
-                    )}
-                  </div>
+                    )
+                  })}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            ) : null}
+          </div>
 
-        {/* Navigation / Create Button */}
-        <div className="px-4 pb-6 flex gap-3">
-          {currentStepIndex > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => goToStep(steps[currentStepIndex - 1])}
-              className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-          )}
-          <Button
-            variant="primary"
-            onClick={isLastStep ? handleCreate : () => goToStep(steps[currentStepIndex + 1])}
-            disabled={isLoading || !canProceed}
-            className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : isLastStep ? (
-              `Create Moodboard (${selectedAssetIds.size} photos)`
-            ) : (
-              <>
+          {/* Bottom Panel for aspect/gallery steps */}
+          <div className="bg-[#2a2a2a] rounded-t-3xl">
+            {/* Step Tabs */}
+            <div className="flex items-center justify-center gap-6 py-4 border-b border-white/10 overflow-x-auto">
+              <button
+                onClick={() => goToStep('aspect')}
+                className={`text-sm font-medium transition-colors relative whitespace-nowrap ${
+                  currentStep === 'aspect' ? 'text-white' : 'text-white/50'
+                }`}
+              >
+                Aspect
+                {currentStep === 'aspect' && (
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
+                )}
+              </button>
+              <button
+                onClick={() => goToStep('gallery')}
+                className={`text-sm font-medium transition-colors relative whitespace-nowrap ${
+                  currentStep === 'gallery' ? 'text-white' : 'text-white/50'
+                }`}
+              >
+                Gallery
+                {currentStep === 'gallery' && (
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
+                )}
+              </button>
+              <button
+                onClick={() => goToStep('layout')}
+                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+              >
+                Layout
+              </button>
+              <button
+                onClick={() => goToStep('position')}
+                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+              >
+                Position
+              </button>
+              <button
+                onClick={() => goToStep('border')}
+                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+              >
+                Border
+              </button>
+            </div>
+
+            {/* Step Content */}
+            <div className="p-4 pb-8 min-h-[100px]">
+              {currentStep === 'aspect' && (
+                <div className="text-center text-white/50 text-sm">
+                  Select the shape for your moodboard output
+                </div>
+              )}
+              {currentStep === 'gallery' && (
+                <div className="text-center text-white/50 text-sm">
+                  Tap photos to select or deselect
+                </div>
+              )}
+            </div>
+
+            {/* Navigation / Create Button */}
+            <div className="px-4 pb-6 flex gap-3">
+              {currentStepIndex > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => goToStep(steps[currentStepIndex - 1])}
+                  className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                onClick={() => goToStep(steps[currentStepIndex + 1])}
+                disabled={!canProceed}
+                className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+              >
                 Next
                 <ChevronRight className="w-4 h-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

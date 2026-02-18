@@ -71,6 +71,7 @@ export async function POST(
       borderRadius = 12,
       borderWidth = 0,
       spacing = 8,
+      aspectRatio = 'square', // 'portrait', 'square', or 'landscape'
       mode = 'automatic', // 'automatic' or 'manual'
       selectedAssetIds = [], // Only used in manual mode
     } = body
@@ -218,6 +219,7 @@ export async function POST(
         border_radius: borderRadius,
         border_width: borderWidth,
         spacing: spacing,
+        aspect_ratio: aspectRatio,
       })
       .select()
       .single()

@@ -24,9 +24,10 @@ function getPlaceholderImage(id: string): string {
 
 interface ConversationCardProps {
   conversation: Conversation
+  unseenCount?: number
 }
 
-export function ConversationCard({ conversation }: ConversationCardProps) {
+export function ConversationCard({ conversation, unseenCount }: ConversationCardProps) {
   const imageUrl = conversation.cover_image_url || getPlaceholderImage(conversation.id)
 
   return (
@@ -42,7 +43,12 @@ export function ConversationCard({ conversation }: ConversationCardProps) {
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-      <div className="absolute top-3 right-3">
+      <div className="absolute top-3 right-3 flex items-center gap-2">
+        {unseenCount && unseenCount > 0 ? (
+          <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+            {unseenCount > 99 ? '99+' : unseenCount}
+          </span>
+        ) : null}
         <Badge
           variant={conversation.status === 'active' ? 'success' : 'default'}
           className="backdrop-blur-sm"

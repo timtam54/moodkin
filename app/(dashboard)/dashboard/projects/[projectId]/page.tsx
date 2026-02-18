@@ -28,17 +28,17 @@ import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useProjectReactions } from '@/hooks/use-asset-interactions'
+import { useUnseenCounts, useMarkAsSeen, type TabType } from '@/hooks/use-unseen-counts'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loading } from '@/components/ui/loading'
 
 const tabs = [
-  { id: 'clients', label: 'Client' },
-  { id: 'creative', label: 'Creative' },
-
-  { id: 'links', label: 'Links' },
-  { id: 'moodboards', label: 'Moodboards' },
-  { id: 'conversation', label: 'Conversation' },
+  { id: 'creative', label: 'Creative', icon: 'sparkles' },
+  { id: 'clients', label: 'Client', icon: null },
+  { id: 'links', label: 'Links', icon: null },
+  { id: 'moodboards', label: 'Moodboards', icon: null },
+  { id: 'conversation', label: 'Conversation', icon: null },
 ]
 
 type ExportFormat =
@@ -75,7 +75,7 @@ export default function ProjectDetailPage() {
   const deleteMoodboard = useDeleteMoodboard(projectId)
   const deleteProject = useDeleteConversation()
   const updateProject = useUpdateConversation(projectId)
-  const [activeTab, setActiveTab] = useState('clients')
+  const [activeTab, setActiveTab] = useState('creative')
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -103,11 +103,14 @@ export default function ProjectDetailPage() {
   const [customHeight, setCustomHeight] = useState('1080')
   const [isExporting, setIsExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const creativeFileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
   const { data: messages } = useMessages(projectId)
   const sendMessage = useSendMessage(projectId)
   const { isSupported: pushSupported, isSubscribed: pushSubscribed, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const { data: allReactions } = useProjectReactions(projectId)
+  const { data: unseenCounts } = useUnseenCounts()
+  const { markSeen } = useMarkAsSeen(projectId)
 
   const currentUserId = session?.user?.id || ''
 
@@ -152,19 +155,67 @@ export default function ProjectDetailPage() {
   const isCreative = currentUserRole === 'creative'
   const isClient = currentUserRole === 'client'
 
+  // Helper to check if a user is a creative (owner or creative role)
+  const isUserCreative = (userId: string | null) => {
+    if (!userId) return false
+    const role = userRoleMap.get(userId)
+    return role === 'creative'
+  }
+
   // Check if project owner has subscription (stripeid)
   const projectOwner = projectUsers?.find(pu => pu.is_owner)
   const ownerHasSubscription = projectOwner?.user?.stripeid === 'subscribed'
 
+  // Filter assets for each tab
+  // Client tab: only images uploaded by clients (not creatives)
+  const clientAssets = useMemo(() =>
+    assets?.filter(a => a.asset_type !== 'link' && !isUserCreative(a.uploaded_by_id)) || [],
+    [assets, userRoleMap]
+  )
+  // Creative tab: images uploaded by creatives OR marked as creative
+  const creativeAssets = useMemo(() =>
+    assets?.filter(a => a.asset_type !== 'link' && (a.creative || isUserCreative(a.uploaded_by_id))) || [],
+    [assets, userRoleMap]
+  )
+
   // Compute image arrays for each tab for lightbox navigation
   const clientTabImages = useMemo(() =>
-    assets?.filter(a => a.asset_type !== 'link').map(a => a.url) || [],
-    [assets]
+    clientAssets.map(a => a.url),
+    [clientAssets]
   )
   const creativeTabImages = useMemo(() =>
-    assets?.filter(a => a.creative && a.asset_type !== 'link').map(a => a.url) || [],
-    [assets]
+    creativeAssets.map(a => a.url),
+    [creativeAssets]
   )
+
+  // Mark tab as seen when user views it
+  useEffect(() => {
+    if (!projectId) return
+
+    // Map activeTab to the correct TabType
+    const tabTypeMap: Record<string, TabType> = {
+      'clients': 'client',
+      'creative': 'creative',
+      'links': 'links',
+      'conversation': 'conversations',
+    }
+
+    const tabType = tabTypeMap[activeTab]
+    if (tabType) {
+      // Small delay to ensure the component is rendered
+      const timer = setTimeout(() => {
+        markSeen(tabType)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [activeTab, projectId, markSeen])
+
+  // Mark project as seen when page loads
+  useEffect(() => {
+    if (projectId) {
+      markSeen('project')
+    }
+  }, [projectId, markSeen])
 
   // Open lightbox with navigation context
   const openLightbox = useCallback((imageUrl: string, imageList: string[]) => {
@@ -218,7 +269,7 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleFileSelect = async (files: FileList | null) => {
+  const handleFileSelect = async (files: FileList | null, markAsCreative = false) => {
     if (!files || files.length === 0) return
 
     setIsUploading(true)
@@ -231,10 +282,15 @@ export default function ProjectDetailPage() {
         })
 
         // Save to database with user info
-        await createAsset.mutateAsync({
+        const asset = await createAsset.mutateAsync({
           url: blob.url,
           filename: file.name,
         })
+
+        // If uploading to creative tab, mark as creative
+        if (markAsCreative && asset?.id) {
+          await updateAssetCreative.mutateAsync({ assetId: asset.id, creative: true })
+        }
       }
     } catch (error) {
       console.error('Upload failed:', error)
@@ -242,6 +298,9 @@ export default function ProjectDetailPage() {
       setIsUploading(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
+      }
+      if (creativeFileInputRef.current) {
+        creativeFileInputRef.current.value = ''
       }
     }
   }
@@ -284,6 +343,12 @@ export default function ProjectDetailPage() {
     e.preventDefault()
     if (!linkUrl.trim()) return
 
+    // Add https:// if no protocol is provided
+    let normalizedUrl = linkUrl.trim()
+    if (!normalizedUrl.match(/^https?:\/\//i)) {
+      normalizedUrl = 'https://' + normalizedUrl
+    }
+
     setIsAddingLink(true)
     try {
       // Fetch URL metadata for thumbnail and title
@@ -292,7 +357,7 @@ export default function ProjectDetailPage() {
         const metaRes = await fetch('/api/url-metadata', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: linkUrl }),
+          body: JSON.stringify({ url: normalizedUrl }),
         })
         if (metaRes.ok) {
           metadata = await metaRes.json()
@@ -302,10 +367,10 @@ export default function ProjectDetailPage() {
       }
 
       await createAsset.mutateAsync({
-        url: linkUrl,
+        url: normalizedUrl,
         filename: '',
         asset_type: 'link',
-        title: linkTitle || metadata.title || new URL(linkUrl).hostname,
+        title: linkTitle || metadata.title || new URL(normalizedUrl).hostname,
         thumbnail_url: metadata.image,
       })
       setLinkUrl('')
@@ -375,6 +440,7 @@ export default function ProjectDetailPage() {
         gridLayout: options.gridLayout,
         borderRadius: options.borderRadius,
         spacing: options.spacing,
+        aspectRatio: options.aspectRatio,
         mode: 'manual',
         selectedAssetIds: options.selectedAssetIds,
       })
@@ -391,7 +457,7 @@ export default function ProjectDetailPage() {
   const handleAIImageSaved = () => {
     // Invalidate assets query to refresh the list
     invalidateAssets()
-    setActiveTab('clients')
+    setActiveTab('creative')
   }
 
   // Helper function to convert hex to RGB
@@ -1106,19 +1172,31 @@ export default function ProjectDetailPage() {
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 border-b border-moodkin-light-gray/50 mb-6 pb-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-full ${
-              activeTab === tab.id
-                ? 'bg-moodkin-gold text-moodkin-dark'
-                : 'text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          // Get unseen count for this tab (skip moodboards as it doesn't have tracking)
+          const tabCountKey = tab.id === 'clients' ? 'client' : tab.id === 'conversation' ? 'conversations' : tab.id
+          const unseenCount = tab.id !== 'moodboards' ? unseenCounts?.[projectId]?.[tabCountKey as keyof typeof unseenCounts[string]] : 0
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1.5 text-sm font-medium transition-colors rounded-full inline-flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? 'bg-moodkin-gold text-moodkin-dark'
+                  : 'text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream'
+              }`}
+            >
+              {tab.icon === 'sparkles' && <Sparkles className="w-4 h-4" />}
+              {tab.label}
+              {unseenCount && unseenCount > 0 ? (
+                <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center ml-1">
+                  {unseenCount > 99 ? '99+' : unseenCount}
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
 
       {/* Content */}
@@ -1154,8 +1232,8 @@ export default function ProjectDetailPage() {
               </button>
             )}
 
-            {/* Real Asset Cards (images only) */}
-            {assets?.filter(a => a.asset_type !== 'link').map((asset) => (
+            {/* Client Assets - images uploaded by clients only */}
+            {clientAssets.map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
@@ -1196,8 +1274,46 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'creative' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* Creative Assets - images where creative = true */}
-            {assets?.filter(a => a.creative && a.asset_type !== 'link').map((asset) => (
+            {/* AI Image Generator Card - only visible to creative users */}
+            {isCreative && ownerHasSubscription && (
+              <button
+                onClick={() => setShowAIImageGenerator(true)}
+                className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
+              >
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
+                <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
+              </button>
+            )}
+
+            {/* Upload Image button - only visible to creative users */}
+            {isCreative && (
+              <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
+                {isUploading ? (
+                  <Loader2 className="w-8 h-8 text-moodkin-gold animate-spin" />
+                ) : (
+                  <>
+                    <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
+                    <p className="text-sm text-moodkin-gray font-medium">Upload Image</p>
+                  </>
+                )}
+                <input
+                  type="file"
+                  className="hidden"
+                  ref={creativeFileInputRef}
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  multiple
+                  onChange={(e) => handleFileSelect(e.target.files, true)}
+                  disabled={isUploading}
+                />
+              </label>
+            )}
+
+            {/* Creative Assets - images uploaded by creatives OR marked as creative */}
+            {creativeAssets.map((asset) => (
               <AssetCard
                 key={asset.id}
                 asset={asset}
@@ -1421,8 +1537,8 @@ export default function ProjectDetailPage() {
             <form onSubmit={handleAddLink} className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
-                  type="url"
-                  placeholder="Paste URL (Pinterest, YouTube, website...)"
+                  type="text"
+                  placeholder="Paste URL (e.g. google.com, pinterest.com/...)"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   className="flex-1 px-4 py-3 rounded-xl border border-moodkin-light-gray focus:outline-none focus:border-moodkin-gold"

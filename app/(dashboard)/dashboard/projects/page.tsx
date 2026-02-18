@@ -7,9 +7,11 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Loading } from '@/components/ui/loading'
 import { ConversationCard } from '@/components/conversations/conversation-card'
 import { useConversations } from '@/hooks/use-conversations'
+import { useUnseenCounts } from '@/hooks/use-unseen-counts'
 
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useConversations()
+  const { data: unseenCounts } = useUnseenCounts()
 
   return (
     <div className="space-y-6">
@@ -60,7 +62,11 @@ export default function ProjectsPage() {
 
           {/* Project Cards */}
           {projects.map((project) => (
-            <ConversationCard key={project.id} conversation={project} />
+            <ConversationCard
+              key={project.id}
+              conversation={project}
+              unseenCount={unseenCounts?.[project.id]?.total}
+            />
           ))}
         </div>
       )}
