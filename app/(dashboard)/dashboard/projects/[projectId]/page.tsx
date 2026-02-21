@@ -162,9 +162,9 @@ export default function ProjectDetailPage() {
     return role === 'creative'
   }
 
-  // Check if project owner has subscription (stripeid)
+  // Check if project owner has subscription (stripeid starts with 'cus_' for Stripe customers)
   const projectOwner = projectUsers?.find(pu => pu.is_owner)
-  const ownerHasSubscription = projectOwner?.user?.stripeid === 'subscribed'
+  const ownerHasSubscription = projectOwner?.user?.stripeid?.startsWith('cus_') ?? false
 
   // Filter assets for each tab
   // Client tab: only images uploaded by clients (not creatives)
