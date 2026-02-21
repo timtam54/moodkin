@@ -29,6 +29,7 @@ import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useProjectReactions } from '@/hooks/use-asset-interactions'
 import { useUnseenCounts, useMarkAsSeen, type TabType } from '@/hooks/use-unseen-counts'
+import { useToast } from '@/components/ui/toast'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loading } from '@/components/ui/loading'
@@ -64,6 +65,7 @@ export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const router = useRouter()
   const { session } = useSession()
+  const { showToast } = useToast()
   const { data: project, isLoading } = useConversation(projectId)
   const { data: assets } = useProjectAssets(projectId)
   const { data: moodboards, isLoading: moodboardsLoading } = useMoodboards(projectId)
@@ -351,14 +353,9 @@ export default function ProjectDetailPage() {
 
     setIsAddingLink(true)
     try {
-      // Check if URL is a direct image link
+      // Check if URL is a direct image link (actual image file, not a page)
       const urlPath = normalizedUrl.split('?')[0].toLowerCase()
-      const isDirectImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(urlPath) ||
-        normalizedUrl.includes('/photo/') || // iStock pattern
-        normalizedUrl.includes('/images/') ||
-        normalizedUrl.includes('media.istockphoto.com') ||
-        normalizedUrl.includes('images.unsplash.com') ||
-        normalizedUrl.includes('images.pexels.com')
+      const isDirectImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(urlPath)
 
       let metadata = { title: null as string | null, image: null as string | null }
 
@@ -382,6 +379,9 @@ export default function ProjectDetailPage() {
         }
       }
 
+      // Check if we got an image
+      const hasImage = !!metadata.image
+
       await createAsset.mutateAsync({
         url: normalizedUrl,
         filename: '',
@@ -391,6 +391,13 @@ export default function ProjectDetailPage() {
       })
       setLinkUrl('')
       setLinkTitle('')
+
+      // Notify user based on result
+      if (hasImage) {
+        showToast('Link added with image preview', 'success')
+      } else {
+        showToast('Link added but no image found. Try copying the direct image URL instead.', 'info')
+      }
     } catch (error) {
       console.error('Failed to add link:', error)
     } finally {
@@ -771,6 +778,29 @@ export default function ProjectDetailPage() {
         { x: x + smallW + s, y: y + bigH + s, w: smallW, h: h - bigH - s },
         { x: x + smallW * 2 + s * 2, y: y + bigH + s, w: w - smallW * 2 - s * 2, h: h - bigH - s }
       ]
+    }
+
+    // Manual grid layout (format: "manual-{rows}x{cols}")
+    if (layout.startsWith('manual-')) {
+      const match = layout.match(/manual-(\d+)x(\d+)/)
+      if (match) {
+        const rows = parseInt(match[1], 10)
+        const cols = parseInt(match[2], 10)
+        const cellW = (w - s * (cols - 1)) / cols
+        const cellH = (h - s * (rows - 1)) / rows
+        const rects: ImageRect[] = []
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            rects.push({
+              x: x + col * (cellW + s),
+              y: y + row * (cellH + s),
+              w: cellW,
+              h: cellH
+            })
+          }
+        }
+        return rects.slice(0, count)
+      }
     }
 
     // Default tiered layout
@@ -1899,6 +1929,27 @@ export default function ProjectDetailPage() {
                           {displayImages.slice(1, 6).map(img => renderImage(img))}
                         </div>
                       )
+                    }
+
+                    // Manual grid layout (format: "manual-{rows}x{cols}")
+                    if (gridLayout.startsWith('manual-')) {
+                      const match = gridLayout.match(/manual-(\d+)x(\d+)/)
+                      if (match) {
+                        const rows = parseInt(match[1], 10)
+                        const cols = parseInt(match[2], 10)
+                        return (
+                          <div
+                            className="w-full h-full grid"
+                            style={{
+                              gridTemplateRows: `repeat(${rows}, 1fr)`,
+                              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                              gap: `${spacingPx}px`,
+                            }}
+                          >
+                            {displayImages.map(img => renderImage(img))}
+                          </div>
+                        )
+                      }
                     }
 
                     // Default: tiered layout for automatic moodboards or unknown layouts

@@ -144,6 +144,16 @@ export async function POST(request: NextRequest) {
         metadata.image = new URL(metadata.image, baseUrl.origin).toString()
       }
 
+      // Decode HTML entities in the image URL (e.g., &amp; -> &)
+      if (metadata.image) {
+        metadata.image = metadata.image
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+      }
+
       return NextResponse.json(metadata)
     } catch (fetchError) {
       console.error('URL metadata fetch error:', fetchError)

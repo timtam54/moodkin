@@ -439,10 +439,15 @@ export function ManualMoodboardCreator({
   if (!open) return null
 
   const handleCreate = async () => {
+    // If using manual grid, encode it as "manual-{rows}x{cols}"
+    const finalGridLayout = useManualGrid
+      ? `manual-${manualRows}x${manualCols}`
+      : gridLayout
+
     await onCreate({
       selectedAssetIds: Array.from(selectedAssetIds),
       backgroundColor,
-      gridLayout,
+      gridLayout: finalGridLayout,
       borderRadius,
       spacing,
       aspectRatio,
