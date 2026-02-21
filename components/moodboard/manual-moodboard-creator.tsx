@@ -430,7 +430,6 @@ export function ManualMoodboardCreator({
     const temp = newOrder[fromIndex]
     newOrder[fromIndex] = newOrder[toIndex]
     newOrder[toIndex] = temp
-    console.log('SWAP:', { fromIndex, toIndex, oldOrder: selectedIds, newOrder })
     setAssetOrder(newOrder)
   }
 
@@ -499,12 +498,20 @@ export function ManualMoodboardCreator({
     return (
       <div
         draggable={canDrag}
+        onMouseDown={() => {
+          if (canDrag) setDraggingIndex(index)
+        }}
         onDragStart={(e) => {
+          if (!canDrag) {
+            e.preventDefault()
+            return
+          }
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', String(index))
           setDraggingIndex(index)
         }}
         onDragOver={(e) => {
+          if (!canDrag) return
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
           if (draggingIndex !== null && draggingIndex !== index) {
@@ -512,6 +519,7 @@ export function ManualMoodboardCreator({
           }
         }}
         onDragEnter={(e) => {
+          if (!canDrag) return
           e.preventDefault()
           if (draggingIndex !== null && draggingIndex !== index) {
             setDragOverIndex(index)
@@ -521,9 +529,9 @@ export function ManualMoodboardCreator({
           setDragOverIndex(null)
         }}
         onDrop={(e) => {
+          if (!canDrag) return
           e.preventDefault()
           const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10)
-          console.log('DROP:', { fromIndex, toIndex: index })
           if (!isNaN(fromIndex) && fromIndex !== index) {
             swapImages(fromIndex, index)
           }
@@ -534,8 +542,8 @@ export function ManualMoodboardCreator({
           setDraggingIndex(null)
           setDragOverIndex(null)
         }}
-        className={`relative w-full h-full overflow-hidden transition-all ${className} ${
-          canDrag ? 'cursor-grab active:cursor-grabbing' : ''
+        className={`relative w-full h-full overflow-hidden transition-none ${className} ${
+          canDrag ? 'cursor-grab active:cursor-grabbing select-none' : ''
         } ${isDragging ? 'opacity-40 scale-95' : ''} ${
           isDragOver ? 'ring-4 ring-moodkin-gold scale-105' : ''
         }`}

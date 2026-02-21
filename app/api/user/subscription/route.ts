@@ -8,9 +8,12 @@ export async function PATCH(request: NextRequest) {
     const supabase = await createServiceClient()
 
     const body = await request.json()
-    const { subscribed } = body as { subscribed: boolean }
+    const { stripeid } = body as { stripeid: string }
 
-    const stripeid = subscribed ? 'subscribed' : null
+    // Validate that stripeid starts with 'cus_' (Stripe customer ID format)
+    if (!stripeid || !stripeid.startsWith('cus_')) {
+      return NextResponse.json({ error: 'Invalid customer ID' }, { status: 400 })
+    }
 
     const { error } = await supabase
       .from('users')

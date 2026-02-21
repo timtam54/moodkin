@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   FolderOpen,
   Users,
@@ -12,12 +12,14 @@ import {
   Menu,
   X,
   Mail,
+  Crown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
-import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog } from '@/components/ui/dialog'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
+import { PaymentDialog } from '@/components/payment/payment-dialog'
 import type { SessionUser } from '@/lib/auth/session'
 
 interface DashboardNavProps {
@@ -32,27 +34,26 @@ const navItems = [
 
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
-  const [isSubscribed, setIsSubscribed] = useState(user.stripeid === 'subscribed')
-  const [isUpdatingSubscription, setIsUpdatingSubscription] = useState(false)
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [isSubscribed, setIsSubscribed] = useState(!!user.stripeid && user.stripeid.startsWith('cus_'))
 
-  const handleSubscriptionToggle = async () => {
-    setIsUpdatingSubscription(true)
+  const handlePaymentSuccess = async (customerId: string) => {
     try {
-      const newSubscribed = !isSubscribed
       const response = await fetch('/api/user/subscription', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscribed: newSubscribed }),
+        body: JSON.stringify({ stripeid: customerId }),
       })
       if (response.ok) {
-        setIsSubscribed(newSubscribed)
+        setIsSubscribed(true)
+        // Refresh the page to update user data
+        router.refresh()
       }
     } catch (error) {
       console.error('Failed to update subscription:', error)
-    } finally {
-      setIsUpdatingSubscription(false)
     }
   }
 
@@ -221,34 +222,25 @@ export function DashboardNav({ user }: DashboardNavProps) {
             <span className="text-sm">{user.email}</span>
           </div>
 
-          {/* Subscription Status Switch */}
-          <div className="mt-4 flex items-center gap-3">
-            <span className={cn(
-              "text-sm font-medium",
-              !isSubscribed ? "text-moodkin-dark" : "text-moodkin-gray"
-            )}>
-              Free
-            </span>
-            <button
-              onClick={handleSubscriptionToggle}
-              disabled={isUpdatingSubscription}
-              className={cn(
-                "relative w-12 h-6 rounded-full transition-colors",
-                isSubscribed ? "bg-moodkin-gold" : "bg-moodkin-light-gray",
-                isUpdatingSubscription && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <div className={cn(
-                "absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                isSubscribed ? "translate-x-7" : "translate-x-1"
-              )} />
-            </button>
-            <span className={cn(
-              "text-sm font-medium",
-              isSubscribed ? "text-moodkin-dark" : "text-moodkin-gray"
-            )}>
-              Subscribed
-            </span>
+          {/* Subscription Status */}
+          <div className="mt-4">
+            {isSubscribed ? (
+              <div className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold/20 text-moodkin-dark rounded-xl">
+                <Crown className="w-4 h-4 text-moodkin-gold" />
+                <span className="text-sm font-medium">Subscribed</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setProfileDialogOpen(false)
+                  setPaymentDialogOpen(true)
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+              >
+                <Crown className="w-4 h-4" />
+                Subscribe - $30
+              </button>
+            )}
           </div>
 
           <div className="mt-6 flex gap-3">
@@ -268,6 +260,15 @@ export function DashboardNav({ user }: DashboardNavProps) {
           </div>
         </div>
       </Dialog>
+
+      {/* Payment Dialog */}
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onClose={() => setPaymentDialogOpen(false)}
+        username={user.name || user.email}
+        amount={30}
+        onSuccess={handlePaymentSuccess}
+      />
     </header>
   )
 }
