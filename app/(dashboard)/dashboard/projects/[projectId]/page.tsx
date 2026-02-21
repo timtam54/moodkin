@@ -351,19 +351,35 @@ export default function ProjectDetailPage() {
 
     setIsAddingLink(true)
     try {
-      // Fetch URL metadata for thumbnail and title
+      // Check if URL is a direct image link
+      const urlPath = normalizedUrl.split('?')[0].toLowerCase()
+      const isDirectImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i.test(urlPath) ||
+        normalizedUrl.includes('/photo/') || // iStock pattern
+        normalizedUrl.includes('/images/') ||
+        normalizedUrl.includes('media.istockphoto.com') ||
+        normalizedUrl.includes('images.unsplash.com') ||
+        normalizedUrl.includes('images.pexels.com')
+
       let metadata = { title: null as string | null, image: null as string | null }
-      try {
-        const metaRes = await fetch('/api/url-metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: normalizedUrl }),
-        })
-        if (metaRes.ok) {
-          metadata = await metaRes.json()
+
+      if (isDirectImage) {
+        // For direct image URLs, use the URL itself as the thumbnail
+        metadata.image = normalizedUrl
+        metadata.title = linkTitle || 'Image'
+      } else {
+        // Fetch URL metadata for thumbnail and title
+        try {
+          const metaRes = await fetch('/api/url-metadata', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: normalizedUrl }),
+          })
+          if (metaRes.ok) {
+            metadata = await metaRes.json()
+          }
+        } catch {
+          // Continue without metadata if fetch fails
         }
-      } catch {
-        // Continue without metadata if fetch fails
       }
 
       await createAsset.mutateAsync({

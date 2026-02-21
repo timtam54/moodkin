@@ -13,6 +13,8 @@ import {
   X,
   Mail,
   Crown,
+  CreditCard,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -39,6 +41,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(!!user.stripeid && user.stripeid.startsWith('cus_'))
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false)
 
   const handlePaymentSuccess = async (customerId: string) => {
     try {
@@ -54,6 +57,27 @@ export function DashboardNav({ user }: DashboardNavProps) {
       }
     } catch (error) {
       console.error('Failed to update subscription:', error)
+    }
+  }
+
+  const handleManageSubscription = async () => {
+    if (!user.stripeid) return
+    setIsLoadingPortal(true)
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (response.ok) {
+        const { url } = await response.json()
+        window.location.href = url
+      } else {
+        console.error('Failed to create portal session')
+      }
+    } catch (error) {
+      console.error('Failed to open subscription portal:', error)
+    } finally {
+      setIsLoadingPortal(false)
     }
   }
 
@@ -223,12 +247,26 @@ export function DashboardNav({ user }: DashboardNavProps) {
           </div>
 
           {/* Subscription Status */}
-          <div className="mt-4">
+          <div className="mt-4 flex flex-col items-center gap-2">
             {isSubscribed ? (
-              <div className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold/20 text-moodkin-dark rounded-xl">
-                <Crown className="w-4 h-4 text-moodkin-gold" />
-                <span className="text-sm font-medium">Subscribed</span>
-              </div>
+              <>
+                <div className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold/20 text-moodkin-dark rounded-xl">
+                  <Crown className="w-4 h-4 text-moodkin-gold" />
+                  <span className="text-sm font-medium">Subscribed</span>
+                </div>
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={isLoadingPortal}
+                  className="flex items-center gap-2 px-4 py-2 border border-moodkin-light-gray hover:bg-moodkin-cream text-moodkin-dark font-medium rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {isLoadingPortal ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-4 h-4" />
+                  )}
+                  {isLoadingPortal ? 'Loading...' : 'Manage Subscription'}
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => {
@@ -238,7 +276,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
               >
                 <Crown className="w-4 h-4" />
-                Subscribe - $30
+                Subscribe - $15
               </button>
             )}
           </div>
@@ -266,7 +304,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
         username={user.name || user.email}
-        amount={30}
+        amount={15}
         onSuccess={handlePaymentSuccess}
       />
     </header>

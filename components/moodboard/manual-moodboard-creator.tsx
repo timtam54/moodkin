@@ -106,6 +106,9 @@ export function ManualMoodboardCreator({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [customColors, setCustomColors] = useState<string[]>([])
+  const [useManualGrid, setUseManualGrid] = useState(false)
+  const [manualRows, setManualRows] = useState(2)
+  const [manualCols, setManualCols] = useState(2)
 
   // Combined background colors (defaults + custom)
   const BACKGROUND_COLORS = useMemo(() => [
@@ -573,6 +576,36 @@ export function ManualMoodboardCreator({
     const previewAssets = selectedAssets
     const count = previewAssets.length
 
+    // Manual grid mode
+    if (useManualGrid) {
+      const totalCells = manualRows * manualCols
+      return (
+        <div
+          className="w-full h-full grid"
+          style={{
+            gridTemplateColumns: `repeat(${manualCols}, 1fr)`,
+            gridTemplateRows: `repeat(${manualRows}, 1fr)`,
+            gap: `${spacing}px`,
+          }}
+        >
+          {Array.from({ length: totalCells }).map((_, i) => {
+            const asset = previewAssets[i]
+            if (asset) {
+              return <SwappableImage key={`manual-${i}-${asset.id}`} asset={asset} index={i} />
+            }
+            // Empty cell placeholder
+            return (
+              <div
+                key={`empty-${i}`}
+                className="w-full h-full bg-white/5 rounded-lg border border-dashed border-white/20"
+                style={{ borderRadius: `${borderRadius}px` }}
+              />
+            )
+          })}
+        </div>
+      )
+    }
+
     // Single image
     if (gridLayout === '1' || count === 1) {
       return (
@@ -845,67 +878,102 @@ export function ManualMoodboardCreator({
     if (currentStep === 'layout') {
       return (
         <div className="space-y-6">
-          <div>
-            <p className="text-white/50 text-sm mb-3">Layout</p>
-            <div className="grid grid-cols-3 gap-2">
-              {layoutTemplates.map((layout) => (
-                <button
-                  key={layout.value}
-                  onClick={() => setGridLayout(layout.value)}
-                  className={`aspect-square p-1 rounded-xl border-2 transition-all ${
-                    gridLayout === layout.value
-                      ? 'border-white bg-white/10'
-                      : 'border-white/20 hover:border-white/40'
-                  }`}
-                >
-                  <div className="w-full h-full text-white/60">
-                    {layout.render(spacing, borderRadius)}
-                  </div>
-                </button>
-              ))}
-            </div>
+          {/* Layout mode toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setUseManualGrid(false)}
+              className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                !useManualGrid
+                  ? 'bg-white text-moodkin-dark'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+            >
+              Auto Suggest
+            </button>
+            <button
+              onClick={() => setUseManualGrid(true)}
+              className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
+                useManualGrid
+                  ? 'bg-white text-moodkin-dark'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+            >
+              Manual Grid
+            </button>
           </div>
-          <div>
-            <p className="text-white/50 text-sm mb-3">Background Color</p>
-            <div className="flex gap-2 flex-wrap">
-              {BACKGROUND_COLORS.map((color) => (
-                <button
-                  key={color.value}
-                  onClick={() => setBackgroundColor(color.value)}
-                  className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                    backgroundColor === color.value
-                      ? 'border-white scale-110'
-                      : 'border-transparent hover:border-white/30'
-                  }`}
-                  style={{ backgroundColor: color.value }}
-                  title={color.label}
-                >
-                  {backgroundColor === color.value && (
-                    <Check className={`w-4 h-4 mx-auto ${
-                      color.value === '#1A1A1A' || color.value === '#2C3E50' ? 'text-white' : 'text-moodkin-dark'
-                    }`} />
-                  )}
-                </button>
-              ))}
-              {showColorPicker ? (
-                <input
-                  type="color"
-                  autoFocus
-                  className="w-8 h-8 rounded-lg cursor-pointer border-2 border-white/30"
-                  onChange={(e) => handleAddCustomColor(e.target.value)}
-                  onBlur={() => setShowColorPicker(false)}
-                />
-              ) : (
-                <button
-                  onClick={() => setShowColorPicker(true)}
-                  className="w-8 h-8 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all flex items-center justify-center"
-                  title="Custom color"
-                >
-                  <Plus className="w-4 h-4 text-white/50" />
-                </button>
-              )}
+
+          {useManualGrid ? (
+            /* Manual grid controls */
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white/50 text-sm">Rows</p>
+                  <span className="text-white font-medium">{manualRows}</span>
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5, 6].map((num) => (
+                    <button
+                      key={`row-${num}`}
+                      onClick={() => setManualRows(num)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                        manualRows === num
+                          ? 'bg-moodkin-gold text-moodkin-dark'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white/50 text-sm">Columns</p>
+                  <span className="text-white font-medium">{manualCols}</span>
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5, 6].map((num) => (
+                    <button
+                      key={`col-${num}`}
+                      onClick={() => setManualCols(num)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                        manualCols === num
+                          ? 'bg-moodkin-gold text-moodkin-dark'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-white/40 text-xs">
+                Grid: {manualRows} × {manualCols} = {manualRows * manualCols} cells
+              </p>
             </div>
-          </div>
+          ) : (
+            /* Auto suggest layouts */
+            <div>
+              <p className="text-white/50 text-sm mb-3">Suggested Layouts</p>
+              <div className="grid grid-cols-3 gap-2">
+                {layoutTemplates.map((layout) => (
+                  <button
+                    key={layout.value}
+                    onClick={() => setGridLayout(layout.value)}
+                    className={`aspect-square p-1 rounded-xl border-2 transition-all ${
+                      gridLayout === layout.value
+                        ? 'border-white bg-white/10'
+                        : 'border-white/20 hover:border-white/40'
+                    }`}
+                  >
+                    <div className="w-full h-full text-white/60">
+                      {layout.render(spacing, borderRadius)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )
     }

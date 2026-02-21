@@ -9,32 +9,62 @@ interface UrlMetadata {
 }
 
 function extractMetaContent(html: string, property: string): string | null {
-  // Try og: tags first
-  const ogRegex = new RegExp(`<meta[^>]*property=["']og:${property}["'][^>]*content=["']([^"']*)["']`, 'i')
-  const ogMatch = html.match(ogRegex)
+  // Normalize HTML - replace newlines and multiple spaces for easier matching
+  const normalizedHtml = html.replace(/\s+/g, ' ')
+
+  // Try og: tags first (property before content)
+  const ogRegex = new RegExp(`<meta[^>]*property\\s*=\\s*["']og:${property}["'][^>]*content\\s*=\\s*["']([^"']*)["']`, 'i')
+  const ogMatch = normalizedHtml.match(ogRegex)
   if (ogMatch) return ogMatch[1]
 
   // Try reverse order (content before property)
-  const ogReverseRegex = new RegExp(`<meta[^>]*content=["']([^"']*)["'][^>]*property=["']og:${property}["']`, 'i')
-  const ogReverseMatch = html.match(ogReverseRegex)
+  const ogReverseRegex = new RegExp(`<meta[^>]*content\\s*=\\s*["']([^"']*)["'][^>]*property\\s*=\\s*["']og:${property}["']`, 'i')
+  const ogReverseMatch = normalizedHtml.match(ogReverseRegex)
   if (ogReverseMatch) return ogReverseMatch[1]
 
-  // Try twitter: tags
-  const twitterRegex = new RegExp(`<meta[^>]*name=["']twitter:${property}["'][^>]*content=["']([^"']*)["']`, 'i')
-  const twitterMatch = html.match(twitterRegex)
+  // Try twitter: tags (name before content)
+  const twitterRegex = new RegExp(`<meta[^>]*name\\s*=\\s*["']twitter:${property}["'][^>]*content\\s*=\\s*["']([^"']*)["']`, 'i')
+  const twitterMatch = normalizedHtml.match(twitterRegex)
   if (twitterMatch) return twitterMatch[1]
+
+  // Try twitter: tags reverse order (content before name)
+  const twitterReverseRegex = new RegExp(`<meta[^>]*content\\s*=\\s*["']([^"']*)["'][^>]*name\\s*=\\s*["']twitter:${property}["']`, 'i')
+  const twitterReverseMatch = normalizedHtml.match(twitterReverseRegex)
+  if (twitterReverseMatch) return twitterReverseMatch[1]
+
+  // Try itemprop for image (used by some sites like Pinterest)
+  if (property === 'image') {
+    const itempropRegex = /<meta[^>]*itemprop\s*=\s*["']image["'][^>]*content\s*=\s*["']([^"']*)["']/i
+    const itempropMatch = normalizedHtml.match(itempropRegex)
+    if (itempropMatch) return itempropMatch[1]
+
+    // Try reverse order
+    const itempropReverseRegex = /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*itemprop\s*=\s*["']image["']/i
+    const itempropReverseMatch = normalizedHtml.match(itempropReverseRegex)
+    if (itempropReverseMatch) return itempropReverseMatch[1]
+
+    // Try link rel="image_src" (older style)
+    const linkImageRegex = /<link[^>]*rel\s*=\s*["']image_src["'][^>]*href\s*=\s*["']([^"']*)["']/i
+    const linkImageMatch = normalizedHtml.match(linkImageRegex)
+    if (linkImageMatch) return linkImageMatch[1]
+  }
 
   // Try regular meta tags for title/description
   if (property === 'title') {
     const titleRegex = /<title[^>]*>([^<]*)<\/title>/i
-    const titleMatch = html.match(titleRegex)
-    if (titleMatch) return titleMatch[1]
+    const titleMatch = normalizedHtml.match(titleRegex)
+    if (titleMatch) return titleMatch[1].trim()
   }
 
   if (property === 'description') {
-    const descRegex = /<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i
-    const descMatch = html.match(descRegex)
+    const descRegex = /<meta[^>]*name\s*=\s*["']description["'][^>]*content\s*=\s*["']([^"']*)["']/i
+    const descMatch = normalizedHtml.match(descRegex)
     if (descMatch) return descMatch[1]
+
+    // Try reverse order
+    const descReverseRegex = /<meta[^>]*content\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']description["']/i
+    const descReverseMatch = normalizedHtml.match(descReverseRegex)
+    if (descReverseMatch) return descReverseMatch[1]
   }
 
   return null
@@ -85,7 +115,7 @@ export async function POST(request: NextRequest) {
       }
 
       const html = await response.text()
-      console.log('HTML length:', html.length)
+      console.log('URL metadata - HTML length:', html.length, 'for URL:', url)
 
       const metadata: UrlMetadata = {
         title: extractMetaContent(html, 'title'),
@@ -94,7 +124,19 @@ export async function POST(request: NextRequest) {
         siteName: extractMetaContent(html, 'site_name') || new URL(url).hostname,
       }
 
-      console.log('Extracted metadata:', metadata)
+      console.log('URL metadata - Extracted:', JSON.stringify(metadata))
+
+      // Debug: log if we found any og:image or twitter:image in the raw HTML
+      if (!metadata.image) {
+        const hasOgImage = html.toLowerCase().includes('og:image')
+        const hasTwitterImage = html.toLowerCase().includes('twitter:image')
+        console.log('URL metadata - No image found. og:image present:', hasOgImage, 'twitter:image present:', hasTwitterImage)
+        // Log a snippet around og:image if present
+        if (hasOgImage) {
+          const ogIndex = html.toLowerCase().indexOf('og:image')
+          console.log('URL metadata - og:image context:', html.substring(Math.max(0, ogIndex - 50), ogIndex + 200))
+        }
+      }
 
       // Make image URL absolute if it's relative
       if (metadata.image && !metadata.image.startsWith('http')) {
