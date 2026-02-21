@@ -102,7 +102,7 @@ export function ManualMoodboardCreator({
   const [borderRadius, setBorderRadius] = useState(12)
   const [spacing, setSpacing] = useState(8)
   const [hasInitialized, setHasInitialized] = useState(false)
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [customColors, setCustomColors] = useState<string[]>([])
@@ -422,6 +422,18 @@ export function ManualMoodboardCreator({
 
   const layoutTemplates = useMemo(() => getLayoutTemplates(selectedAssetIds.size), [selectedAssetIds.size])
 
+  // Swap two images by index
+  const swapImages = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    const selectedIds = selectedAssets.map(a => a.id)
+    const newOrder = [...selectedIds]
+    const temp = newOrder[fromIndex]
+    newOrder[fromIndex] = newOrder[toIndex]
+    newOrder[toIndex] = temp
+    console.log('SWAP:', { fromIndex, toIndex, oldOrder: selectedIds, newOrder })
+    setAssetOrder(newOrder)
+  }
+
   if (!open) return null
 
   const handleCreate = async () => {
@@ -451,55 +463,10 @@ export function ManualMoodboardCreator({
     })
   }
 
-  // Drag and drop handlers for swapping images
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index)
-  }
-
-  const handleDragOver = (_e: React.DragEvent, index: number) => {
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index)
-    }
-  }
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null)
-  }
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault()
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
-      // Swap the assets in the order
-      const selectedIds = selectedAssets.map(a => a.id)
-      const newOrder = [...selectedIds]
-      const temp = newOrder[draggedIndex]
-      newOrder[draggedIndex] = newOrder[dropIndex]
-      newOrder[dropIndex] = temp
-
-      // Update the full assetOrder by replacing the selected portion
-      setAssetOrder(prevOrder => {
-        const result = [...prevOrder]
-        // Map old positions to new positions
-        selectedIds.forEach((id, i) => {
-          const pos = result.indexOf(id)
-          if (pos !== -1) {
-            result[pos] = newOrder[i]
-          }
-        })
-        return newOrder
-      })
-    }
-    setDraggedIndex(null)
-    setDragOverIndex(null)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null)
-    setDragOverIndex(null)
-  }
-
   const goToStep = (step: StepType) => {
     setCurrentStep(step)
+    setDraggingIndex(null)
+    setDragOverIndex(null)
   }
 
   const steps: StepType[] = ['aspect', 'gallery', 'layout', 'position', 'border']
@@ -517,38 +484,60 @@ export function ManualMoodboardCreator({
     }
   }
 
-  // Image cell component (draggable only on position step)
-  const DraggableImage = ({ asset, index, className = '', style = {} }: {
+  // Image cell component (draggable on position step)
+  const SwappableImage = ({ asset, index, className = '', style = {} }: {
     asset: ProjectAsset | undefined
     index: number
     className?: string
     style?: React.CSSProperties
   }) => {
     if (!asset) return null
-    const isDragging = draggedIndex === index
-    const isDragOver = dragOverIndex === index
+    const isDragging = draggingIndex === index
+    const isDragOver = dragOverIndex === index && draggingIndex !== index
     const canDrag = currentStep === 'position'
 
     return (
       <div
         draggable={canDrag}
-        onDragStart={canDrag ? (e) => {
+        onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', String(index))
-          handleDragStart(index)
-        } : undefined}
-        onDragOver={canDrag ? (e) => {
+          setDraggingIndex(index)
+        }}
+        onDragOver={(e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
-          handleDragOver(e, index)
-        } : undefined}
-        onDragLeave={canDrag ? handleDragLeave : undefined}
-        onDrop={canDrag ? (e) => handleDrop(e, index) : undefined}
-        onDragEnd={canDrag ? handleDragEnd : undefined}
-        className={`relative overflow-hidden transition-all ${className} ${
+          if (draggingIndex !== null && draggingIndex !== index) {
+            setDragOverIndex(index)
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault()
+          if (draggingIndex !== null && draggingIndex !== index) {
+            setDragOverIndex(index)
+          }
+        }}
+        onDragLeave={() => {
+          setDragOverIndex(null)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10)
+          console.log('DROP:', { fromIndex, toIndex: index })
+          if (!isNaN(fromIndex) && fromIndex !== index) {
+            swapImages(fromIndex, index)
+          }
+          setDraggingIndex(null)
+          setDragOverIndex(null)
+        }}
+        onDragEnd={() => {
+          setDraggingIndex(null)
+          setDragOverIndex(null)
+        }}
+        className={`relative w-full h-full overflow-hidden transition-all ${className} ${
           canDrag ? 'cursor-grab active:cursor-grabbing' : ''
-        } ${isDragging ? 'opacity-50 scale-95' : ''} ${
-          isDragOver ? 'ring-2 ring-moodkin-gold ring-offset-2 ring-offset-transparent' : ''
+        } ${isDragging ? 'opacity-40 scale-95' : ''} ${
+          isDragOver ? 'ring-4 ring-moodkin-gold scale-105' : ''
         }`}
         style={{ ...style, borderRadius: `${borderRadius}px` }}
       >
@@ -560,9 +549,10 @@ export function ManualMoodboardCreator({
           draggable={false}
           style={{ borderRadius: `${borderRadius}px` }}
         />
-        {/* Position number overlay on position step */}
         {canDrag && (
-          <div className="absolute top-2 left-2 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
+          <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold pointer-events-none ${
+            isDragging ? 'bg-moodkin-gold text-black' : 'bg-black/60 text-white'
+          }`}>
             {index + 1}
           </div>
         )}
@@ -578,7 +568,7 @@ export function ManualMoodboardCreator({
     // Single image
     if (gridLayout === '1' || count === 1) {
       return (
-        <DraggableImage asset={previewAssets[0]} index={0} className="w-full h-full" />
+        <SwappableImage asset={previewAssets[0]} index={0} className="w-full h-full" />
       )
     }
 
@@ -587,7 +577,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <DraggableImage key={`preview-2h-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-2h-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -596,7 +586,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 2).map((a, i) => (
-            <DraggableImage key={`preview-2v-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-2v-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -604,16 +594,16 @@ export function ManualMoodboardCreator({
     if (gridLayout === '2-big-left') {
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2" />
-          <DraggableImage asset={previewAssets[1]} index={1} />
+          <SwappableImage asset={previewAssets[0]} index={0} className="col-span-2" />
+          <SwappableImage asset={previewAssets[1]} index={1} />
         </div>
       )
     }
     if (gridLayout === '2-big-right') {
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} />
-          <DraggableImage asset={previewAssets[1]} index={1} className="col-span-2" />
+          <SwappableImage asset={previewAssets[0]} index={0} />
+          <SwappableImage asset={previewAssets[1]} index={1} className="col-span-2" />
         </div>
       )
     }
@@ -622,10 +612,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '3-top') {
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} />
+          <SwappableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            <DraggableImage asset={previewAssets[1]} index={1} />
-            <DraggableImage asset={previewAssets[2]} index={2} />
+            <SwappableImage asset={previewAssets[1]} index={1} />
+            <SwappableImage asset={previewAssets[2]} index={2} />
           </div>
         </div>
       )
@@ -634,20 +624,20 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-            <DraggableImage asset={previewAssets[0]} index={0} />
-            <DraggableImage asset={previewAssets[1]} index={1} />
+            <SwappableImage asset={previewAssets[0]} index={0} />
+            <SwappableImage asset={previewAssets[1]} index={1} />
           </div>
-          <DraggableImage asset={previewAssets[2]} index={2} />
+          <SwappableImage asset={previewAssets[2]} index={2} />
         </div>
       )
     }
     if (gridLayout === '3-left') {
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} />
+          <SwappableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-            <DraggableImage asset={previewAssets[1]} index={1} />
-            <DraggableImage asset={previewAssets[2]} index={2} />
+            <SwappableImage asset={previewAssets[1]} index={1} />
+            <SwappableImage asset={previewAssets[2]} index={2} />
           </div>
         </div>
       )
@@ -656,10 +646,10 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-rows-2" style={{ gap: `${spacing}px` }}>
-            <DraggableImage asset={previewAssets[0]} index={0} />
-            <DraggableImage asset={previewAssets[1]} index={1} />
+            <SwappableImage asset={previewAssets[0]} index={0} />
+            <SwappableImage asset={previewAssets[1]} index={1} />
           </div>
-          <DraggableImage asset={previewAssets[2]} index={2} />
+          <SwappableImage asset={previewAssets[2]} index={2} />
         </div>
       )
     }
@@ -667,7 +657,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 3).map((a, i) => (
-            <DraggableImage key={`preview-3row-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-3row-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -676,7 +666,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 3).map((a, i) => (
-            <DraggableImage key={`preview-3col-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-3col-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -687,7 +677,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={`preview-2x2-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-2x2-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -695,10 +685,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-top') {
       return (
         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} className="row-span-2" />
+          <SwappableImage asset={previewAssets[0]} index={0} className="row-span-2" />
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(1, 4).map((a, i) => (
-              <DraggableImage key={`preview-4top-${i}`} asset={a} index={i + 1} />
+              <SwappableImage key={`preview-4top-${i}`} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -707,10 +697,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-left') {
       return (
         <div className="w-full h-full grid grid-cols-2" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} />
+          <SwappableImage asset={previewAssets[0]} index={0} />
           <div className="grid grid-rows-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(1, 4).map((a, i) => (
-              <DraggableImage key={`preview-4left-${i}`} asset={a} index={i + 1} />
+              <SwappableImage key={`preview-4left-${i}`} asset={a} index={i + 1} />
             ))}
           </div>
         </div>
@@ -720,7 +710,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-4" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={`preview-4row-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-4row-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -729,7 +719,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-rows-4" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 4).map((a, i) => (
-            <DraggableImage key={`preview-4col-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-4col-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -737,10 +727,10 @@ export function ManualMoodboardCreator({
     if (gridLayout === '4-diagonal') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
-          <DraggableImage asset={previewAssets[1]} index={1} />
-          <DraggableImage asset={previewAssets[2]} index={2} />
-          <DraggableImage asset={previewAssets[3]} index={3} className="col-span-2" />
+          <SwappableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          <SwappableImage asset={previewAssets[1]} index={1} />
+          <SwappableImage asset={previewAssets[2]} index={2} />
+          <SwappableImage asset={previewAssets[3]} index={3} className="col-span-2" />
         </div>
       )
     }
@@ -751,12 +741,12 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(0, 2).map((a, i) => (
-              <DraggableImage key={`preview-5top2a-${i}`} asset={a} index={i} />
+              <SwappableImage key={`preview-5top2a-${i}`} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(2, 5).map((a, i) => (
-              <DraggableImage key={`preview-5top2b-${i}`} asset={a} index={i + 2} />
+              <SwappableImage key={`preview-5top2b-${i}`} asset={a} index={i + 2} />
             ))}
           </div>
         </div>
@@ -767,12 +757,12 @@ export function ManualMoodboardCreator({
         <div className="w-full h-full grid grid-rows-2" style={{ gap: `${spacing}px` }}>
           <div className="grid grid-cols-3" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(0, 3).map((a, i) => (
-              <DraggableImage key={`preview-5top3a-${i}`} asset={a} index={i} />
+              <SwappableImage key={`preview-5top3a-${i}`} asset={a} index={i} />
             ))}
           </div>
           <div className="grid grid-cols-2" style={{ gap: `${spacing}px` }}>
             {previewAssets.slice(3, 5).map((a, i) => (
-              <DraggableImage key={`preview-5top3b-${i}`} asset={a} index={i + 3} />
+              <SwappableImage key={`preview-5top3b-${i}`} asset={a} index={i + 3} />
             ))}
           </div>
         </div>
@@ -781,9 +771,9 @@ export function ManualMoodboardCreator({
     if (gridLayout === '5-big') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          <SwappableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
           {previewAssets.slice(1, 5).map((a, i) => (
-            <DraggableImage key={`preview-5big-${i}`} asset={a} index={i + 1} />
+            <SwappableImage key={`preview-5big-${i}`} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -794,7 +784,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 6).map((a, i) => (
-            <DraggableImage key={`preview-3x2-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-3x2-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -803,7 +793,7 @@ export function ManualMoodboardCreator({
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-3" style={{ gap: `${spacing}px` }}>
           {previewAssets.slice(0, 6).map((a, i) => (
-            <DraggableImage key={`preview-2x3-${i}`} asset={a} index={i} />
+            <SwappableImage key={`preview-2x3-${i}`} asset={a} index={i} />
           ))}
         </div>
       )
@@ -811,9 +801,9 @@ export function ManualMoodboardCreator({
     if (gridLayout === '6-big') {
       return (
         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacing}px` }}>
-          <DraggableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
+          <SwappableImage asset={previewAssets[0]} index={0} className="col-span-2 row-span-2" />
           {previewAssets.slice(1, 6).map((a, i) => (
-            <DraggableImage key={`preview-6big-${i}`} asset={a} index={i + 1} />
+            <SwappableImage key={`preview-6big-${i}`} asset={a} index={i + 1} />
           ))}
         </div>
       )
@@ -832,14 +822,15 @@ export function ManualMoodboardCreator({
         }}
       >
         {previewAssets.map((a, i) => (
-          <DraggableImage key={`preview-auto-${i}-${a.id}`} asset={a} index={i} />
+          <SwappableImage key={`preview-auto-${i}-${a.id}`} asset={a} index={i} />
         ))}
       </div>
     )
   }
 
-  // Check if we're in a step that needs side-by-side layout
+  // Check if we're in a step that needs side-by-side layout (on desktop, gallery also gets side-by-side)
   const isSideBySideStep = currentStep === 'layout' || currentStep === 'position' || currentStep === 'border'
+  const isGalleryStep = currentStep === 'gallery'
 
   // Render the step controls (for side-by-side layout)
   const renderStepControls = () => {
@@ -913,48 +904,11 @@ export function ManualMoodboardCreator({
     if (currentStep === 'position') {
       return (
         <div className="space-y-4">
-          <p className="text-white/50 text-sm">Drag to reorder images</p>
-          <div className="grid grid-cols-3 gap-2">
-            {selectedAssets.map((asset, index) => {
-              const imgUrl = getImageUrl(asset)
-              if (!imgUrl) return null
-              return (
-                <div
-                  key={`position-thumb-${index}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move'
-                    e.dataTransfer.setData('text/plain', String(index))
-                    handleDragStart(index)
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    handleDragOver(e, index)
-                  }}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={`relative aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all ${
-                    draggedIndex === index ? 'opacity-50 scale-95' : ''
-                  } ${dragOverIndex === index ? 'ring-2 ring-moodkin-gold' : ''}`}
-                >
-                  <Image
-                    src={imgUrl}
-                    alt=""
-                    fill
-                    className="object-cover pointer-events-none"
-                    draggable={false}
-                  />
-                  <div className="absolute top-1 left-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                    {index + 1}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <p className="text-white/50 text-sm">Drag and drop images to swap positions</p>
           <p className="text-white/40 text-xs">
-            Numbers show position in the layout
+            {draggingIndex !== null
+              ? `Dragging image ${draggingIndex + 1} - drop on another to swap`
+              : 'Numbers show position in the layout'}
           </p>
         </div>
       )
@@ -1062,7 +1016,219 @@ export function ManualMoodboardCreator({
       </div>
 
       {/* Main content area */}
-      {isSideBySideStep ? (
+      {/* Desktop side-by-side layout for gallery step */}
+      {isGalleryStep ? (
+        <>
+          {/* Mobile: vertical layout */}
+          <div className="md:hidden flex-1 flex flex-col">
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="w-full max-w-md px-4">
+                <p className="text-white/70 text-center mb-4">
+                  {selectedAssetIds.size} photos selected
+                </p>
+                <div className="grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto">
+                  {visualAssets.map((asset) => {
+                    const isSelected = selectedAssetIds.has(asset.id)
+                    const isFlagged = flaggedAssetIds.has(asset.id)
+                    const imgUrl = getImageUrl(asset)
+                    if (!imgUrl) return null
+                    return (
+                      <button
+                        key={asset.id}
+                        onClick={() => toggleAsset(asset.id)}
+                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                          isSelected
+                            ? 'border-moodkin-gold scale-95'
+                            : 'border-transparent hover:border-white/30'
+                        } ${isFlagged ? 'opacity-50' : ''}`}
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={asset.filename}
+                          fill
+                          className="object-cover"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        {isFlagged && (
+                          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                            <span className="text-xs text-white bg-red-500/80 px-2 py-1 rounded">Flagged</span>
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile bottom panel */}
+            <div className="bg-[#2a2a2a] rounded-t-3xl">
+              <div className="flex items-center justify-center gap-6 py-4 border-b border-white/10 overflow-x-auto">
+                <button
+                  onClick={() => goToStep('aspect')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Aspect
+                </button>
+                <button
+                  onClick={() => goToStep('gallery')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white"
+                >
+                  Gallery
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
+                </button>
+                <button
+                  onClick={() => goToStep('layout')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Layout
+                </button>
+                <button
+                  onClick={() => goToStep('position')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Position
+                </button>
+                <button
+                  onClick={() => goToStep('border')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Border
+                </button>
+              </div>
+
+              <div className="p-4 pb-8 min-h-[100px]">
+                <div className="text-center text-white/50 text-sm">
+                  Tap photos to select or deselect
+                </div>
+              </div>
+
+              <div className="px-4 pb-6 flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => goToStep('aspect')}
+                  className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => goToStep('layout')}
+                  disabled={!canProceed}
+                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: side-by-side layout */}
+          <div className="hidden md:flex flex-1 overflow-hidden">
+            {/* Left side - Photo grid */}
+            <div className="flex-1 flex items-start justify-center p-6 overflow-y-auto">
+              <div className="w-full max-w-4xl lg:max-w-6xl">
+                <p className="text-white/70 text-center mb-4">
+                  {selectedAssetIds.size} photos selected
+                </p>
+                <div className="grid grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                  {visualAssets.map((asset) => {
+                    const isSelected = selectedAssetIds.has(asset.id)
+                    const isFlagged = flaggedAssetIds.has(asset.id)
+                    const imgUrl = getImageUrl(asset)
+                    if (!imgUrl) return null
+                    return (
+                      <button
+                        key={asset.id}
+                        onClick={() => toggleAsset(asset.id)}
+                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                          isSelected
+                            ? 'border-moodkin-gold scale-95'
+                            : 'border-transparent hover:border-white/30'
+                        } ${isFlagged ? 'opacity-50' : ''}`}
+                      >
+                        <Image
+                          src={imgUrl}
+                          alt={asset.filename}
+                          fill
+                          className="object-cover"
+                        />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        {isFlagged && (
+                          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                            <span className="text-xs text-white bg-red-500/80 px-2 py-1 rounded">Flagged</span>
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right side - Controls panel */}
+            <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
+              {/* Step tabs */}
+              <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
+                <button
+                  onClick={() => goToStep('aspect')}
+                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
+                >
+                  Aspect
+                </button>
+                <button
+                  onClick={() => goToStep('gallery')}
+                  className="text-sm font-medium transition-colors text-white"
+                >
+                  Gallery
+                </button>
+                <button
+                  onClick={() => goToStep('layout')}
+                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
+                >
+                  Layout
+                </button>
+              </div>
+
+              {/* Step content */}
+              <div className="flex-1">
+                <p className="text-white/50 text-sm">
+                  Click photos to select or deselect them for your moodboard.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => goToStep('aspect')}
+                  className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => goToStep('layout')}
+                  disabled={!canProceed}
+                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : isSideBySideStep ? (
         // Side-by-side layout for layout/position/border steps
         <div className="flex-1 flex overflow-hidden">
           {/* Left side - Preview */}
@@ -1139,10 +1305,11 @@ export function ManualMoodboardCreator({
           </div>
         </div>
       ) : (
-        // Original vertical layout for aspect/gallery steps
+        // Aspect step - mobile vertical, desktop side-by-side
         <>
-          <div className="flex-1 flex items-center justify-center p-4">
-            {currentStep === 'aspect' ? (
+          {/* Mobile: vertical layout */}
+          <div className="md:hidden flex-1 flex flex-col">
+            <div className="flex-1 flex items-center justify-center p-4">
               <div className="w-full max-w-md px-4">
                 <p className="text-white/70 text-center mb-8 text-lg">
                   Choose output aspect ratio
@@ -1171,131 +1338,139 @@ export function ManualMoodboardCreator({
                   ))}
                 </div>
               </div>
-            ) : currentStep === 'gallery' ? (
-              <div className="w-full max-w-md md:max-w-4xl lg:max-w-6xl px-4">
-                <p className="text-white/70 text-center mb-4">
-                  {selectedAssetIds.size} photos selected
-                </p>
-                <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 md:gap-3 max-h-[50vh] md:max-h-[60vh] overflow-y-auto">
-                  {visualAssets.map((asset) => {
-                    const isSelected = selectedAssetIds.has(asset.id)
-                    const isFlagged = flaggedAssetIds.has(asset.id)
-                    const imgUrl = getImageUrl(asset)
-                    if (!imgUrl) return null
-                    return (
-                      <button
-                        key={asset.id}
-                        onClick={() => toggleAsset(asset.id)}
-                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                          isSelected
-                            ? 'border-moodkin-gold scale-95'
-                            : 'border-transparent hover:border-white/30'
-                        } ${isFlagged ? 'opacity-50' : ''}`}
-                      >
-                        <Image
-                          src={imgUrl}
-                          alt={asset.filename}
-                          fill
-                          className="object-cover"
-                        />
-                        {isSelected && (
-                          <div className="absolute top-2 right-2 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center">
-                            <Check className="w-4 h-4 text-white" />
-                          </div>
-                        )}
-                        {isFlagged && (
-                          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                            <span className="text-xs text-white bg-red-500/80 px-2 py-1 rounded">Flagged</span>
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Bottom Panel for aspect/gallery steps */}
-          <div className="bg-[#2a2a2a] rounded-t-3xl">
-            {/* Step Tabs */}
-            <div className="flex items-center justify-center gap-6 py-4 border-b border-white/10 overflow-x-auto">
-              <button
-                onClick={() => goToStep('aspect')}
-                className={`text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  currentStep === 'aspect' ? 'text-white' : 'text-white/50'
-                }`}
-              >
-                Aspect
-                {currentStep === 'aspect' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-                )}
-              </button>
-              <button
-                onClick={() => goToStep('gallery')}
-                className={`text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  currentStep === 'gallery' ? 'text-white' : 'text-white/50'
-                }`}
-              >
-                Gallery
-                {currentStep === 'gallery' && (
-                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
-                )}
-              </button>
-              <button
-                onClick={() => goToStep('layout')}
-                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
-              >
-                Layout
-              </button>
-              <button
-                onClick={() => goToStep('position')}
-                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
-              >
-                Position
-              </button>
-              <button
-                onClick={() => goToStep('border')}
-                className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
-              >
-                Border
-              </button>
             </div>
 
-            {/* Step Content */}
-            <div className="p-4 pb-8 min-h-[100px]">
-              {currentStep === 'aspect' && (
+            {/* Mobile bottom panel */}
+            <div className="bg-[#2a2a2a] rounded-t-3xl">
+              <div className="flex items-center justify-center gap-6 py-4 border-b border-white/10 overflow-x-auto">
+                <button
+                  onClick={() => goToStep('aspect')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white"
+                >
+                  Aspect
+                  <div className="absolute -bottom-4 left-0 right-0 h-0.5 bg-white" />
+                </button>
+                <button
+                  onClick={() => goToStep('gallery')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Gallery
+                </button>
+                <button
+                  onClick={() => goToStep('layout')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Layout
+                </button>
+                <button
+                  onClick={() => goToStep('position')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Position
+                </button>
+                <button
+                  onClick={() => goToStep('border')}
+                  className="text-sm font-medium transition-colors relative whitespace-nowrap text-white/50"
+                >
+                  Border
+                </button>
+              </div>
+
+              <div className="p-4 pb-8 min-h-[100px]">
                 <div className="text-center text-white/50 text-sm">
                   Select the shape for your moodboard output
                 </div>
-              )}
-              {currentStep === 'gallery' && (
-                <div className="text-center text-white/50 text-sm">
-                  Tap photos to select or deselect
+              </div>
+
+              <div className="px-4 pb-6 flex gap-3">
+                <Button
+                  variant="primary"
+                  onClick={() => goToStep('gallery')}
+                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: side-by-side layout */}
+          <div className="hidden md:flex flex-1 overflow-hidden">
+            {/* Left side - Aspect ratio selection */}
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="w-full max-w-lg">
+                <p className="text-white/70 text-center mb-8 text-lg">
+                  Choose output aspect ratio
+                </p>
+                <div className="flex justify-center gap-6">
+                  {ASPECT_RATIOS.map((ratio) => (
+                    <button
+                      key={ratio.value}
+                      onClick={() => setAspectRatio(ratio.value)}
+                      className={`flex flex-col items-center gap-3 p-6 rounded-2xl transition-all ${
+                        aspectRatio === ratio.value
+                          ? 'bg-white/20 ring-2 ring-moodkin-gold'
+                          : 'bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className={`${aspectRatio === ratio.value ? 'text-moodkin-gold' : 'text-white/60'}`}>
+                        {ratio.icon}
+                      </div>
+                      <div className="text-center">
+                        <p className={`font-medium ${aspectRatio === ratio.value ? 'text-white' : 'text-white/70'}`}>
+                          {ratio.label}
+                        </p>
+                        <p className="text-white/40 text-sm">{ratio.dimensions}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Navigation / Create Button */}
-            <div className="px-4 pb-6 flex gap-3">
-              {currentStepIndex > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={() => goToStep(steps[currentStepIndex - 1])}
-                  className="flex-shrink-0 bg-transparent border-white/20 text-white hover:bg-white/10"
+            {/* Right side - Controls panel */}
+            <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
+              {/* Step tabs */}
+              <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
+                <button
+                  onClick={() => goToStep('aspect')}
+                  className="text-sm font-medium transition-colors text-white"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  Aspect
+                </button>
+                <button
+                  onClick={() => goToStep('gallery')}
+                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
+                >
+                  Gallery
+                </button>
+                <button
+                  onClick={() => goToStep('layout')}
+                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
+                >
+                  Layout
+                </button>
+              </div>
+
+              {/* Step content */}
+              <div className="flex-1">
+                <p className="text-white/50 text-sm">
+                  Select the shape for your moodboard output.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+                <Button
+                  variant="primary"
+                  onClick={() => goToStep('gallery')}
+                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
-              )}
-              <Button
-                variant="primary"
-                onClick={() => goToStep(steps[currentStepIndex + 1])}
-                disabled={!canProceed}
-                className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
+              </div>
             </div>
           </div>
         </>
