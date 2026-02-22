@@ -60,6 +60,7 @@ export async function POST(
           title: prompt.slice(0, 100),
           uploaded_by_id: session.user.id,
           uploaded_by_name: session.user.name || session.user.email,
+          ai_generated: true,
         })
         .select()
         .single()
@@ -138,6 +139,7 @@ export async function POST(
           title: prompt.slice(0, 100),
           uploaded_by_id: session.user.id,
           uploaded_by_name: session.user.name || session.user.email,
+          ai_generated: true,
         })
         .select()
         .single()

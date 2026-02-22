@@ -236,6 +236,7 @@ export interface Database {
           uploaded_by_id: string
           uploaded_by_name: string | null
           creative: boolean
+          ai_generated: boolean
           created_at: string
         }
         Insert: {
@@ -250,6 +251,7 @@ export interface Database {
           uploaded_by_id: string
           uploaded_by_name?: string | null
           creative?: boolean
+          ai_generated?: boolean
           created_at?: string
         }
         Update: {
@@ -264,6 +266,7 @@ export interface Database {
           uploaded_by_id?: string
           uploaded_by_name?: string | null
           creative?: boolean
+          ai_generated?: boolean
           created_at?: string
         }
       }

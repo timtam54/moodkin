@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Wand2, Loader2, Plus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
@@ -10,6 +10,12 @@ interface AIImageGeneratorProps {
   onClose: () => void
   conversationId: string
   onImageSaved: () => void // Called after image is saved to refresh the list
+}
+
+interface AIImageCount {
+  count: number
+  month: string
+  ownerName: string
 }
 
 const STYLE_PRESETS = [
@@ -42,7 +48,39 @@ export function AIImageGenerator({
   const [generatedImage, setGeneratedImage] = useState<{ url: string; revisedPrompt?: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [aiImageCount, setAiImageCount] = useState<AIImageCount | null>(null)
+  const [isLoadingCount, setIsLoadingCount] = useState(false)
 
+  // Function to fetch AI image count
+  const fetchAIImageCount = async () => {
+    if (!conversationId) return
+    setIsLoadingCount(true)
+    try {
+      const res = await fetch(`/api/user/ai-image-count?conversationId=${conversationId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAiImageCount(data)
+      } else {
+        console.error('Failed to fetch AI image count:', res.status)
+      }
+    } catch (err) {
+      console.error('Failed to fetch AI image count:', err)
+    } finally {
+      setIsLoadingCount(false)
+    }
+  }
+
+  // Fetch AI image count when dialog opens
+  useEffect(() => {
+    console.log('AIImageGenerator useEffect - open:', open, 'conversationId:', conversationId)
+    if (open && conversationId) {
+      console.log('Fetching AI image count...')
+      fetchAIImageCount()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, conversationId])
+
+  // Must be after all hooks
   if (!open) return null
 
   const handleGenerate = async () => {
@@ -102,6 +140,8 @@ export function AIImageGenerator({
 
       // Notify parent to refresh asset list
       onImageSaved()
+      // Refresh the count
+      fetchAIImageCount()
       // Reset and close after saving
       handleClose()
     } catch (err) {
@@ -143,16 +183,26 @@ export function AIImageGenerator({
             </div>
             <div>
               <h2 className="font-bold text-moodkin-dark text-lg">AI Image Generator</h2>
-              <p className="text-sm text-moodkin-gray">Create unique images with AI</p>
+              {isLoadingCount ? (
+                <p className="text-sm text-moodkin-gray">Loading...</p>
+              ) : aiImageCount !== null ? (
+                <p className="text-sm text-moodkin-gray">
+                  {aiImageCount.count} images generated this month for {aiImageCount.ownerName}
+                </p>
+              ) : (
+                <p className="text-sm text-moodkin-gray">Create unique images with AI</p>
+              )}
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 text-moodkin-gray hover:text-moodkin-dark rounded-full hover:bg-moodkin-light-gray/50 transition-colors"
-            disabled={isGenerating || isSaving}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleClose}
+              className="p-2 text-moodkin-gray hover:text-moodkin-dark rounded-full hover:bg-moodkin-light-gray/50 transition-colors"
+              disabled={isGenerating || isSaving}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Main content */}
