@@ -337,6 +337,7 @@ export interface Database {
           border_radius: number
           border_width: number
           spacing: number
+          aspect_ratio: 'portrait' | 'square' | 'landscape'
           created_at: string
         }
         Insert: {
@@ -353,6 +354,7 @@ export interface Database {
           border_radius?: number
           border_width?: number
           spacing?: number
+          aspect_ratio?: 'portrait' | 'square' | 'landscape'
           created_at?: string
         }
         Update: {
@@ -369,6 +371,7 @@ export interface Database {
           border_radius?: number
           border_width?: number
           spacing?: number
+          aspect_ratio?: 'portrait' | 'square' | 'landscape'
           created_at?: string
         }
       }

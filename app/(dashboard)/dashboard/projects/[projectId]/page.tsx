@@ -1989,6 +1989,13 @@ export default function ProjectDetailPage() {
                     )
                   }
 
+                  // Determine aspect ratio class
+                  const aspectRatioClass = moodboard.aspect_ratio === 'portrait'
+                    ? 'aspect-[3/4]'
+                    : moodboard.aspect_ratio === 'landscape'
+                      ? 'aspect-[4/3]'
+                      : 'aspect-square'
+
                   return (
                   <div
                     key={moodboard.id}
@@ -1996,7 +2003,7 @@ export default function ProjectDetailPage() {
                   >
                     {/* Moodboard Preview - Layout Based on grid_layout */}
                     <div
-                      className="flex flex-col aspect-square"
+                      className={`flex flex-col ${aspectRatioClass}`}
                       style={{
                         backgroundColor: bgColor,
                         gap: `${spacingPx}px`,
