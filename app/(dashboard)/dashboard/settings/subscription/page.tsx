@@ -87,12 +87,19 @@ export default function SubscriptionManagementPage() {
     fetchSubscriptionStatus()
   }, [])
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-AU', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return 'Unknown'
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'Invalid date'
+      return date.toLocaleDateString('en-AU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    } catch {
+      return 'Invalid date'
+    }
   }
 
   return (
@@ -170,9 +177,11 @@ export default function SubscriptionManagementPage() {
                       </span>
                     </div>
                     <p className="text-sm text-moodkin-gray">ID: {sub.id}</p>
-                    <p className="text-sm text-moodkin-gray">
-                      {sub.status === 'active' ? 'Renews' : 'Ends'}: {formatDate(sub.currentPeriodEnd)}
-                    </p>
+                    {sub.currentPeriodEnd && (
+                      <p className="text-sm text-moodkin-gray">
+                        {sub.status === 'active' ? 'Renews' : 'Ends'}: {formatDate(sub.currentPeriodEnd)}
+                      </p>
+                    )}
                     {sub.cancelAtPeriodEnd && (
                       <p className="text-sm text-orange-600 mt-1">
                         Will cancel at end of period
