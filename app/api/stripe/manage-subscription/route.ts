@@ -14,6 +14,15 @@ function getStripe() {
 export async function GET() {
   try {
     const session = await requireSession()
+
+    if (!session?.user?.email) {
+      return NextResponse.json({
+        error: 'No email found in session',
+        hasCustomer: false,
+        subscribed: false
+      })
+    }
+
     const stripe = getStripe()
 
     // Find customer by email
@@ -72,8 +81,15 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Check subscription error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Check failed'
+    const errorStack = error instanceof Error ? error.stack : undefined
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Check failed' },
+      {
+        error: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+        hasCustomer: false,
+        subscribed: false
+      },
       { status: 500 }
     )
   }

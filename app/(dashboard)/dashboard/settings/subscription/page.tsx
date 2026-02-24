@@ -36,9 +36,12 @@ export default function SubscriptionManagementPage() {
     try {
       const response = await fetch('/api/stripe/manage-subscription')
       const data = await response.json()
+      if (data.error) {
+        setMessage({ type: 'error', text: data.error })
+      }
       setSubscriptionInfo(data)
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to fetch subscription status' })
+      setMessage({ type: 'error', text: `Failed to fetch subscription status: ${error instanceof Error ? error.message : 'Unknown error'}` })
     }
     setLoading(false)
   }
