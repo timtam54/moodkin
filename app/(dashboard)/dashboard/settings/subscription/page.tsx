@@ -11,13 +11,13 @@ interface SubscriptionInfo {
   subscriptions?: Array<{
     id: string
     status: string
-    currentPeriodEnd: string
+    currentPeriodEnd: string | null
     cancelAtPeriodEnd: boolean
   }>
   activeSubscription?: {
     id: string
     status: string
-    currentPeriodEnd: string
+    currentPeriodEnd: string | null
   } | null
   message?: string
   error?: string
@@ -27,6 +27,7 @@ export default function SubscriptionManagementPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
@@ -65,7 +66,7 @@ export default function SubscriptionManagementPage() {
   }
 
   const cancelSubscription = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? This cannot be undone.')) {
+    if (!confirm('Are you sure you want to cancel ALL active subscriptions? This cannot be undone.')) {
       return
     }
 
@@ -84,6 +85,32 @@ export default function SubscriptionManagementPage() {
       setMessage({ type: 'error', text: 'Failed to cancel subscription' })
     }
     setCancelling(false)
+  }
+
+  const cancelSingleSubscription = async (subscriptionId: string) => {
+    if (!confirm(`Cancel subscription ${subscriptionId}?`)) {
+      return
+    }
+
+    setCancellingId(subscriptionId)
+    setMessage(null)
+    try {
+      const response = await fetch('/api/stripe/manage-subscription', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId })
+      })
+      const data = await response.json()
+      if (data.success) {
+        setMessage({ type: 'success', text: data.message || 'Subscription cancelled!' })
+        await fetchSubscriptionStatus()
+      } else {
+        setMessage({ type: 'error', text: data.message || 'Failed to cancel subscription' })
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to cancel subscription' })
+    }
+    setCancellingId(null)
   }
 
   useEffect(() => {
@@ -189,6 +216,25 @@ export default function SubscriptionManagementPage() {
                       <p className="text-sm text-orange-600 mt-1">
                         Will cancel at end of period
                       </p>
+                    )}
+                    {sub.status !== 'canceled' && (
+                      <button
+                        onClick={() => cancelSingleSubscription(sub.id)}
+                        disabled={cancellingId === sub.id}
+                        className="mt-3 text-sm text-red-600 hover:text-red-800 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {cancellingId === sub.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Cancelling...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-3 h-3" />
+                            Cancel this subscription
+                          </>
+                        )}
+                      </button>
                     )}
                   </div>
                 ))}

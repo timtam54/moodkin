@@ -191,12 +191,21 @@ export async function POST() {
   }
 }
 
-// DELETE - Cancel subscription
-export async function DELETE() {
+// DELETE - Cancel subscription (single or all)
+export async function DELETE(request: NextRequest) {
   try {
     const session = await requireSession()
     const stripe = getStripe()
     const supabase = await createServiceClient()
+
+    // Check if a specific subscription ID was provided
+    let subscriptionId: string | null = null
+    try {
+      const body = await request.json()
+      subscriptionId = body.subscriptionId || null
+    } catch {
+      // No body provided, will cancel all
+    }
 
     // Find customer by email
     const customers = await stripe.customers.list({
@@ -210,7 +219,16 @@ export async function DELETE() {
 
     const customer = customers.data[0]
 
-    // Get active subscriptions
+    // If specific subscription ID provided, cancel just that one
+    if (subscriptionId) {
+      await stripe.subscriptions.cancel(subscriptionId)
+      return NextResponse.json({
+        success: true,
+        message: `Cancelled subscription ${subscriptionId}`,
+      })
+    }
+
+    // Otherwise, cancel all active subscriptions
     const subscriptions = await stripe.subscriptions.list({
       customer: customer.id,
       status: 'active',
