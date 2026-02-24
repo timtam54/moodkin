@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, FolderOpen, FolderPlus } from 'lucide-react'
+import { Plus, FolderOpen, FolderPlus, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Loading } from '@/components/ui/loading'
@@ -12,9 +14,43 @@ import { useUnseenCounts } from '@/hooks/use-unseen-counts'
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useConversations()
   const { data: unseenCounts } = useUnseenCounts()
+  const searchParams = useSearchParams()
+  const [showSuccess, setShowSuccess] = useState(false)
+
+  // Handle subscription success redirect from Stripe
+  useEffect(() => {
+    const subscriptionStatus = searchParams.get('subscription')
+    if (subscriptionStatus === 'success') {
+      // Verify and sync subscription with database
+      fetch('/api/stripe/verify-subscription', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (data.subscribed) {
+            setShowSuccess(true)
+            // Clear URL params after a delay
+            setTimeout(() => {
+              window.history.replaceState({}, '', '/dashboard/projects')
+              setShowSuccess(false)
+            }, 5000)
+          }
+        })
+        .catch(console.error)
+    }
+  }, [searchParams])
 
   return (
     <div className="space-y-6">
+      {/* Subscription Success Banner */}
+      {showSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+          <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-green-800">Welcome to Moodkin Premium!</p>
+            <p className="text-sm text-green-700">Your subscription is now active. Enjoy unlimited projects and AI image generation.</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-moodkin-dark">Projects</h1>
