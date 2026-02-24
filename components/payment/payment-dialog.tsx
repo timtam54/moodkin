@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import { CreditCard, Loader2 } from 'lucide-react'
-import { Elements } from '@stripe/react-stripe-js'
-import { loadStripe } from '@stripe/stripe-js'
 import { Dialog } from '@/components/ui/dialog'
 import { CreditCardPay } from './credit-card-pay'
 import { subscriptionConfig } from '@/lib/config/subscription'
@@ -14,31 +12,6 @@ interface PaymentDialogProps {
   username: string
   amount?: number
   onSuccess: (customerId: string) => void
-}
-
-// Initialize Stripe
-let stripePromise: ReturnType<typeof loadStripe> | null = null
-
-const getStripePromise = () => {
-  if (!stripePromise && typeof window !== 'undefined') {
-    stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
-  }
-  return stripePromise
-}
-
-const stripeElementsOptions = {
-  appearance: {
-    theme: 'stripe' as const,
-    variables: {
-      colorPrimary: '#D4A574',
-      colorBackground: '#ffffff',
-      colorText: '#1f2937',
-      colorDanger: '#ef4444',
-      fontFamily: 'system-ui, sans-serif',
-      spacingUnit: '4px',
-      borderRadius: '12px',
-    },
-  },
 }
 
 export function PaymentDialog({ open, onClose, username, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
@@ -96,30 +69,17 @@ export function PaymentDialog({ open, onClose, username, amount = subscriptionCo
               <span className="ml-2 text-moodkin-gray">Processing payment...</span>
             </div>
           ) : (
-            <>
-              {getStripePromise() ? (
-                <Elements stripe={getStripePromise()!} options={stripeElementsOptions}>
-                  <CreditCardPay
-                    amount={amount}
-                    username={username}
-                    onResult={handlePaymentResult}
-                  />
-                </Elements>
-              ) : (
-                <div className="p-4 bg-red-50 text-red-800 rounded-xl">
-                  <p className="font-semibold">Unable to Load Payment Form</p>
-                  <p className="text-sm mt-1">
-                    Please try refreshing the page or contact support.
-                  </p>
-                </div>
-              )}
-            </>
+            <CreditCardPay
+              amount={amount}
+              username={username}
+              onResult={handlePaymentResult}
+            />
           )}
         </div>
 
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-moodkin-gray">
-          <p>Your payment is secured with SSL encryption</p>
+          <p>Your payment is secured by Stripe</p>
         </div>
       </div>
     </Dialog>

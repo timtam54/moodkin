@@ -93,13 +93,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if customer already has an active subscription
-    const subscriptions = await stripe.subscriptions.list({
+    const existingSubscriptions = await stripe.subscriptions.list({
       customer: customer.id,
       status: 'active',
       limit: 1,
     })
 
-    if (subscriptions.data.length > 0) {
+    if (existingSubscriptions.data.length > 0) {
       return NextResponse.json({
         error: 'You already have an active subscription',
         alreadySubscribed: true,
@@ -109,47 +109,35 @@ export async function POST(request: NextRequest) {
     // Get or create the price
     const priceId = await getOrCreatePrice(stripe)
 
-    // Create subscription with payment
-    const subscription = await stripe.subscriptions.create({
+    // Get the base URL for redirects
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://moodkin.vercel.app'
+
+    // Create a Checkout Session for subscription
+    const checkoutSession = await stripe.checkout.sessions.create({
       customer: customer.id,
-      items: [{ price: priceId }],
-      payment_behavior: 'default_incomplete',
-      payment_settings: {
-        save_default_payment_method: 'on_subscription',
-      },
-      expand: ['latest_invoice.payment_intent'],
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${baseUrl}/dashboard/projects?subscription=success`,
+      cancel_url: `${baseUrl}/dashboard/projects?subscription=cancelled`,
       metadata: {
         userId: session.user.id,
       },
+      subscription_data: {
+        metadata: {
+          userId: session.user.id,
+        },
+      },
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invoice = subscription.latest_invoice as any
-
-    console.log('Subscription created:', subscription.id)
-    console.log('Invoice:', invoice?.id)
-    console.log('Payment Intent:', invoice?.payment_intent)
-
-    // Handle both expanded and non-expanded payment_intent
-    let clientSecret: string | null = null
-
-    if (typeof invoice?.payment_intent === 'object' && invoice.payment_intent?.client_secret) {
-      // Expanded payment intent
-      clientSecret = invoice.payment_intent.client_secret
-    } else if (typeof invoice?.payment_intent === 'string') {
-      // Non-expanded - need to retrieve it
-      const pi = await stripe.paymentIntents.retrieve(invoice.payment_intent)
-      clientSecret = pi.client_secret
-    }
-
-    if (!clientSecret) {
-      console.error('No client secret found. Invoice:', JSON.stringify(invoice, null, 2))
-      throw new Error('Failed to create subscription payment - no client secret')
-    }
-
     return NextResponse.json({
-      subscriptionId: subscription.id,
-      clientSecret: clientSecret,
+      checkoutUrl: checkoutSession.url,
+      sessionId: checkoutSession.id,
       customerId: customer.id,
     })
   } catch (error) {
