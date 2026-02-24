@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { CreditCard, Loader2 } from 'lucide-react'
+import { Elements } from '@stripe/react-stripe-js'
+import { loadStripe } from '@stripe/stripe-js'
 import { Dialog } from '@/components/ui/dialog'
 import { CreditCardPay } from './credit-card-pay'
 import { subscriptionConfig } from '@/lib/config/subscription'
@@ -14,6 +16,31 @@ interface PaymentDialogProps {
   onSuccess: (customerId: string) => void
 }
 
+// Initialize Stripe
+let stripePromise: ReturnType<typeof loadStripe> | null = null
+
+const getStripePromise = () => {
+  if (!stripePromise && typeof window !== 'undefined') {
+    stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+  }
+  return stripePromise
+}
+
+const stripeElementsOptions = {
+  appearance: {
+    theme: 'stripe' as const,
+    variables: {
+      colorPrimary: '#D4A574',
+      colorBackground: '#ffffff',
+      colorText: '#1f2937',
+      colorDanger: '#ef4444',
+      fontFamily: 'system-ui, sans-serif',
+      spacingUnit: '4px',
+      borderRadius: '12px',
+    },
+  },
+}
+
 export function PaymentDialog({ open, onClose, username, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
@@ -21,10 +48,24 @@ export function PaymentDialog({ open, onClose, username, amount = subscriptionCo
   const handlePaymentResult = async (success: boolean, customerId?: string) => {
     if (success && customerId) {
       setPaymentSuccess(true)
-      // Wait a moment to show success state
+
+      // Update database with subscription info
+      try {
+        await fetch('/api/user/subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId }),
+        })
+      } catch (err) {
+        console.error('Failed to update subscription status:', err)
+      }
+
+      // Wait a moment to show success state then close
       setTimeout(() => {
         onSuccess(customerId)
         onClose()
+        // Reload to refresh subscription status everywhere
+        window.location.reload()
       }, 1500)
     }
     setIsProcessing(false)
@@ -60,7 +101,7 @@ export function PaymentDialog({ open, onClose, username, amount = subscriptionCo
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-green-700 font-semibold mb-2">Payment Successful!</p>
+              <p className="text-green-700 font-semibold mb-2">Subscription Created!</p>
               <p className="text-moodkin-gray text-sm">Welcome to Moodkin Premium</p>
             </div>
           ) : isProcessing ? (
@@ -69,17 +110,30 @@ export function PaymentDialog({ open, onClose, username, amount = subscriptionCo
               <span className="ml-2 text-moodkin-gray">Processing payment...</span>
             </div>
           ) : (
-            <CreditCardPay
-              amount={amount}
-              username={username}
-              onResult={handlePaymentResult}
-            />
+            <>
+              {getStripePromise() ? (
+                <Elements stripe={getStripePromise()!} options={stripeElementsOptions}>
+                  <CreditCardPay
+                    amount={amount}
+                    username={username}
+                    onResult={handlePaymentResult}
+                  />
+                </Elements>
+              ) : (
+                <div className="p-4 bg-red-50 text-red-800 rounded-xl">
+                  <p className="font-semibold">Unable to Load Payment Form</p>
+                  <p className="text-sm mt-1">
+                    Please try refreshing the page or contact support.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-moodkin-gray">
-          <p>Your payment is secured by Stripe</p>
+          <p>Your payment is secured with SSL encryption</p>
         </div>
       </div>
     </Dialog>

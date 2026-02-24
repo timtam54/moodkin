@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
+import {
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js'
 
 interface CreditCardPayProps {
   amount: number
@@ -11,16 +16,41 @@ interface CreditCardPayProps {
 export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps) {
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [succeeded, setSucceeded] = useState(false)
+  const stripe = useStripe()
+  const elements = useElements()
+
+  const cardElementOptions = {
+    hidePostalCode: true,
+    style: {
+      base: {
+        fontSize: '16px',
+        color: '#1f2937',
+        '::placeholder': {
+          color: '#9ca3af',
+        },
+        iconColor: '#6b7280',
+      },
+      invalid: {
+        color: '#ef4444',
+        iconColor: '#ef4444',
+      },
+    },
+  }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+
+    if (!stripe || !elements) {
+      return
+    }
 
     setProcessing(true)
     setError(null)
 
     try {
-      // Create Stripe Checkout Session on backend
-      const response = await fetch('/api/stripe/create-payment', {
+      // Create subscription on backend - returns clientSecret
+      const response = await fetch('/api/stripe/create-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,26 +73,38 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
         return
       }
 
-      // Redirect to Stripe Checkout
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl
-      } else {
-        setError('Failed to create checkout session')
-        setProcessing(false)
+      const { clientSecret, customerId } = data
+
+      // Confirm the payment with card details
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+        },
+      })
+
+      if (stripeError) {
+        setError(`Payment failed: ${stripeError.message}`)
+        onResult(false)
+      } else if (paymentIntent.status === 'succeeded') {
+        setSucceeded(true)
+        onResult(true, customerId)
+      } else if (paymentIntent.status === 'requires_action') {
+        setError('Additional authentication required. Please try again.')
         onResult(false)
       }
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setProcessing(false)
       onResult(false)
     }
+
+    setProcessing(false)
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-moodkin-dark mb-2">
-          Amount
+          Monthly Subscription
         </label>
         <div className="border border-moodkin-light-gray rounded-xl p-3 bg-moodkin-cream/50">
           <span className="text-xl font-bold text-moodkin-dark">${amount.toFixed(2)}</span>
@@ -70,18 +112,24 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
         </div>
       </div>
 
-      <div className="text-sm text-moodkin-gray">
-        You will be redirected to Stripe&apos;s secure checkout to complete your subscription.
+      <div>
+        <label htmlFor="card-element" className="block text-sm font-medium text-moodkin-dark mb-2">
+          Credit or debit card
+        </label>
+        <div className="border border-moodkin-light-gray rounded-xl p-4 bg-white min-h-[44px]">
+          <CardElement id="card-element" options={cardElementOptions} />
+        </div>
       </div>
 
       {error && <div className="text-red-500 text-sm">{error}</div>}
+      {succeeded && <div className="text-green-600 text-sm font-medium">Subscription created!</div>}
 
       <button
         type="submit"
-        disabled={processing}
+        disabled={!stripe || processing || succeeded}
         className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {processing ? 'Redirecting to checkout...' : 'Subscribe Now'}
+        {processing ? 'Processing...' : succeeded ? 'Subscribed!' : 'Subscribe'}
       </button>
     </form>
   )
