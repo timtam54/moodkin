@@ -48,8 +48,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Use trialing subscription
-      const subscription = trialingSubscriptions.data[0]
-      const currentPeriodEnd = new Date(subscription.current_period_end * 1000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const subscription = trialingSubscriptions.data[0] as any
+      const currentPeriodEnd = new Date((subscription.current_period_end as number) * 1000)
 
       // Update user in database
       await supabase
@@ -68,8 +69,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const subscription = subscriptions.data[0]
-    const currentPeriodEnd = new Date(subscription.current_period_end * 1000)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subscription = subscriptions.data[0] as any
+    const currentPeriodEnd = new Date((subscription.current_period_end as number) * 1000)
 
     // Update user in database
     await supabase
