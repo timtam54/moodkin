@@ -6,6 +6,7 @@ import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { Dialog } from '@/components/ui/dialog'
 import { CreditCardPay } from './credit-card-pay'
+import { subscriptionConfig } from '@/lib/config/subscription'
 
 interface PaymentDialogProps {
   open: boolean
@@ -40,7 +41,7 @@ const stripeElementsOptions = {
   },
 }
 
-export function PaymentDialog({ open, onClose, username, amount = 30, onSuccess }: PaymentDialogProps) {
+export function PaymentDialog({ open, onClose, username, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
 

@@ -15,16 +15,29 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid customer ID' }, { status: 400 })
     }
 
+    // Calculate subscription end date (30 days from now)
+    const subscriptionEndsAt = new Date()
+    subscriptionEndsAt.setDate(subscriptionEndsAt.getDate() + 30)
+
     const { error } = await supabase
       .from('users')
-      .update({ stripeid })
+      .update({
+        stripeid,
+        subscription_status: 'active',
+        subscription_ends_at: subscriptionEndsAt.toISOString()
+      })
       .eq('id', session.user.id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, stripeid })
+    return NextResponse.json({
+      success: true,
+      stripeid,
+      subscription_status: 'active',
+      subscription_ends_at: subscriptionEndsAt.toISOString()
+    })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

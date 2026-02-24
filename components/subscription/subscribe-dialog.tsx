@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Check, X, Sparkles, FolderOpen, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { subscriptionConfig, formatPriceWithPeriod } from '@/lib/config/subscription'
 
 interface SubscribeDialogProps {
   open: boolean
@@ -60,7 +61,7 @@ export function SubscribeDialog({ open, onClose, onSubscribe }: SubscribeDialogP
             RECOMMENDED
           </div>
           <h3 className="font-semibold text-moodkin-dark mb-1">Premium</h3>
-          <p className="text-2xl font-bold text-moodkin-dark mb-4">$15<span className="text-sm font-normal text-moodkin-gray">/month</span></p>
+          <p className="text-2xl font-bold text-moodkin-dark mb-4">${subscriptionConfig.price}<span className="text-sm font-normal text-moodkin-gray">/{subscriptionConfig.period}</span></p>
           <ul className="space-y-3 text-sm">
             <li className="flex items-start gap-2">
               <FolderOpen className="w-4 h-4 text-moodkin-gold mt-0.5 flex-shrink-0" />
@@ -90,7 +91,7 @@ export function SubscribeDialog({ open, onClose, onSubscribe }: SubscribeDialogP
             Processing...
           </>
         ) : (
-          'Subscribe Now - $15/month'
+          `Subscribe Now - ${formatPriceWithPeriod()}`
         )}
       </Button>
 

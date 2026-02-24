@@ -14,10 +14,10 @@ export async function GET(
     const supabase = await createServiceClient()
     const { projectId } = await params
 
-    // Get project users with user info (including stripeid for subscription check)
+    // Get project users with user info (including stripeid and subscription_ends_at for subscription check)
     const { data: projectUsers, error } = await supabase
       .from('project_users')
-      .select('*, user:users!project_users_user_id_fkey(id, name, email, avatar_url, stripeid)')
+      .select('*, user:users!project_users_user_id_fkey(id, name, email, avatar_url, stripeid, subscription_ends_at)')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
 

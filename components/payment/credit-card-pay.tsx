@@ -21,6 +21,7 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
   const elements = useElements()
 
   const cardElementOptions = {
+    hidePostalCode: true,
     style: {
       base: {
         fontSize: '16px',

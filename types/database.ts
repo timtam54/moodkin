@@ -573,7 +573,7 @@ export type Moodboard = Database['public']['Tables']['moodboards']['Row']
 export type MoodboardImage = Database['public']['Tables']['moodboard_images']['Row']
 export type ProjectUser = Database['public']['Tables']['project_users']['Row']
 export type ProjectUserWithUser = ProjectUser & {
-  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url' | 'stripeid'> | null
+  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url' | 'stripeid' | 'subscription_ends_at'> | null
 }
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
 export type ProjectColour = Database['public']['Tables']['project_colours']['Row']

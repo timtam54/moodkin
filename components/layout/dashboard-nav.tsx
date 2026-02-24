@@ -22,6 +22,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
+import { subscriptionConfig, formatPrice, isSubscriptionActive } from '@/lib/config/subscription'
 import type { SessionUser } from '@/lib/auth/session'
 
 interface DashboardNavProps {
@@ -40,7 +41,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
-  const [isSubscribed, setIsSubscribed] = useState(!!user.stripeid && user.stripeid.startsWith('cus_'))
+  const [isSubscribed, setIsSubscribed] = useState(isSubscriptionActive(user.stripeid, user.subscriptionEndsAt))
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
 
   const handlePaymentSuccess = async (customerId: string) => {
@@ -268,16 +269,21 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => {
-                  setProfileDialogOpen(false)
-                  setPaymentDialogOpen(true)
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
-              >
-                <Crown className="w-4 h-4" />
-                Subscribe - $15
-              </button>
+              <>
+                <div className="flex items-center gap-2 px-4 py-2 bg-moodkin-light-gray/30 text-moodkin-gray rounded-xl">
+                  <span className="text-sm font-medium">Not Subscribed</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setProfileDialogOpen(false)
+                    setPaymentDialogOpen(true)
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+                >
+                  <Crown className="w-4 h-4" />
+                  Subscribe Now - {formatPrice()}/month
+                </button>
+              </>
             )}
           </div>
 
@@ -304,7 +310,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
         username={user.name || user.email}
-        amount={15}
+        amount={subscriptionConfig.price}
         onSuccess={handlePaymentSuccess}
       />
     </header>

@@ -3,7 +3,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info } from 'lucide-react'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard, useDeleteMoodboard } from '@/hooks/use-moodboards'
@@ -24,6 +24,9 @@ import { MoodboardModeSelector, type MoodboardMode } from '@/components/moodboar
 import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
 import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
 import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
+import { OwnershipInfoDialog } from '@/components/subscription/ownership-info-dialog'
+import { PaymentDialog } from '@/components/payment/payment-dialog'
+import { subscriptionConfig, isSubscriptionActive } from '@/lib/config/subscription'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
@@ -97,6 +100,8 @@ export default function ProjectDetailPage() {
   const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
+  const [showOwnershipInfoDialog, setShowOwnershipInfoDialog] = useState(false)
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [showCustomSizeDialog, setShowCustomSizeDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportMoodboard, setExportMoodboard] = useState<MoodboardWithImages | null>(null)
@@ -164,9 +169,13 @@ export default function ProjectDetailPage() {
     return role === 'creative'
   }
 
-  // Check if project owner has subscription (stripeid starts with 'cus_' for Stripe customers)
+  // Check if project owner has active subscription
   const projectOwner = projectUsers?.find(pu => pu.is_owner)
-  const ownerHasSubscription = projectOwner?.user?.stripeid?.startsWith('cus_') ?? false
+  const ownerHasSubscription = isSubscriptionActive(
+    projectOwner?.user?.stripeid,
+    projectOwner?.user?.subscription_ends_at
+  )
+  const isOwner = projectOwner?.user_id === currentUserId
 
   // Filter assets for each tab
   // Client tab: only images uploaded by clients (not creatives)
@@ -1176,7 +1185,20 @@ export default function ProjectDetailPage() {
                 <p className="text-sm text-moodkin-gold font-medium tracking-wider uppercase">PROJECT</p>
               )
             })()}
-            <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-moodkin-dark">{project.title}</h1>
+              <button
+                onClick={() => setShowOwnershipInfoDialog(true)}
+                className="p-1.5 rounded-full hover:bg-moodkin-cream transition-colors group"
+                title={isOwner ? "You own this project" : "You're a collaborator"}
+              >
+                {isOwner ? (
+                  <Crown className="w-5 h-5 text-moodkin-gold group-hover:scale-110 transition-transform" />
+                ) : (
+                  <HandHelping className="w-5 h-5 text-moodkin-gray group-hover:text-moodkin-gold transition-colors" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1306,8 +1328,8 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'creative' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* AI Image Generator Card - only visible to creative users */}
-            {isCreative && (
+            {/* AI Image Generator Card - only visible to project owner */}
+            {isOwner && (
               ownerHasSubscription ? (
                 <button
                   onClick={() => setShowAIImageGenerator(true)}
@@ -1320,9 +1342,9 @@ export default function ProjectDetailPage() {
                   <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
                   <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
                 </button>
-              ) : projectOwner?.user_id === currentUserId ? (
+              ) : (
                 <button
-                  onClick={() => setShowSubscribeDialog(true)}
+                  onClick={() => setShowPaymentDialog(true)}
                   className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
                 >
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
@@ -1334,7 +1356,7 @@ export default function ProjectDetailPage() {
                   <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Premium feature</p>
                   <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Subscribers only</p>
                 </button>
-              ) : null
+              )
             )}
 
             {/* Upload Image button - only visible to creative users */}
@@ -1443,6 +1465,36 @@ export default function ProjectDetailPage() {
               window.location.reload()
             }
           }}
+        />
+
+        {/* Payment Dialog */}
+        <PaymentDialog
+          open={showPaymentDialog}
+          onClose={() => setShowPaymentDialog(false)}
+          username={session?.user?.name || session?.user?.email || ''}
+          amount={subscriptionConfig.price}
+          onSuccess={async (customerId) => {
+            // Update user subscription
+            const response = await fetch('/api/user/subscription', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stripeid: customerId }),
+            })
+            if (response.ok) {
+              // Refresh the page to get updated subscription status
+              window.location.reload()
+            }
+          }}
+        />
+
+        {/* Ownership Info Dialog */}
+        <OwnershipInfoDialog
+          open={showOwnershipInfoDialog}
+          onClose={() => setShowOwnershipInfoDialog(false)}
+          isOwner={isOwner}
+          isSubscribed={ownerHasSubscription}
+          ownerEmail={projectOwner?.email}
+          onSubscribe={() => setShowPaymentDialog(true)}
         />
 
         {/* Custom Size Export Dialog */}
