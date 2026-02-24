@@ -27,14 +27,18 @@ export default function ProjectsPage() {
         .then(data => {
           if (data.subscribed) {
             setShowSuccess(true)
-            // Clear URL params after a delay
+            // Reload page after showing success to refresh subscription status everywhere
             setTimeout(() => {
-              window.history.replaceState({}, '', '/dashboard/projects')
-              setShowSuccess(false)
-            }, 5000)
+              window.location.href = '/dashboard/projects'
+            }, 3000)
+          } else {
+            // If not subscribed, might be a timing issue - try again
+            console.log('Subscription verification returned:', data)
           }
         })
-        .catch(console.error)
+        .catch(err => {
+          console.error('Subscription verification error:', err)
+        })
     }
   }, [searchParams])
 
