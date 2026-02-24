@@ -49,27 +49,33 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
     setError(null)
 
     try {
-      // Create payment intent on backend
+      // Create subscription on backend
       const response = await fetch('/api/stripe/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: amount,
           username: username,
         }),
       })
 
-      const { error: backendError, clientSecret, customerId } = await response.json()
+      const data = await response.json()
 
-      if (backendError) {
-        setError(backendError)
+      if (data.error) {
+        if (data.alreadySubscribed) {
+          setError('You already have an active subscription')
+        } else {
+          setError(data.error)
+        }
         setProcessing(false)
         onResult(false)
         return
       }
 
+      const { clientSecret, customerId } = data
+
+      // Confirm the subscription payment
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
@@ -82,6 +88,10 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
       } else if (paymentIntent.status === 'succeeded') {
         setSucceeded(true)
         onResult(true, customerId)
+      } else if (paymentIntent.status === 'requires_action') {
+        // Handle 3D Secure or other authentication
+        setError('Additional authentication required. Please try again.')
+        onResult(false)
       }
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
