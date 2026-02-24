@@ -125,15 +125,31 @@ export async function POST(request: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoice = subscription.latest_invoice as any
-    const paymentIntent = invoice?.payment_intent
 
-    if (!paymentIntent?.client_secret) {
-      throw new Error('Failed to create subscription payment')
+    console.log('Subscription created:', subscription.id)
+    console.log('Invoice:', invoice?.id)
+    console.log('Payment Intent:', invoice?.payment_intent)
+
+    // Handle both expanded and non-expanded payment_intent
+    let clientSecret: string | null = null
+
+    if (typeof invoice?.payment_intent === 'object' && invoice.payment_intent?.client_secret) {
+      // Expanded payment intent
+      clientSecret = invoice.payment_intent.client_secret
+    } else if (typeof invoice?.payment_intent === 'string') {
+      // Non-expanded - need to retrieve it
+      const pi = await stripe.paymentIntents.retrieve(invoice.payment_intent)
+      clientSecret = pi.client_secret
+    }
+
+    if (!clientSecret) {
+      console.error('No client secret found. Invoice:', JSON.stringify(invoice, null, 2))
+      throw new Error('Failed to create subscription payment - no client secret')
     }
 
     return NextResponse.json({
       subscriptionId: subscription.id,
-      clientSecret: paymentIntent.client_secret,
+      clientSecret: clientSecret,
       customerId: customer.id,
     })
   } catch (error) {
