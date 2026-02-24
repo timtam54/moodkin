@@ -58,14 +58,37 @@ export async function GET() {
 
     // Return subscription details
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const subs = subscriptions.data.map((sub: any) => ({
-      id: sub.id,
-      status: sub.status,
-      currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString(),
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-    }))
+    const subs = subscriptions.data.map((sub: any) => {
+      let currentPeriodEnd = null
+      if (sub.current_period_end) {
+        try {
+          currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString()
+        } catch {
+          currentPeriodEnd = null
+        }
+      }
+      return {
+        id: sub.id,
+        status: sub.status,
+        currentPeriodEnd,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+      }
+    })
 
     const activeSub = subscriptions.data.find(s => s.status === 'active' || s.status === 'trialing')
+
+    let activeSubPeriodEnd = null
+    if (activeSub) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const periodEnd = (activeSub as any).current_period_end
+      if (periodEnd) {
+        try {
+          activeSubPeriodEnd = new Date(periodEnd * 1000).toISOString()
+        } catch {
+          activeSubPeriodEnd = null
+        }
+      }
+    }
 
     return NextResponse.json({
       hasCustomer: true,
@@ -75,8 +98,7 @@ export async function GET() {
       activeSubscription: activeSub ? {
         id: activeSub.id,
         status: activeSub.status,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        currentPeriodEnd: new Date((activeSub as any).current_period_end * 1000).toISOString(),
+        currentPeriodEnd: activeSubPeriodEnd,
       } : null
     })
   } catch (error) {
