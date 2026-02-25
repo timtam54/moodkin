@@ -3,17 +3,11 @@ import { requireSession } from '@/lib/auth/session'
 import Stripe from 'stripe'
 import { subscriptionConfig } from '@/lib/config/subscription'
 
-function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
-  }
-  return new Stripe(process.env.STRIPE_SECRET_KEY)
-}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 export async function POST(request: NextRequest) {
   try {
     const session = await requireSession()
-    const stripe = getStripe()
     const body = await request.json()
     const { username } = body as { username: string }
 
@@ -27,12 +21,6 @@ export async function POST(request: NextRequest) {
 
     if (existingCustomers.data.length > 0) {
       stripeCustomerId = existingCustomers.data[0].id
-      // Update metadata if needed
-      if (!existingCustomers.data[0].metadata?.userId) {
-        await stripe.customers.update(stripeCustomerId, {
-          metadata: { userId: session.user.id },
-        })
-      }
     } else {
       const customer = await stripe.customers.create({
         email: session.user.email,
@@ -81,33 +69,11 @@ export async function POST(request: NextRequest) {
         save_default_payment_method: 'on_subscription'
       },
       expand: ['latest_invoice.payment_intent'],
-      metadata: {
-        userId: session.user.id,
-      },
     })
 
-    // Get client secret from the payment intent
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoice = subscription.latest_invoice as any
-
-    if (!invoice) {
-      console.error('No invoice on subscription:', subscription.id)
-      throw new Error('No invoice created for subscription')
-    }
-
-    const paymentIntent = invoice.payment_intent
-
-    if (!paymentIntent) {
-      console.error('No payment_intent on invoice:', invoice.id)
-      throw new Error('No payment intent on invoice')
-    }
-
-    const clientSecret = paymentIntent.client_secret as string | null
-
-    if (!clientSecret) {
-      console.error('No client_secret on payment_intent:', paymentIntent.id)
-      throw new Error('No client secret on payment intent')
-    }
+    const clientSecret = invoice?.payment_intent?.client_secret || null
 
     return NextResponse.json({
       clientSecret,
@@ -116,10 +82,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Stripe subscription error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Subscription failed' },
-      { status: 500 }
-    )
+    console.log('Stripe subscription error:', error)
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 })
   }
 }
