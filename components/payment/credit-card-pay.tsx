@@ -70,7 +70,9 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
         if (data.alreadySubscribed) {
           setError('You already have an active subscription')
         } else {
-          setError(data.error)
+          const debugStr = data.debug ? `\n\nDebug: ${JSON.stringify(data.debug, null, 2)}` : ''
+          setError(`${data.error}${debugStr}`)
+          console.error('Subscription API error:', data)
         }
         setProcessing(false)
         onResult(false)
@@ -78,6 +80,14 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
       }
 
       const { clientSecret, customerId } = data
+
+      if (!clientSecret) {
+        setError(`Payment initialization failed - no client secret received.\n\nDebug: ${JSON.stringify(data, null, 2)}`)
+        console.error('No clientSecret in response:', data)
+        setProcessing(false)
+        onResult(false)
+        return
+      }
 
       // Confirm the payment with card details
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
@@ -125,7 +135,7 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
         </div>
       </div>
 
-      {error && <div className="text-red-500 text-sm">{error}</div>}
+      {error && <div className="text-red-500 text-sm whitespace-pre-wrap break-all">{error}</div>}
       {succeeded && <div className="text-green-600 text-sm font-medium">Subscription created!</div>}
 
       <button
