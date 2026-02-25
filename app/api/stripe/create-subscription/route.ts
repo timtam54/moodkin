@@ -75,6 +75,26 @@ export async function POST(request: NextRequest) {
     const invoice = subscription.latest_invoice as any
     const clientSecret = invoice?.payment_intent?.client_secret || null
 
+    // Debug logging
+    console.log('Subscription created:', subscription.id)
+    console.log('Invoice:', invoice?.id)
+    console.log('Payment intent:', invoice?.payment_intent?.id)
+    console.log('Client secret exists:', !!clientSecret)
+
+    if (!clientSecret) {
+      // Return more debug info
+      return NextResponse.json({
+        error: 'No client secret returned',
+        debug: {
+          subscriptionId: subscription.id,
+          invoiceId: invoice?.id,
+          paymentIntentId: invoice?.payment_intent?.id,
+          invoiceStatus: invoice?.status,
+          subscriptionStatus: subscription.status,
+        }
+      }, { status: 400 })
+    }
+
     return NextResponse.json({
       clientSecret,
       subscriptionId: subscription.id,
