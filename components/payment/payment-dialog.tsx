@@ -12,6 +12,7 @@ interface PaymentDialogProps {
   open: boolean
   onClose: () => void
   username: string
+  email: string
   amount?: number
   onSuccess: (customerId: string) => void
 }
@@ -41,7 +42,7 @@ const stripeElementsOptions = {
   },
 }
 
-export function PaymentDialog({ open, onClose, username, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
+export function PaymentDialog({ open, onClose, username, email, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
 
@@ -116,6 +117,7 @@ export function PaymentDialog({ open, onClose, username, amount = subscriptionCo
                   <CreditCardPay
                     amount={amount}
                     username={username}
+                    email={email}
                     onResult={handlePaymentResult}
                   />
                 </Elements>

@@ -10,10 +10,11 @@ import {
 interface CreditCardPayProps {
   amount: number
   username: string
+  email: string
   onResult: (success: boolean, customerId?: string) => void
 }
 
-export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps) {
+export function CreditCardPay({ amount, username, email, onResult }: CreditCardPayProps) {
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [succeeded, setSucceeded] = useState(false)
@@ -56,7 +57,10 @@ export function CreditCardPay({ amount, username, onResult }: CreditCardPayProps
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: username,
+          amount: amount,
+          customerId: null,
+          email: email,
+          name: username,
         }),
       })
 

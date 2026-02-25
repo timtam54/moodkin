@@ -1472,6 +1472,7 @@ export default function ProjectDetailPage() {
           open={showPaymentDialog}
           onClose={() => setShowPaymentDialog(false)}
           username={session?.user?.name || session?.user?.email || ''}
+          email={session?.user?.email || ''}
           amount={subscriptionConfig.price}
           onSuccess={async (customerId) => {
             // Update user subscription

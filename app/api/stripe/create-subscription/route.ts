@@ -1,64 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { requireSession } from '@/lib/auth/session'
+import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { subscriptionConfig } from '@/lib/config/subscription'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const session = await requireSession()
-    const body = await request.json()
-    const { username } = body as { username: string }
+    const { amount, customerId, email, name } = await req.json()
 
-    // Create or retrieve customer
-    let stripeCustomerId: string
+    let stripeCustomerId = customerId
 
-    const existingCustomers = await stripe.customers.list({
-      email: session.user.email,
-      limit: 1,
-    })
-
-    if (existingCustomers.data.length > 0) {
-      stripeCustomerId = existingCustomers.data[0].id
-    } else {
+    // Create customer if doesn't exist
+    if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
-        email: session.user.email,
-        name: username,
+        email: email,
+        name: name,
         metadata: {
-          userId: session.user.id,
-        },
+          name: name
+        }
       })
       stripeCustomerId = customer.id
     }
 
-    // Check if customer already has an active subscription
-    const existingSubscriptions = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status: 'active',
-      limit: 1,
-    })
-
-    if (existingSubscriptions.data.length > 0) {
-      return NextResponse.json({
-        error: 'You already have an active subscription',
-        alreadySubscribed: true,
-      }, { status: 400 })
-    }
-
     // Create a price for the subscription
     const price = await stripe.prices.create({
-      unit_amount: Math.round(subscriptionConfig.price * 100),
-      currency: subscriptionConfig.currency,
+      unit_amount: Math.round(amount * 100),
+      currency: 'aud',
       recurring: {
-        interval: subscriptionConfig.period,
+        interval: 'month',
       },
       product_data: {
         name: 'Moodkin Premium',
       },
     })
 
-    // Create subscription with incomplete status until payment confirmed
+    // Create subscription
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{
@@ -75,34 +50,14 @@ export async function POST(request: NextRequest) {
     const invoice = subscription.latest_invoice as any
     const clientSecret = invoice?.payment_intent?.client_secret || null
 
-    // Debug logging
-    console.log('Subscription created:', subscription.id)
-    console.log('Invoice:', invoice?.id)
-    console.log('Payment intent:', invoice?.payment_intent?.id)
-    console.log('Client secret exists:', !!clientSecret)
-
-    if (!clientSecret) {
-      // Return more debug info
-      return NextResponse.json({
-        error: 'No client secret returned',
-        debug: {
-          subscriptionId: subscription.id,
-          invoiceId: invoice?.id,
-          paymentIntentId: invoice?.payment_intent?.id,
-          invoiceStatus: invoice?.status,
-          subscriptionStatus: subscription.status,
-        }
-      }, { status: 400 })
-    }
-
     return NextResponse.json({
       clientSecret,
       subscriptionId: subscription.id,
-      customerId: stripeCustomerId,
+      customerId: stripeCustomerId
     })
 
   } catch (error) {
-    console.log('Stripe subscription error:', error)
+    console.log('error:', error)
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })
   }
 }

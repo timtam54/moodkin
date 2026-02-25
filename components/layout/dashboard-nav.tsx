@@ -310,6 +310,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
         username={user.name || user.email}
+        email={user.email}
         amount={subscriptionConfig.price}
         onSuccess={handlePaymentSuccess}
       />
