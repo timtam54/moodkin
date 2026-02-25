@@ -89,11 +89,24 @@ export async function POST(request: NextRequest) {
     // Get client secret from the payment intent
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoice = subscription.latest_invoice as any
-    const paymentIntent = invoice?.payment_intent
-    const clientSecret = paymentIntent?.client_secret as string | null
+
+    if (!invoice) {
+      console.error('No invoice on subscription:', subscription.id)
+      throw new Error('No invoice created for subscription')
+    }
+
+    const paymentIntent = invoice.payment_intent
+
+    if (!paymentIntent) {
+      console.error('No payment_intent on invoice:', invoice.id)
+      throw new Error('No payment intent on invoice')
+    }
+
+    const clientSecret = paymentIntent.client_secret as string | null
 
     if (!clientSecret) {
-      throw new Error('Failed to create payment intent')
+      console.error('No client_secret on payment_intent:', paymentIntent.id)
+      throw new Error('No client secret on payment intent')
     }
 
     return NextResponse.json({
