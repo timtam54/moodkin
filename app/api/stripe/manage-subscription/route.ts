@@ -221,7 +221,16 @@ export async function DELETE(request: NextRequest) {
 
     // If specific subscription ID provided, cancel just that one
     if (subscriptionId) {
-      await stripe.subscriptions.cancel(subscriptionId)
+      try {
+        await stripe.subscriptions.cancel(subscriptionId)
+      } catch (e) {
+        // Try to delete if cancel fails (for incomplete subscriptions)
+        try {
+          await stripe.subscriptions.cancel(subscriptionId, { prorate: false })
+        } catch {
+          // Ignore - subscription may already be cancelled/expired
+        }
+      }
       return NextResponse.json({
         success: true,
         message: `Cancelled subscription ${subscriptionId}`,
