@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     // Clear any default payment method to ensure we get a PaymentIntent that requires payment
     // This forces Stripe to return a client_secret for card collection
     await stripe.customers.update(stripeCustomerId, {
-      invoice_settings: { default_payment_method: null },
+      invoice_settings: { default_payment_method: '' },
     })
 
     // Check if already has active subscription
