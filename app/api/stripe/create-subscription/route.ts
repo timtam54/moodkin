@@ -42,6 +42,12 @@ export async function POST(req: Request) {
       await stripe.subscriptions.cancel(sub.id)
     }
 
+    // Clear any default payment method to ensure we get a PaymentIntent that requires payment
+    // This forces Stripe to return a client_secret for card collection
+    await stripe.customers.update(stripeCustomerId, {
+      invoice_settings: { default_payment_method: null },
+    })
+
     // Check if already has active subscription
     const activeSubscriptions = await stripe.subscriptions.list({
       customer: stripeCustomerId,
@@ -90,6 +96,7 @@ export async function POST(req: Request) {
       const debugInfo = {
         subscriptionId: subscription.id,
         invoiceId: invoice?.id,
+        invoiceStatus: invoice?.status,
         paymentIntentId: paymentIntent?.id,
         paymentIntentStatus: paymentIntent?.status,
         customerId: stripeCustomerId,
