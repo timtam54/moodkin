@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
+const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-02-24.acacia',
+});
+
 export async function POST(req: Request) {
-  // Check env var first
-  if (!process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY) {
-    console.error('MISSING ENV VAR: NEXT_PUBLIC_STRIPE_SECRET_KEY is not set');
-    return NextResponse.json({ error: 'Stripe not configured - missing NEXT_PUBLIC_STRIPE_SECRET_KEY' }, { status: 500 });
-  }
-
-  const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY);
-
   try {
     const { amount, customerId, email, name } = await req.json();
 
@@ -39,7 +35,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create subscription
+    // Create subscription with trial or immediate payment
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{
@@ -49,31 +45,12 @@ export async function POST(req: Request) {
       payment_settings: {
         save_default_payment_method: 'on_subscription'
       },
+      expand: ['latest_invoice.payment_intent'],
     });
 
-    // Get invoice ID from subscription
-    const invoiceId = typeof subscription.latest_invoice === 'string'
-      ? subscription.latest_invoice
-      : subscription.latest_invoice?.id;
-
-    if (!invoiceId) {
-      return NextResponse.json({ error: 'No invoice created' }, { status: 400 });
-    }
-
-    // Explicitly retrieve invoice with payment_intent expanded
-    const invoice = await stripe.invoices.retrieve(invoiceId, {
-      expand: ['payment_intent'],
-    }) as Stripe.Invoice & { payment_intent?: Stripe.PaymentIntent | string | null };
-
-    // Get client secret from payment intent
-    const paymentIntent = typeof invoice.payment_intent === 'object' ? invoice.payment_intent : null;
-    const clientSecret = paymentIntent?.client_secret ?? null;
-
-    if (!clientSecret) {
-      return NextResponse.json({
-        error: `No client secret. Invoice status: ${invoice.status}, PI: ${paymentIntent?.id || 'none'}`
-      }, { status: 400 });
-    }
+    const clientSecret = (subscription.latest_invoice as Stripe.Invoice)?.payment_intent
+      ? ((subscription.latest_invoice as Stripe.Invoice).payment_intent as Stripe.PaymentIntent).client_secret
+      : null;
 
     return NextResponse.json({
       clientSecret,
