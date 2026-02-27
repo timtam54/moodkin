@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-// EXACT COPY FROM INCIDENTACCIDENT
-const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY!);
-
 export async function POST(req: Request) {
+  // Check env var first
+  if (!process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY) {
+    console.error('MISSING ENV VAR: NEXT_PUBLIC_STRIPE_SECRET_KEY is not set');
+    return NextResponse.json({ error: 'Stripe not configured - missing NEXT_PUBLIC_STRIPE_SECRET_KEY' }, { status: 500 });
+  }
+
+  const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY);
+
   try {
     const { amount, customerId, email, name } = await req.json();
 
