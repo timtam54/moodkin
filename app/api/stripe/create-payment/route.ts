@@ -63,10 +63,10 @@ export async function POST(req: Request) {
     // Explicitly retrieve invoice with payment_intent expanded
     const invoice = await stripe.invoices.retrieve(invoiceId, {
       expand: ['payment_intent'],
-    });
+    }) as Stripe.Invoice & { payment_intent?: Stripe.PaymentIntent | string | null };
 
     // Get client secret from payment intent
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
+    const paymentIntent = typeof invoice.payment_intent === 'object' ? invoice.payment_intent : null;
     const clientSecret = paymentIntent?.client_secret ?? null;
 
     if (!clientSecret) {
