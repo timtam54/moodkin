@@ -54,20 +54,34 @@ export async function POST(req: Request) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const invoice = subscription.latest_invoice as any;
-    const paymentIntent = invoice?.payment_intent;
-    const clientSecret = typeof paymentIntent === 'object' ? paymentIntent?.client_secret : null;
+
+    // Log full invoice structure to debug
+    console.log('Full invoice keys:', invoice ? Object.keys(invoice) : 'no invoice');
+    console.log('Invoice payment_intent raw:', invoice?.payment_intent);
+
+    // Try to get payment intent - could be nested differently
+    let clientSecret = null;
+    if (invoice?.payment_intent?.client_secret) {
+      clientSecret = invoice.payment_intent.client_secret;
+    } else if (subscription.pending_setup_intent) {
+      // Some subscriptions use setup_intent instead
+      const setupIntent = subscription.pending_setup_intent as any;
+      clientSecret = setupIntent?.client_secret;
+      console.log('Using setup_intent instead:', !!clientSecret);
+    }
 
     // Debug info
     const debug = {
       subscriptionId: subscription.id,
       subscriptionStatus: subscription.status,
-      invoiceExists: !!invoice,
+      invoiceId: invoice?.id,
       invoiceStatus: invoice?.status,
-      paymentIntentType: typeof paymentIntent,
-      paymentIntentId: typeof paymentIntent === 'object' ? paymentIntent?.id : paymentIntent,
+      invoiceKeys: invoice ? Object.keys(invoice).slice(0, 10) : [],
+      hasPaymentIntent: !!invoice?.payment_intent,
+      hasPendingSetupIntent: !!subscription.pending_setup_intent,
       hasClientSecret: !!clientSecret
     };
-    console.log('Subscription created:', debug);
+    console.log('Subscription debug:', debug);
 
     // If no clientSecret, return error with debug info
     if (!clientSecret) {
