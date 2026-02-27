@@ -1,55 +1,80 @@
-import { NextResponse } from 'next/server'
-import { requireSession } from '@/lib/auth/session'
-import Stripe from 'stripe'
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const session = await requireSession()
-    const { amount } = await req.json()
+    const { amount, customerId, email, name } = await req.json();
+    console.log('=== SUBSCRIPTION REQUEST ===');
+    console.log('Input:', { amount, customerId, email, name });
 
-    const email = session.user.email
-    const name = session.user.name || email
+    let stripeCustomerId = customerId;
 
-    // Create a Stripe Checkout Session for subscription
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      customer_email: email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'aud',
-            product_data: {
-              name: 'Moodkin Premium',
-            },
-            unit_amount: Math.round(amount * 100),
-            recurring: {
-              interval: 'month',
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?subscription=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?subscription=cancelled`,
-      metadata: {
-        userId: session.user.id,
-        userName: name,
+    // Create customer if doesn't exist
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: email,
+        name: name,
+        metadata: {
+          name: name
+        }
+      });
+      stripeCustomerId = customer.id;
+      console.log('Customer created:', stripeCustomerId);
+    }
+
+    // Create a price for the subscription
+    const price = await stripe.prices.create({
+      unit_amount: Math.round(amount * 100),
+      currency: 'aud',
+      recurring: {
+        interval: 'month',
       },
-    })
+      product_data: {
+        name: 'Moodkin Premium',
+      },
+    });
+    console.log('Price created:', price.id);
+
+    // Create subscription with immediate payment
+    const subscription = await stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{
+        price: price.id,
+      }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: {
+        save_default_payment_method: 'on_subscription'
+      },
+      expand: ['latest_invoice.payment_intent'],
+    });
+    console.log('Subscription created:', subscription.id);
+    console.log('Subscription status:', subscription.status);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const invoice = subscription.latest_invoice as any;
+    console.log('Invoice ID:', invoice?.id);
+    console.log('Invoice status:', invoice?.status);
+    console.log('Invoice payment_intent:', JSON.stringify(invoice?.payment_intent, null, 2));
+
+    const clientSecret = invoice?.payment_intent?.client_secret || null;
+    console.log('Client secret exists:', !!clientSecret);
+
+    if (!clientSecret) {
+      console.log('=== NO CLIENT SECRET ===');
+      console.log('Full invoice object:', JSON.stringify(invoice, null, 2));
+    }
 
     return NextResponse.json({
-      checkoutUrl: checkoutSession.url,
-      sessionId: checkoutSession.id,
-    })
+      clientSecret,
+      subscriptionId: subscription.id,
+      customerId: stripeCustomerId
+    });
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Stripe checkout session error:', errorMessage)
-    return NextResponse.json({
-      error: errorMessage,
-    }, { status: 400 })
+    console.log('=== ERROR ===');
+    console.log('error:', error);
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 }

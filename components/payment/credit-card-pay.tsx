@@ -1,6 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
+import {
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js'
 
 interface CreditCardPayProps {
   amount: number
@@ -9,11 +14,38 @@ interface CreditCardPayProps {
   onResult: (success: boolean, customerId?: string) => void
 }
 
-export function CreditCardPay({ amount }: CreditCardPayProps) {
+export function CreditCardPay({ amount, username, email, onResult }: CreditCardPayProps) {
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [succeeded, setSucceeded] = useState(false)
+  const stripe = useStripe()
+  const elements = useElements()
 
-  const handleCheckout = async () => {
+  const cardElementOptions = {
+    hidePostalCode: true,
+    style: {
+      base: {
+        fontSize: '16px',
+        color: '#1f2937',
+        '::placeholder': {
+          color: '#9ca3af',
+        },
+        iconColor: '#6b7280',
+      },
+      invalid: {
+        color: '#ef4444',
+        iconColor: '#ef4444',
+      },
+    },
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+
+    if (!stripe || !elements) {
+      return
+    }
+
     setProcessing(true)
     setError(null)
 
@@ -25,6 +57,9 @@ export function CreditCardPay({ amount }: CreditCardPayProps) {
         },
         body: JSON.stringify({
           amount: amount,
+          customerId: null,
+          email: email,
+          name: username,
         }),
       })
 
@@ -33,24 +68,46 @@ export function CreditCardPay({ amount }: CreditCardPayProps) {
       if (data.error) {
         setError(data.error)
         setProcessing(false)
+        onResult(false)
         return
       }
 
-      // Redirect to Stripe Checkout
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl
-      } else {
-        setError('Failed to create checkout session')
+      const { clientSecret, customerId } = data
+
+      if (!clientSecret) {
+        setError('Payment initialization failed - no client secret received.')
+        console.error('No clientSecret in response:', data)
         setProcessing(false)
+        onResult(false)
+        return
+      }
+
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement)!,
+        },
+      })
+
+      if (stripeError) {
+        setError(`Payment failed: ${stripeError.message}`)
+        onResult(false)
+      } else if (paymentIntent.status === 'succeeded') {
+        setSucceeded(true)
+        onResult(true, customerId)
+      } else if (paymentIntent.status === 'requires_action') {
+        setError('Additional authentication required. Please try again.')
+        onResult(false)
       }
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setProcessing(false)
+      onResult(false)
     }
+
+    setProcessing(false)
   }
 
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-moodkin-dark mb-2">
           Monthly Subscription
@@ -61,19 +118,25 @@ export function CreditCardPay({ amount }: CreditCardPayProps) {
         </div>
       </div>
 
-      <p className="text-sm text-moodkin-gray">
-        You&apos;ll be redirected to Stripe&apos;s secure checkout to complete your subscription.
-      </p>
+      <div>
+        <label htmlFor="card-element" className="block text-sm font-medium text-moodkin-dark mb-2">
+          Credit or debit card
+        </label>
+        <div className="border border-moodkin-light-gray rounded-xl p-4 bg-white min-h-[44px]">
+          <CardElement id="card-element" options={cardElementOptions} />
+        </div>
+      </div>
 
       {error && <div className="text-red-500 text-sm">{error}</div>}
+      {succeeded && <div className="text-green-600 text-sm font-medium">Subscription created!</div>}
 
       <button
-        onClick={handleCheckout}
-        disabled={processing}
+        type="submit"
+        disabled={!stripe || processing || succeeded}
         className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {processing ? 'Redirecting...' : 'Continue to Checkout'}
+        {processing ? 'Processing...' : succeeded ? 'Subscribed!' : 'Subscribe'}
       </button>
-    </div>
+    </form>
   )
 }
