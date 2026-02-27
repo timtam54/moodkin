@@ -69,14 +69,16 @@ export function DashboardNav({ user }: DashboardNavProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
-      if (response.ok) {
-        const { url } = await response.json()
-        window.location.href = url
+      const data = await response.json()
+      if (response.ok && data.url) {
+        window.location.href = data.url
       } else {
-        console.error('Failed to create portal session')
+        // Show error to user instead of just logging
+        alert(data.error || 'Failed to open subscription portal. Please try again or contact support.')
       }
     } catch (error) {
       console.error('Failed to open subscription portal:', error)
+      alert('Failed to open subscription portal. Please try again.')
     } finally {
       setIsLoadingPortal(false)
     }

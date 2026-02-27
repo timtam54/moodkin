@@ -4,10 +4,11 @@ import Stripe from 'stripe'
 import { createServiceClient } from '@/lib/supabase/server'
 
 function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
+  const key = process.env.NEXT_PUBLIC_NEXT_PUBLIC_STRIPE_SECRET_KEY || process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY
+  if (!key) {
+    throw new Error('Stripe secret key is not configured')
   }
-  return new Stripe(process.env.STRIPE_SECRET_KEY)
+  return new Stripe(key)
 }
 
 // GET - Check subscription status from Stripe

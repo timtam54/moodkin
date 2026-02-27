@@ -6,7 +6,6 @@ import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { Dialog } from '@/components/ui/dialog'
 import { CreditCardPay } from './credit-card-pay'
-import { subscriptionConfig } from '@/lib/config/subscription'
 
 interface PaymentDialogProps {
   open: boolean
@@ -42,31 +41,17 @@ const stripeElementsOptions = {
   },
 }
 
-export function PaymentDialog({ open, onClose, username, email, amount = subscriptionConfig.price, onSuccess }: PaymentDialogProps) {
+export function PaymentDialog({ open, onClose, username, email, amount = 30, onSuccess }: PaymentDialogProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
 
   const handlePaymentResult = async (success: boolean, customerId?: string) => {
     if (success && customerId) {
       setPaymentSuccess(true)
-
-      // Update database with subscription info
-      try {
-        await fetch('/api/user/subscription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customerId }),
-        })
-      } catch (err) {
-        console.error('Failed to update subscription status:', err)
-      }
-
-      // Wait a moment to show success state then close
+      // Wait a moment to show success state
       setTimeout(() => {
         onSuccess(customerId)
         onClose()
-        // Reload to refresh subscription status everywhere
-        window.location.reload()
       }, 1500)
     }
     setIsProcessing(false)
@@ -102,7 +87,7 @@ export function PaymentDialog({ open, onClose, username, email, amount = subscri
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-green-700 font-semibold mb-2">Subscription Created!</p>
+              <p className="text-green-700 font-semibold mb-2">Payment Successful!</p>
               <p className="text-moodkin-gray text-sm">Welcome to Moodkin Premium</p>
             </div>
           ) : isProcessing ? (

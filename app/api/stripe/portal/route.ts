@@ -4,10 +4,11 @@ import { createServiceClient } from '@/lib/supabase/server'
 import Stripe from 'stripe'
 
 function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
+  const key = process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY
+  if (!key) {
+    throw new Error('Stripe secret key is not configured')
   }
-  return new Stripe(process.env.STRIPE_SECRET_KEY)
+  return new Stripe(key)
 }
 
 export async function POST() {
@@ -36,8 +37,16 @@ export async function POST() {
     return NextResponse.json({ url: portalSession.url })
   } catch (error) {
     console.error('Stripe portal error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to create portal session'
+    // Check if it's a "customer not found" error
+    if (message.includes('No such customer') || message.includes('resource_missing')) {
+      return NextResponse.json(
+        { error: 'Customer not found. Your subscription may have been created on a different Stripe account.' },
+        { status: 404 }
+      )
+    }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create portal session' },
+      { error: message },
       { status: 500 }
     )
   }

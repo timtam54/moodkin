@@ -4,10 +4,10 @@ import Stripe from 'stripe'
 import { createServiceClient } from '@/lib/supabase/server'
 
 function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured')
+  if (!process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY) {
+    throw new Error('NEXT_PUBLIC_STRIPE_SECRET_KEY is not configured')
   }
-  return new Stripe(process.env.STRIPE_SECRET_KEY)
+  return new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY)
 }
 
 export async function POST(request: NextRequest) {

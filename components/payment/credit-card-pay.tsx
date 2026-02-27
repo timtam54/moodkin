@@ -14,6 +14,7 @@ interface CreditCardPayProps {
   onResult: (success: boolean, customerId?: string) => void
 }
 
+// EXACT COPY FROM INCIDENTACCIDENT (adapted for moodkin)
 export function CreditCardPay({ amount, username, email, onResult }: CreditCardPayProps) {
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -50,7 +51,8 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
     setError(null)
 
     try {
-      const response = await fetch('/api/stripe/create-subscription', {
+      // Create new subscription - EXACT PATTERN FROM INCIDENTACCIDENT
+      const { error: backendError, clientSecret, customerId } = await fetch('/api/stripe/create-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,27 +63,23 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
           email: email,
           name: username,
         }),
-      })
+      }).then(res => res.json())
 
-      const data = await response.json()
-
-      if (data.error) {
-        setError(data.error)
+      if (backendError) {
+        setError(backendError)
         setProcessing(false)
         onResult(false)
         return
       }
-
-      const { clientSecret, customerId } = data
 
       if (!clientSecret) {
-        setError('Payment initialization failed - no client secret received.')
-        console.error('No clientSecret in response:', data)
+        setError('Failed to initialize payment - no client secret received')
         setProcessing(false)
         onResult(false)
         return
       }
 
+      // Confirm payment - EXACT PATTERN FROM INCIDENTACCIDENT
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
           card: elements.getElement(CardElement)!,
@@ -94,9 +92,6 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
       } else if (paymentIntent.status === 'succeeded') {
         setSucceeded(true)
         onResult(true, customerId)
-      } else if (paymentIntent.status === 'requires_action') {
-        setError('Additional authentication required. Please try again.')
-        onResult(false)
       }
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
