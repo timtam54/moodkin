@@ -47,9 +47,17 @@ export async function POST(req: Request) {
       expand: ['latest_invoice.payment_intent'],
     });
 
-    const invoice = subscription.latest_invoice as Stripe.Invoice & { payment_intent?: Stripe.PaymentIntent | string };
-    const paymentIntent = typeof invoice?.payment_intent === 'object' ? invoice.payment_intent : null;
-    const clientSecret = paymentIntent?.client_secret ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const invoice = subscription.latest_invoice as any;
+    const paymentIntent = invoice?.payment_intent;
+    const clientSecret = typeof paymentIntent === 'object' ? paymentIntent?.client_secret : null;
+
+    console.log('Subscription created:', {
+      subscriptionId: subscription.id,
+      invoiceExists: !!invoice,
+      paymentIntentType: typeof paymentIntent,
+      hasClientSecret: !!clientSecret
+    });
 
     return NextResponse.json({
       clientSecret,
