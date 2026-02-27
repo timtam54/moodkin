@@ -57,12 +57,25 @@ export async function POST(req: Request) {
     const paymentIntent = invoice?.payment_intent;
     const clientSecret = typeof paymentIntent === 'object' ? paymentIntent?.client_secret : null;
 
-    console.log('Subscription created:', {
+    // Debug info
+    const debug = {
       subscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
       invoiceExists: !!invoice,
+      invoiceStatus: invoice?.status,
       paymentIntentType: typeof paymentIntent,
+      paymentIntentId: typeof paymentIntent === 'object' ? paymentIntent?.id : paymentIntent,
       hasClientSecret: !!clientSecret
-    });
+    };
+    console.log('Subscription created:', debug);
+
+    // If no clientSecret, return error with debug info
+    if (!clientSecret) {
+      return NextResponse.json({
+        error: `No client secret. Debug: ${JSON.stringify(debug)}`,
+        debug
+      }, { status: 400 });
+    }
 
     return NextResponse.json({
       clientSecret,
