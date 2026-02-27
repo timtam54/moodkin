@@ -13,53 +13,16 @@ export async function POST(req: Request) {
     const email = session.user.email
     const name = session.user.name || email
 
-    let stripeCustomerId = session.user.stripeid || null
-
-    // Find or create Stripe customer by email
-    if (!stripeCustomerId) {
-      const existingCustomers = await stripe.customers.list({
-        email: email,
-        limit: 1,
-      })
-
-      if (existingCustomers.data.length > 0) {
-        stripeCustomerId = existingCustomers.data[0].id
-      } else {
-        const customer = await stripe.customers.create({
-          email: email,
-          name: name,
-          metadata: {
-            userId: session.user.id,
-            name: name
-          }
-        })
-        stripeCustomerId = customer.id
+    // Always create a fresh customer (matches incidentaccident pattern)
+    const customer = await stripe.customers.create({
+      email: email,
+      name: name,
+      metadata: {
+        userId: session.user.id,
+        name: name
       }
-    }
-
-    // Cancel any incomplete subscriptions
-    const incompleteSubscriptions = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status: 'incomplete',
     })
-
-    for (const sub of incompleteSubscriptions.data) {
-      await stripe.subscriptions.cancel(sub.id)
-    }
-
-    // Check if already has active subscription
-    const activeSubscriptions = await stripe.subscriptions.list({
-      customer: stripeCustomerId,
-      status: 'active',
-      limit: 1,
-    })
-
-    if (activeSubscriptions.data.length > 0) {
-      return NextResponse.json({
-        error: 'You already have an active subscription',
-        alreadySubscribed: true,
-      }, { status: 400 })
-    }
+    const stripeCustomerId = customer.id
 
     // Create a price for the subscription
     const price = await stripe.prices.create({
@@ -73,7 +36,7 @@ export async function POST(req: Request) {
       },
     })
 
-    // Create subscription
+    // Create subscription - exact same pattern as incidentaccident
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{
@@ -81,8 +44,7 @@ export async function POST(req: Request) {
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: {
-        save_default_payment_method: 'on_subscription',
-        payment_method_types: ['card'],
+        save_default_payment_method: 'on_subscription'
       },
       expand: ['latest_invoice.payment_intent'],
     })
@@ -102,11 +64,11 @@ export async function POST(req: Request) {
         customerId: stripeCustomerId,
         email: email
       }
-      console.error('No client_secret returned from Stripe subscription', debugInfo);
+      console.error('No client_secret returned from Stripe subscription', debugInfo)
       return NextResponse.json({
         error: 'Failed to initialize payment - no client secret returned',
         debug: debugInfo
-      }, { status: 500 });
+      }, { status: 500 })
     }
 
     return NextResponse.json({
