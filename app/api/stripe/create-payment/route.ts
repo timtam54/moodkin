@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 // EXACT COPY FROM INCIDENTACCIDENT
-const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-02-24.acacia',
-});
+const stripe = new Stripe(process.env.NEXT_PUBLIC_STRIPE_SECRET_KEY!);
 
 export async function POST(req: Request) {
   try {
@@ -49,9 +47,9 @@ export async function POST(req: Request) {
       expand: ['latest_invoice.payment_intent'],
     });
 
-    const clientSecret = (subscription.latest_invoice as Stripe.Invoice)?.payment_intent
-      ? ((subscription.latest_invoice as Stripe.Invoice).payment_intent as Stripe.PaymentIntent).client_secret
-      : null;
+    const invoice = subscription.latest_invoice as Stripe.Invoice & { payment_intent?: Stripe.PaymentIntent | string };
+    const paymentIntent = typeof invoice?.payment_intent === 'object' ? invoice.payment_intent : null;
+    const clientSecret = paymentIntent?.client_secret ?? null;
 
     return NextResponse.json({
       clientSecret,
