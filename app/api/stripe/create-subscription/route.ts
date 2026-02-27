@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server'
+import { requireSession } from '@/lib/auth/session'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 export async function POST(req: Request) {
   try {
-    const { amount, customerId, email, name } = await req.json()
+    // Get the logged-in user from session
+    const session = await requireSession()
+    const { amount } = await req.json()
 
-    let stripeCustomerId = customerId
+    const email = session.user.email
+    const name = session.user.name || email
 
-    // Create customer if doesn't exist, or find by email
-    if (!stripeCustomerId && email) {
+    let stripeCustomerId = session.user.stripeid || null
+
+    // Find or create Stripe customer by email
+    if (!stripeCustomerId) {
       const existingCustomers = await stripe.customers.list({
         email: email,
         limit: 1,
@@ -18,21 +24,20 @@ export async function POST(req: Request) {
 
       if (existingCustomers.data.length > 0) {
         stripeCustomerId = existingCustomers.data[0].id
+      } else {
+        const customer = await stripe.customers.create({
+          email: email,
+          name: name,
+          metadata: {
+            userId: session.user.id,
+            name: name
+          }
+        })
+        stripeCustomerId = customer.id
       }
     }
 
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: email,
-        name: name,
-        metadata: {
-          name: name
-        }
-      })
-      stripeCustomerId = customer.id
-    }
-
-    // Check for and cancel any incomplete subscriptions
+    // Cancel any incomplete subscriptions
     const incompleteSubscriptions = await stripe.subscriptions.list({
       customer: stripeCustomerId,
       status: 'incomplete',
@@ -41,12 +46,6 @@ export async function POST(req: Request) {
     for (const sub of incompleteSubscriptions.data) {
       await stripe.subscriptions.cancel(sub.id)
     }
-
-    // Clear any default payment method to ensure we get a PaymentIntent that requires payment
-    // This forces Stripe to return a client_secret for card collection
-    await stripe.customers.update(stripeCustomerId, {
-      invoice_settings: { default_payment_method: '' },
-    })
 
     // Check if already has active subscription
     const activeSubscriptions = await stripe.subscriptions.list({
@@ -82,7 +81,8 @@ export async function POST(req: Request) {
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: {
-        save_default_payment_method: 'on_subscription'
+        save_default_payment_method: 'on_subscription',
+        payment_method_types: ['card'],
       },
       expand: ['latest_invoice.payment_intent'],
     })
