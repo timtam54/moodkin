@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create subscription with trial or immediate payment
+    // Create subscription
     const subscription = await stripe.subscriptions.create({
       customer: stripeCustomerId,
       items: [{
@@ -49,45 +49,29 @@ export async function POST(req: Request) {
       payment_settings: {
         save_default_payment_method: 'on_subscription'
       },
-      expand: ['latest_invoice.payment_intent'],
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invoice = subscription.latest_invoice as any;
+    // Get invoice ID from subscription
+    const invoiceId = typeof subscription.latest_invoice === 'string'
+      ? subscription.latest_invoice
+      : subscription.latest_invoice?.id;
 
-    // Log full invoice structure to debug
-    console.log('Full invoice keys:', invoice ? Object.keys(invoice) : 'no invoice');
-    console.log('Invoice payment_intent raw:', invoice?.payment_intent);
-
-    // Try to get payment intent - could be nested differently
-    let clientSecret = null;
-    if (invoice?.payment_intent?.client_secret) {
-      clientSecret = invoice.payment_intent.client_secret;
-    } else if (subscription.pending_setup_intent) {
-      // Some subscriptions use setup_intent instead
-      const setupIntent = subscription.pending_setup_intent as any;
-      clientSecret = setupIntent?.client_secret;
-      console.log('Using setup_intent instead:', !!clientSecret);
+    if (!invoiceId) {
+      return NextResponse.json({ error: 'No invoice created' }, { status: 400 });
     }
 
-    // Debug info
-    const debug = {
-      subscriptionId: subscription.id,
-      subscriptionStatus: subscription.status,
-      invoiceId: invoice?.id,
-      invoiceStatus: invoice?.status,
-      invoiceKeys: invoice ? Object.keys(invoice).slice(0, 10) : [],
-      hasPaymentIntent: !!invoice?.payment_intent,
-      hasPendingSetupIntent: !!subscription.pending_setup_intent,
-      hasClientSecret: !!clientSecret
-    };
-    console.log('Subscription debug:', debug);
+    // Explicitly retrieve invoice with payment_intent expanded
+    const invoice = await stripe.invoices.retrieve(invoiceId, {
+      expand: ['payment_intent'],
+    });
 
-    // If no clientSecret, return error with debug info
+    // Get client secret from payment intent
+    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
+    const clientSecret = paymentIntent?.client_secret ?? null;
+
     if (!clientSecret) {
       return NextResponse.json({
-        error: `No client secret. Debug: ${JSON.stringify(debug)}`,
-        debug
+        error: `No client secret. Invoice status: ${invoice.status}, PI: ${paymentIntent?.id || 'none'}`
       }, { status: 400 });
     }
 
