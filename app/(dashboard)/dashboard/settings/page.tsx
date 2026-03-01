@@ -1,17 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { useOnboarding } from '@/hooks/use-onboarding'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const { session } = useSession()
   const { isSupported, isSubscribed, permission, subscribe, unsubscribe } = usePushNotifications()
+  const { restartOnboarding } = useOnboarding()
   const [isTestingPush, setIsTestingPush] = useState(false)
   const [pushTestResult, setPushTestResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  const handleRestartTour = () => {
+    restartOnboarding()
+    router.push('/dashboard/projects')
+  }
 
   const handleTestPush = async () => {
     setIsTestingPush(true)
@@ -198,6 +207,34 @@ export default function SettingsPage() {
                   Upgrade
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Help & Support Card */}
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-moodkin-light-gray/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-moodkin-gold/20 flex items-center justify-center">
+                <HelpCircle className="w-5 h-5 text-moodkin-gold" />
+              </div>
+              <h3 className="font-semibold text-moodkin-dark">Help & Support</h3>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-moodkin-cream/30">
+              <div>
+                <p className="font-medium text-moodkin-dark">Product Tour</p>
+                <p className="text-sm text-moodkin-gray">Take the guided tour again</p>
+              </div>
+              <Button
+                onClick={handleRestartTour}
+                variant="outline"
+                className="rounded-full px-6"
+              >
+                Restart Tour
+              </Button>
             </div>
           </div>
         </div>

@@ -14,6 +14,7 @@ export interface SessionUser {
   subscriptionStatus?: SubscriptionStatus
   subscriptionEndsAt?: string | null
   stripeid?: string | null
+  tourDisplayed?: boolean | null
 }
 
 export interface Session {
@@ -94,6 +95,7 @@ export async function getSession(): Promise<Session | null> {
         subscriptionStatus: user.subscription_status,
         subscriptionEndsAt: user.subscription_ends_at,
         stripeid: user.stripeid,
+        tourDisplayed: user.tour_displayed,
       },
       expiresAt: sessionData.expiresAt,
     }

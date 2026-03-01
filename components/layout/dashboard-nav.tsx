@@ -15,6 +15,7 @@ import {
   Crown,
   CreditCard,
   Loader2,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -22,7 +23,9 @@ import { Dialog } from '@/components/ui/dialog'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
+import { NotificationsHub } from '@/components/notifications/notifications-hub'
 import { subscriptionConfig, formatPrice, isSubscriptionActive } from '@/lib/config/subscription'
+import { useOnboarding } from '@/hooks/use-onboarding'
 import type { SessionUser } from '@/lib/auth/session'
 
 interface DashboardNavProps {
@@ -30,19 +33,25 @@ interface DashboardNavProps {
 }
 
 const navItems = [
-  { href: '/dashboard/projects', icon: FolderOpen, label: 'Projects' },
-  { href: '/dashboard/clients', icon: Users, label: 'Clients' },
+  { href: '/dashboard/projects', icon: FolderOpen, label: 'Projects', tourId: 'projects-nav' },
+  { href: '/dashboard/clients', icon: Users, label: 'Clients', tourId: 'clients-nav' },
   { href: '/dashboard/settings', icon: Settings, label: 'Profile' },
 ]
 
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { restartOnboarding } = useOnboarding()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(isSubscriptionActive(user.stripeid, user.subscriptionEndsAt))
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
+
+  const handleTakeTour = () => {
+    setProfileDialogOpen(false)
+    restartOnboarding()
+  }
 
   const handlePaymentSuccess = async (customerId: string) => {
     try {
@@ -108,6 +117,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-tour={item.tourId}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors',
                     isActive
@@ -124,6 +134,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
 
           {/* Desktop User section */}
           <div className="hidden md:flex items-center gap-3">
+            <NotificationsHub />
             <button
               onClick={() => setProfileDialogOpen(true)}
               className="hover:opacity-80 transition-opacity"
@@ -146,17 +157,20 @@ export function DashboardNav({ user }: DashboardNavProps) {
             </button>
           </div>
 
-          {/* Mobile hamburger button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 text-white/70 hover:text-white"
-          >
-            {mobileMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
+          {/* Mobile notifications and hamburger */}
+          <div className="flex md:hidden items-center gap-1">
+            <NotificationsHub />
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-white/70 hover:text-white"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -289,19 +303,28 @@ export function DashboardNav({ user }: DashboardNavProps) {
             )}
           </div>
 
-          <div className="mt-6 flex gap-3">
-            <Link
-              href="/dashboard/settings"
-              onClick={() => setProfileDialogOpen(false)}
-              className="px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
-            >
-              Edit Profile
-            </Link>
+          <div className="mt-6 flex flex-col gap-3">
+            <div className="flex gap-3">
+              <Link
+                href="/dashboard/settings"
+                onClick={() => setProfileDialogOpen(false)}
+                className="px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+              >
+                Edit Profile
+              </Link>
+              <button
+                onClick={() => logout()}
+                className="px-4 py-2 border border-moodkin-light-gray hover:bg-moodkin-cream text-moodkin-dark font-medium rounded-xl transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
             <button
-              onClick={() => logout()}
-              className="px-4 py-2 border border-moodkin-light-gray hover:bg-moodkin-cream text-moodkin-dark font-medium rounded-xl transition-colors"
+              onClick={handleTakeTour}
+              className="flex items-center justify-center gap-2 px-4 py-2 text-moodkin-gray hover:text-moodkin-dark text-sm transition-colors"
             >
-              Sign Out
+              <HelpCircle className="w-4 h-4" />
+              Take a tour
             </button>
           </div>
         </div>

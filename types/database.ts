@@ -33,6 +33,7 @@ export interface Database {
           subscription_status: SubscriptionStatus
           subscription_ends_at: string | null
           creative_client: CreativeClientType | null
+          tour_displayed: boolean | null
           created_at: string
           updated_at: string
         }
@@ -51,6 +52,7 @@ export interface Database {
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
+          tour_displayed?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -69,6 +71,7 @@ export interface Database {
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
+          tour_displayed?: boolean | null
           created_at?: string
           updated_at?: string
         }

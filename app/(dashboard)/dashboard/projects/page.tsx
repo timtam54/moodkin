@@ -60,7 +60,7 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold text-moodkin-dark">Projects</h1>
           <p className="text-moodkin-gray mt-1">Moodboard sessions with your clients</p>
         </div>
-        <Link href="/dashboard/projects/new">
+        <Link href="/dashboard/projects/new" data-tour="new-project">
           <Button variant="primary">
             <Plus className="w-4 h-4 mr-2" />
             New Project
