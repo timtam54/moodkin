@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isProjectOwner } from '@/lib/auth/project-access'
+import { getProjectMemberInfo, isProjectOwner } from '@/lib/auth/project-access'
 import nodemailer from 'nodemailer'
 
 // GET project users
@@ -53,10 +53,17 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    // Verify user owns the project
-    const ownerCheck = await isProjectOwner(supabase, projectId, session.user.id)
-    if (!ownerCheck) {
+    // Check user's membership and role in the project
+    const memberInfo = await getProjectMemberInfo(supabase, projectId, session.user.id)
+
+    if (!memberInfo) {
       return NextResponse.json({ error: 'Not authorized to invite users to this project' }, { status: 403 })
+    }
+
+    // Owners and creatives can invite anyone
+    // Clients can only invite other clients
+    if (!memberInfo.isOwner && memberInfo.role === 'client' && role === 'creative') {
+      return NextResponse.json({ error: 'Clients can only invite other clients' }, { status: 403 })
     }
 
     // Get the project details

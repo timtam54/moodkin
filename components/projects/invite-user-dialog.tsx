@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { useState, useEffect } from 'react'
+import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useProjectUsers, useInviteUser, useRemoveProjectUser, useResendInvite, useUpdateProjectUserRole } from '@/hooks/use-project-users'
-import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User } from 'lucide-react'
+import { useSession } from '@/hooks/use-session'
+import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User, AlertCircle } from 'lucide-react'
 import type { ProjectUserRole } from '@/types/database'
 
 interface InviteUserDialogProps {
@@ -16,16 +17,37 @@ interface InviteUserDialogProps {
   projectTitle: string
 }
 
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export function InviteUserDialog({ open, onClose, projectId, projectTitle }: InviteUserDialogProps) {
   const [activeTab, setActiveTab] = useState<'invite' | 'manage'>('invite')
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState<string | null>(null)
   const [role, setRole] = useState<ProjectUserRole>('creative')
+  const [showSpamReminder, setShowSpamReminder] = useState(false)
   const { showToast } = useToast()
+  const { session } = useSession()
+  const currentUserEmail = session?.user?.email?.toLowerCase()
   const { data: projectUsers, isLoading: usersLoading } = useProjectUsers(projectId)
   const inviteUser = useInviteUser(projectId)
   const removeUser = useRemoveProjectUser(projectId)
   const resendInvite = useResendInvite(projectId)
   const updateRole = useUpdateProjectUserRole(projectId)
+
+  // Find current user's membership in this project
+  const currentUserMembership = projectUsers?.find(u => u.user_id === session?.user?.id)
+  const isProjectOwner = currentUserMembership?.is_owner ?? false
+  const currentUserProjectRole = currentUserMembership?.role
+  // Clients can only invite other clients
+  const canInviteCreatives = isProjectOwner || currentUserProjectRole === 'creative'
+
+  // Set role to 'client' if user can't invite creatives
+  useEffect(() => {
+    if (!canInviteCreatives && role === 'creative') {
+      setRole('client')
+    }
+  }, [canInviteCreatives, role])
 
   function handleToggleRole(userId: string, currentRole: ProjectUserRole) {
     const newRole: ProjectUserRole = currentRole === 'creative' ? 'client' : 'creative'
@@ -42,9 +64,40 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
     )
   }
 
+  function validateEmail(emailToValidate: string): string | null {
+    const trimmedEmail = emailToValidate.trim().toLowerCase()
+
+    if (!trimmedEmail) {
+      return 'Email is required'
+    }
+
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      return 'Please enter a valid email address'
+    }
+
+    if (currentUserEmail && trimmedEmail === currentUserEmail) {
+      return 'You cannot invite yourself'
+    }
+
+    return null
+  }
+
+  function handleEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const newEmail = e.target.value
+    setEmail(newEmail)
+    if (emailError) {
+      setEmailError(null)
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) return
+
+    const validationError = validateEmail(email)
+    if (validationError) {
+      setEmailError(validationError)
+      return
+    }
 
     const inviteEmail = email.trim().toLowerCase()
     inviteUser.mutate(
@@ -54,6 +107,7 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
           showToast(`Invite sent to ${inviteEmail}`, 'success')
           setEmail('')
           setRole('creative')
+          setShowSpamReminder(true)
         },
         onError: (error) => {
           showToast(error.message || 'Failed to send invite', 'error')
@@ -79,6 +133,7 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
     resendInvite.mutate(userId, {
       onSuccess: () => {
         showToast(`Invite resent to ${userEmail}`, 'success')
+        setShowSpamReminder(true)
       },
       onError: (error) => {
         showToast(error.message || 'Failed to resend invite', 'error')
@@ -89,8 +144,10 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
   function handleClose() {
     if (!inviteUser.isPending) {
       setEmail('')
+      setEmailError(null)
       setRole('creative')
       setActiveTab('invite')
+      setShowSpamReminder(false)
       inviteUser.reset()
       onClose()
     }
@@ -100,340 +157,320 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
   const acceptedInvites = projectUsers?.filter(u => u.invite_status === 'accepted') || []
 
   return (
-    <Dialog open={open} onClose={handleClose} className="max-w-lg">
-      <DialogHeader>
-        <DialogTitle>Project Collaborators</DialogTitle>
-        <DialogDescription>
-          Manage access to &quot;{projectTitle}&quot;
-        </DialogDescription>
-      </DialogHeader>
+    <Dialog open={open} onClose={handleClose} className="max-w-md">
+      {/* Header */}
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-moodkin-gold rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <Users className="w-8 h-8 text-moodkin-dark" />
+        </div>
+        <h2 className="text-xl font-bold text-moodkin-dark">Team</h2>
+        <p className="text-sm text-moodkin-gray mt-1">{projectTitle}</p>
+      </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-moodkin-cream/50 rounded-xl mb-4">
+      <div className="flex border-b border-moodkin-light-gray mb-6">
         <button
           onClick={() => setActiveTab('invite')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
             activeTab === 'invite'
-              ? 'bg-white text-moodkin-dark shadow-sm'
+              ? 'text-moodkin-dark'
               : 'text-moodkin-gray hover:text-moodkin-dark'
           }`}
         >
-          <UserPlus className="w-4 h-4" />
-          Send Invite
+          Invite
+          {activeTab === 'invite' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-moodkin-gold" />
+          )}
         </button>
         <button
           onClick={() => setActiveTab('manage')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${
             activeTab === 'manage'
-              ? 'bg-white text-moodkin-dark shadow-sm'
+              ? 'text-moodkin-dark'
               : 'text-moodkin-gray hover:text-moodkin-dark'
           }`}
         >
-          <Users className="w-4 h-4" />
-          Manage
+          Members
           {projectUsers && projectUsers.length > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-moodkin-gold/20 text-moodkin-dark text-xs rounded-full">
+            <span className="ml-1.5 px-1.5 py-0.5 bg-moodkin-gold/20 text-moodkin-dark text-xs rounded-full">
               {projectUsers.length}
             </span>
+          )}
+          {activeTab === 'manage' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-moodkin-gold" />
           )}
         </button>
       </div>
 
       {activeTab === 'invite' ? (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Email Input */}
           <div>
             <label className="block text-sm font-medium text-moodkin-dark mb-2">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-moodkin-gray/50" />
+              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${emailError ? 'text-red-400' : 'text-moodkin-gray/40'}`} />
               <Input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="collaborator@email.com"
-                className="pl-11"
+                onChange={handleEmailChange}
+                placeholder="colleague@email.com"
+                className={`pl-12 h-12 rounded-2xl border-2 ${emailError ? 'border-red-300 focus:border-red-500' : 'border-moodkin-light-gray focus:border-moodkin-gold'}`}
                 required
               />
             </div>
+            {emailError && (
+              <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" />
+                {emailError}
+              </p>
+            )}
           </div>
 
           {/* Role Selection */}
           <div>
-            <label className="block text-sm font-medium text-moodkin-dark mb-2">
+            <label className="block text-sm font-medium text-moodkin-dark mb-3">
               Invite as
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('creative')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  role === 'creative'
-                    ? 'border-moodkin-gold bg-moodkin-gold/10'
-                    : 'border-moodkin-light-gray hover:border-moodkin-gold/50'
-                }`}
-              >
-                <Camera className={`w-6 h-6 mx-auto mb-2 ${role === 'creative' ? 'text-moodkin-gold' : 'text-moodkin-gray'}`} />
-                <p className={`font-medium text-sm ${role === 'creative' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`}>
-                  Creative
-                </p>
-                <p className="text-xs text-moodkin-gray mt-1">
-                  Photographers, stylists, designers
-                </p>
-              </button>
+            {canInviteCreatives ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole('creative')}
+                  className={`p-4 rounded-2xl border-2 transition-all text-center ${
+                    role === 'creative'
+                      ? 'border-moodkin-gold bg-moodkin-gold/10'
+                      : 'border-moodkin-light-gray hover:border-moodkin-gold/50 bg-white'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center ${
+                    role === 'creative' ? 'bg-moodkin-gold/20' : 'bg-moodkin-cream'
+                  }`}>
+                    <Camera className={`w-6 h-6 ${role === 'creative' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`} />
+                  </div>
+                  <p className={`font-semibold text-sm ${role === 'creative' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`}>
+                    Creative
+                  </p>
+                  <p className="text-xs text-moodkin-gray mt-1">
+                    Can upload & edit
+                  </p>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setRole('client')}
-                className={`p-4 rounded-xl border-2 transition-all ${
-                  role === 'client'
-                    ? 'border-moodkin-gold bg-moodkin-gold/10'
-                    : 'border-moodkin-light-gray hover:border-moodkin-gold/50'
-                }`}
-              >
-                <User className={`w-6 h-6 mx-auto mb-2 ${role === 'client' ? 'text-moodkin-gold' : 'text-moodkin-gray'}`} />
-                <p className={`font-medium text-sm ${role === 'client' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`}>
+                <button
+                  type="button"
+                  onClick={() => setRole('client')}
+                  className={`p-4 rounded-2xl border-2 transition-all text-center ${
+                    role === 'client'
+                      ? 'border-moodkin-gold bg-moodkin-gold/10'
+                      : 'border-moodkin-light-gray hover:border-moodkin-gold/50 bg-white'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center ${
+                    role === 'client' ? 'bg-moodkin-gold/20' : 'bg-moodkin-cream'
+                  }`}>
+                    <User className={`w-6 h-6 ${role === 'client' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`} />
+                  </div>
+                  <p className={`font-semibold text-sm ${role === 'client' ? 'text-moodkin-dark' : 'text-moodkin-gray'}`}>
+                    Client
+                  </p>
+                  <p className="text-xs text-moodkin-gray mt-1">
+                    View & feedback
+                  </p>
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl border-2 border-moodkin-gold bg-moodkin-gold/10 text-center">
+                <div className="w-12 h-12 rounded-xl mx-auto mb-3 flex items-center justify-center bg-moodkin-gold/20">
+                  <User className="w-6 h-6 text-moodkin-dark" />
+                </div>
+                <p className="font-semibold text-sm text-moodkin-dark">
                   Client
                 </p>
                 <p className="text-xs text-moodkin-gray mt-1">
-                  View project and provide feedback
+                  You can invite other clients to collaborate
                 </p>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Submit Button */}
           <Button
             type="submit"
             variant="primary"
-            className="w-full"
+            className="w-full h-12 rounded-2xl text-base font-semibold"
             disabled={inviteUser.isPending || !email.trim()}
           >
             {inviteUser.isPending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending Invite...
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Sending...
               </>
             ) : (
-              'Send Invitation'
+              <>
+                <Send className="w-5 h-5 mr-2" />
+                Send Invite
+              </>
             )}
           </Button>
+
+          {/* Spam Folder Reminder */}
+          {showSpamReminder && (
+            <div className="flex items-start gap-3 p-4 bg-moodkin-cream rounded-2xl">
+              <div className="w-8 h-8 bg-moodkin-gold/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-4 h-4 text-moodkin-dark" />
+              </div>
+              <p className="text-sm text-moodkin-dark">
+                Please advise your client to check their spam folder in case the invite went there.
+              </p>
+            </div>
+          )}
         </form>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[400px] overflow-y-auto">
           {usersLoading ? (
-            <div className="text-center py-8">
-              <Loader2 className="w-6 h-6 text-moodkin-gold animate-spin mx-auto" />
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 text-moodkin-gold animate-spin mx-auto" />
             </div>
           ) : projectUsers && projectUsers.length > 0 ? (
             <>
               {/* Owner */}
-              {projectUsers.filter(u => u.is_owner).length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
-                    Owner
-                  </h3>
-                  <div className="space-y-2">
-                    {projectUsers.filter(u => u.is_owner).map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-moodkin-gold/10 border border-moodkin-gold/30"
+              {projectUsers.filter(u => u.is_owner).map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center gap-3 p-4 rounded-2xl bg-moodkin-gold/10"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-moodkin-gold flex items-center justify-center flex-shrink-0">
+                    <Crown className="w-5 h-5 text-moodkin-dark" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-moodkin-gold font-medium">Owner</span>
+                      <span className="text-moodkin-light-gray">•</span>
+                      <button
+                        onClick={() => handleToggleRole(user.id, user.role)}
+                        disabled={updateRole.isPending}
+                        className="text-xs text-moodkin-gray hover:text-moodkin-dark capitalize"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-moodkin-gold/30 flex items-center justify-center flex-shrink-0">
-                            <Crown className="w-4 h-4 text-moodkin-gold" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1 text-xs text-moodkin-gold font-medium">
-                                <Crown className="w-3 h-3" />
-                                Owner
-                              </span>
-                              <span className="text-xs text-moodkin-gray">•</span>
-                              <button
-                                onClick={() => handleToggleRole(user.id, user.role)}
-                                disabled={updateRole.isPending}
-                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
-                                  user.role === 'creative'
-                                    ? 'text-purple-600 hover:bg-purple-200'
-                                    : 'text-blue-600 hover:bg-blue-200'
-                                }`}
-                                title="Click to change role"
-                              >
-                                {user.role === 'creative' ? (
-                                  <Camera className="w-3 h-3" />
-                                ) : (
-                                  <User className="w-3 h-3" />
-                                )}
-                                {user.role}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                        {user.role}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              )}
+              ))}
 
               {/* Pending Invites */}
-              {pendingInvites.filter(u => !u.is_owner).length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
-                    Pending Invites ({pendingInvites.filter(u => !u.is_owner).length})
-                  </h3>
-                  <div className="space-y-2">
-                    {pendingInvites.filter(u => !u.is_owner).map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-100"
+              {pendingInvites.filter(u => !u.is_owner).map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center gap-3 p-4 rounded-2xl bg-white border-2 border-dashed border-moodkin-light-gray"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
+                  }`}>
+                    {user.role === 'creative' ? (
+                      <Camera className="w-5 h-5 text-purple-600" />
+                    ) : (
+                      <User className="w-5 h-5 text-blue-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                        <Clock className="w-3 h-3" />
+                        Pending
+                      </span>
+                      <span className="text-moodkin-light-gray">•</span>
+                      <button
+                        onClick={() => handleToggleRole(user.id, user.role)}
+                        disabled={updateRole.isPending}
+                        className="text-xs text-moodkin-gray hover:text-moodkin-dark capitalize"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
-                          }`}>
-                            {user.role === 'creative' ? (
-                              <Camera className="w-4 h-4 text-purple-600" />
-                            ) : (
-                              <User className="w-4 h-4 text-blue-600" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
-                            <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                                <Clock className="w-3 h-3" />
-                                Pending
-                              </span>
-                              <button
-                                onClick={() => handleToggleRole(user.id, user.role)}
-                                disabled={updateRole.isPending}
-                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
-                                  user.role === 'creative'
-                                    ? 'text-purple-600 hover:bg-purple-200'
-                                    : 'text-blue-600 hover:bg-blue-200'
-                                }`}
-                                title="Click to change role"
-                              >
-                                {user.role === 'creative' ? (
-                                  <Camera className="w-3 h-3" />
-                                ) : (
-                                  <User className="w-3 h-3" />
-                                )}
-                                {user.role}
-                              </button>
-                              
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => handleResend(user.id, user.email)}
-                            disabled={resendInvite.isPending}
-                            className="p-2 text-moodkin-gray hover:text-moodkin-gold hover:bg-moodkin-gold/10 rounded-lg transition-colors"
-                            title="Resend invite"
-                          >
-                            {resendInvite.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Send className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleRevoke(user.id, user.email)}
-                            disabled={removeUser.isPending}
-                            className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Revoke invite"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                        {user.role}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleResend(user.id, user.email)}
+                      disabled={resendInvite.isPending}
+                      className="p-2 text-moodkin-gray hover:text-moodkin-gold hover:bg-moodkin-gold/10 rounded-xl transition-colors"
+                      title="Resend invite"
+                    >
+                      {resendInvite.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleRevoke(user.id, user.email)}
+                      disabled={removeUser.isPending}
+                      className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                      title="Revoke invite"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              )}
+              ))}
 
               {/* Accepted Members */}
-              {acceptedInvites.filter(u => !u.is_owner).length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-moodkin-gray uppercase tracking-wider mb-2">
-                    Active Members ({acceptedInvites.filter(u => !u.is_owner).length})
-                  </h3>
-                  <div className="space-y-2">
-                    {acceptedInvites.filter(u => !u.is_owner).map((user) => (
-                      <div
-                        key={user.id}
-                        className={`flex items-center justify-between p-3 rounded-xl border ${
-                          user.role === 'creative'
-                            ? 'bg-purple-50 border-purple-100'
-                            : 'bg-blue-50 border-blue-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
-                          }`}>
-                            {user.role === 'creative' ? (
-                              <Camera className="w-4 h-4 text-purple-600" />
-                            ) : (
-                              <User className="w-4 h-4 text-blue-600" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
-                            <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                                <CheckCircle className="w-3 h-3" />
-                                Active
-                              </span>
-
-                              <button
-                                onClick={() => handleToggleRole(user.id, user.role)}
-                                disabled={updateRole.isPending}
-                                className={`inline-flex items-center gap-1 text-xs font-medium capitalize rounded px-1.5 py-0.5 transition-colors hover:bg-opacity-20 ${
-                                  user.role === 'creative'
-                                    ? 'text-purple-600 hover:bg-purple-200'
-                                    : 'text-blue-600 hover:bg-blue-200'
-                                }`}
-                                title="Click to change role"
-                              >
-                                {user.role === 'creative' ? (
-                                  <Camera className="w-3 h-3" />
-                                ) : (
-                                  <User className="w-3 h-3" />
-                                )}
-                                {user.role}
-                              </button>
-                             
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleRevoke(user.id, user.email)}
-                          disabled={removeUser.isPending}
-                          className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                          title="Remove access"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+              {acceptedInvites.filter(u => !u.is_owner).map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center gap-3 p-4 rounded-2xl bg-white border-2 border-moodkin-light-gray"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    user.role === 'creative' ? 'bg-purple-100' : 'bg-blue-100'
+                  }`}>
+                    {user.role === 'creative' ? (
+                      <Camera className="w-5 h-5 text-purple-600" />
+                    ) : (
+                      <User className="w-5 h-5 text-blue-600" />
+                    )}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-moodkin-dark truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                        <CheckCircle className="w-3 h-3" />
+                        Active
+                      </span>
+                      <span className="text-moodkin-light-gray">•</span>
+                      <button
+                        onClick={() => handleToggleRole(user.id, user.role)}
+                        disabled={updateRole.isPending}
+                        className="text-xs text-moodkin-gray hover:text-moodkin-dark capitalize"
+                      >
+                        {user.role}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRevoke(user.id, user.email)}
+                    disabled={removeUser.isPending}
+                    className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors flex-shrink-0"
+                    title="Remove access"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
+              ))}
             </>
           ) : (
-            <div className="text-center py-8 text-moodkin-gray">
-              <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-              <p className="font-medium">No collaborators yet</p>
-              <p className="text-sm mt-1">Send an invite to get started</p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-moodkin-cream rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <UserPlus className="w-8 h-8 text-moodkin-gray" />
+              </div>
+              <p className="font-semibold text-moodkin-dark">No team members yet</p>
+              <p className="text-sm text-moodkin-gray mt-1">Invite collaborators to get started</p>
               <Button
                 onClick={() => setActiveTab('invite')}
-                variant="outline"
-                className="mt-4"
+                variant="primary"
+                className="mt-6 rounded-2xl"
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Send Invite

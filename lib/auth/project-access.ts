@@ -45,3 +45,20 @@ export async function getProjectRole(
     .single()
   return data?.role ?? null
 }
+
+export async function getProjectMemberInfo(
+  supabase: SupabaseClient,
+  projectId: string,
+  userId: string
+): Promise<{ role: ProjectUserRole; isOwner: boolean } | null> {
+  const { data } = await supabase
+    .from('project_users')
+    .select('role, is_owner')
+    .eq('project_id', projectId)
+    .eq('user_id', userId)
+    .eq('invite_status', 'accepted')
+    .single()
+
+  if (!data) return null
+  return { role: data.role, isOwner: data.is_owner }
+}

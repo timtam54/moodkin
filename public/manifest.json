@@ -1,12 +1,15 @@
 {
+  "id": "/",
   "name": "Moodkin",
   "short_name": "Moodkin",
   "description": "Visual moodboards for photographers and clients",
-  "start_url": "/",
+  "start_url": "/dashboard/projects",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#faf9f6",
   "theme_color": "#1a1a1a",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons-pwa/icon-72.png",
@@ -55,6 +58,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icons-pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

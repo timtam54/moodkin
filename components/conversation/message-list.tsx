@@ -14,16 +14,21 @@ interface MessageListProps {
 
 // Convert URLs in text to clickable links
 function renderTextWithLinks(text: string, isOwn: boolean) {
-  // Match URLs with http(s):// or starting with www.
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+\.[^\s]+)/gi
+  // Match URLs with http(s)://, www., or domain patterns like app.example.com
+  // Common TLDs to recognize URLs without protocol
+  const tlds = 'com|org|net|edu|gov|io|co|au|uk|de|fr|es|it|nl|be|ch|at|nz|ca|us|info|biz|app|dev|ai|me'
+  const urlRegex = new RegExp(
+    `(https?:\\/\\/[^\\s]+|www\\.[^\\s]+\\.[^\\s]+|[a-zA-Z0-9][a-zA-Z0-9-]*\\.[a-zA-Z0-9][a-zA-Z0-9-]*\\.(?:${tlds})(?:\\.[a-zA-Z]{2,})?(?:\\/[^\\s]*)?)`,
+    'gi'
+  )
   const parts = text.split(urlRegex)
 
   return parts.map((part, index) => {
     if (urlRegex.test(part)) {
       // Reset regex lastIndex since we're testing again
       urlRegex.lastIndex = 0
-      // Add https:// prefix if URL starts with www.
-      const href = part.startsWith('www.') ? `https://${part}` : part
+      // Add https:// prefix if URL doesn't have a protocol
+      const href = part.match(/^https?:\/\//i) ? part : `https://${part}`
       return (
         <a
           key={index}

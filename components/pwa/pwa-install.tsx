@@ -19,17 +19,21 @@ export function PWAInstall() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true
     setIsStandalone(standalone)
+    console.log('[PWA] Standalone mode:', standalone)
 
-    // Detect iOS
+    // Detect iOS and Android
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const android = /Android/.test(navigator.userAgent)
     setIsIOS(ios)
+    console.log('[PWA] iOS:', ios, 'Android:', android)
+    console.log('[PWA] User Agent:', navigator.userAgent)
 
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          console.log('SW registered:', registration.scope)
+          console.log('[PWA] SW registered:', registration.scope)
 
           // Check for updates periodically
           setInterval(() => {
@@ -49,26 +53,25 @@ export function PWAInstall() {
           })
         })
         .catch((error) => {
-          console.log('SW registration failed:', error)
+          console.error('[PWA] SW registration failed:', error)
         })
     }
 
     // Listen for beforeinstallprompt
     const handler = (e: Event) => {
+      console.log('[PWA] beforeinstallprompt event fired!')
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
 
-      // Check if user has dismissed the banner before
-      const dismissed = localStorage.getItem('pwa-install-dismissed')
-      if (!dismissed) {
-        // Show banner after a short delay
-        setTimeout(() => {
-          setShowInstallBanner(true)
-        }, 3000)
-      }
+      // Show banner after a short delay (ignore dismissed state for now to debug)
+      setTimeout(() => {
+        console.log('[PWA] Showing install banner')
+        setShowInstallBanner(true)
+      }, 2000)
     }
 
     window.addEventListener('beforeinstallprompt', handler)
+    console.log('[PWA] Listening for beforeinstallprompt event')
 
     // Show iOS instructions if on iOS and not installed
     if (ios && !standalone) {
