@@ -1382,6 +1382,17 @@ export default function ProjectDetailPage() {
               </label>
             )}
 
+            {/* Add from Client button - pinned next to Upload Image, only visible to creative users */}
+            {isCreative && (
+              <button
+                onClick={() => setShowCreativePicker(true)}
+                className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors"
+              >
+                <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
+                <p className="text-sm text-moodkin-gray font-medium">Add from Client</p>
+              </button>
+            )}
+
             {/* Creative Assets - images uploaded by creatives OR marked as creative */}
             {creativeAssets.map((asset) => (
               <AssetCard
@@ -1394,17 +1405,7 @@ export default function ProjectDetailPage() {
               />
             ))}
 
-            {/* Add from Uploads button - only visible to creative users */}
-            {isCreative && (
-              <button
-                onClick={() => setShowCreativePicker(true)}
-                className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors"
-              >
-                <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
-                <p className="text-sm text-moodkin-gray font-medium">Add from Client</p>
-              </button>
-            )}
-          </div>
+                      </div>
         )}
 
         {/* Creative Picker Dialog */}

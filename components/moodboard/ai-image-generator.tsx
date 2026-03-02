@@ -35,6 +35,14 @@ const SIZE_OPTIONS = [
   { value: '1024x1792', label: 'Portrait', aspect: '9:16' },
 ]
 
+const PROMPT_EXAMPLES = [
+  'Photo taken with a 50mm lens in natural light',
+  'Documentary portrait with visible texture and no stylized lighting',
+  'Everyday environment, imperfect framing, candid look',
+  'Soft morning light through a window, intimate and warm',
+  'Editorial fashion shot with clean background and bold contrast',
+]
+
 export function AIImageGenerator({
   open,
   onClose,
@@ -241,6 +249,22 @@ export function AIImageGenerator({
                   className="w-full h-28 px-4 py-3 bg-moodkin-cream/50 border border-moodkin-light-gray rounded-xl text-moodkin-dark placeholder-moodkin-gray/50 focus:outline-none focus:border-moodkin-gold focus:ring-2 focus:ring-moodkin-gold/20 resize-none"
                   disabled={isGenerating}
                 />
+                {/* Prompt examples */}
+                <div className="mt-3">
+                  <p className="text-xs text-moodkin-gray mb-2">Try an example:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {PROMPT_EXAMPLES.map((example, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setPrompt(example)}
+                        disabled={isGenerating}
+                        className="text-xs px-3 py-1.5 bg-moodkin-cream/70 hover:bg-moodkin-gold/20 border border-moodkin-light-gray hover:border-moodkin-gold rounded-full text-moodkin-gray hover:text-moodkin-dark transition-colors text-left"
+                      >
+                        {example}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Style presets */}
