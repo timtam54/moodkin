@@ -67,6 +67,23 @@ export function DashboardNav({ user }: DashboardNavProps) {
     }
   }, [profileDialogOpen, subscriptionState.status])
 
+  // Show toast notification once per session for subscription issues
+  useEffect(() => {
+    const toastKey = 'subscription_toast_shown'
+    const alreadyShown = sessionStorage.getItem(toastKey)
+
+    if (!alreadyShown) {
+      if (subscriptionState.status === 'expired') {
+        showToast('Your subscription has ended. You have not been billed.', 'error')
+        sessionStorage.setItem(toastKey, 'true')
+      } else if (subscriptionState.status === 'cancelled') {
+        const endsAt = subscriptionState.endsAt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })
+        showToast(`Your subscription is cancelled. Access ends ${endsAt}.`, 'info')
+        sessionStorage.setItem(toastKey, 'true')
+      }
+    }
+  }, [subscriptionState, showToast])
+
   const handleTakeTour = () => {
     setProfileDialogOpen(false)
     restartOnboarding()
