@@ -1,88 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getCurrentMonthString, subscriptionConfig } from '@/lib/config/subscription'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    await requireSession()
+    const session = await requireSession()
     const supabase = await createServiceClient()
+    const userId = session.user.id
+    const currentMonth = getCurrentMonthString()
 
-    // Get conversationId from query params
-    const { searchParams } = new URL(request.url)
-    const conversationId = searchParams.get('conversationId')
-
-    if (!conversationId) {
-      return NextResponse.json({ error: 'conversationId is required' }, { status: 400 })
-    }
-
-    // Get the project owner from project_users table
-    const { data: projectOwner, error: ownerError } = await supabase
-      .from('project_users')
-      .select('user_id')
-      .eq('project_id', conversationId)
-      .eq('is_owner', true)
-      .single()
-
-    if (ownerError || !projectOwner) {
-      console.error('Failed to fetch project owner:', ownerError)
-      return NextResponse.json({ error: 'Project owner not found' }, { status: 404 })
-    }
-
-    const ownerId = projectOwner.user_id
-
-    // Get the owner's name
-    const { data: owner } = await supabase
+    // Get user's current count and reset month
+    const { data: user, error: userError } = await supabase
       .from('users')
-      .select('name, email')
-      .eq('id', ownerId)
+      .select('ai_images_count, ai_count_reset_month')
+      .eq('id', userId)
       .single()
 
-    const ownerName = owner?.name || owner?.email || 'Unknown'
+    if (userError) {
+      console.error('Failed to fetch user:', userError)
+      return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 })
+    }
 
-    // Get the first day of the current month
+    const storedMonth = user?.ai_count_reset_month
+    let count = user?.ai_images_count || 0
+
+    // If it's a new month, reset the count
+    if (storedMonth !== currentMonth) {
+      await supabase
+        .from('users')
+        .update({
+          ai_images_count: 0,
+          ai_count_reset_month: currentMonth
+        })
+        .eq('id', userId)
+
+      count = 0
+    }
+
     const now = new Date()
-    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const firstDayISO = firstDayOfMonth.toISOString()
-
-    // Get all projects owned by this project's owner
-    const { data: ownedProjects, error: projectsError } = await supabase
-      .from('project_users')
-      .select('project_id')
-      .eq('user_id', ownerId)
-      .eq('is_owner', true)
-
-    if (projectsError) {
-      console.error('Failed to fetch owned projects:', projectsError)
-      return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 })
-    }
-
-    if (!ownedProjects || ownedProjects.length === 0) {
-      return NextResponse.json({
-        count: 0,
-        month: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
-        ownerName,
-      })
-    }
-
-    const projectIds = ownedProjects.map(p => p.project_id)
-
-    // Count AI-generated images in those projects created this month
-    const { count, error: countError } = await supabase
-      .from('project_assets')
-      .select('*', { count: 'exact', head: true })
-      .in('conversation_id', projectIds)
-      .eq('ai_generated', true)
-      .gte('created_at', firstDayISO)
-
-    if (countError) {
-      console.error('Failed to count AI images:', countError)
-      return NextResponse.json({ error: 'Failed to count images' }, { status: 500 })
-    }
+    const limit = subscriptionConfig.features.aiImagesPerMonth
 
     return NextResponse.json({
-      count: count || 0,
+      count,
+      limit,
       month: now.toLocaleString('default', { month: 'long', year: 'numeric' }),
-      ownerName,
+      quotaExceeded: count >= limit,
     })
   } catch (err) {
     console.error('AI image count error:', err)

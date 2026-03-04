@@ -2,12 +2,46 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { isProjectMember } from '@/lib/auth/project-access'
+import { isSubscriptionActive, subscriptionConfig, getCurrentMonthString } from '@/lib/config/subscription'
 import { put } from '@vercel/blob'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+// Helper to get current AI image count, resetting if new month
+async function getAndUpdateAIImageCount(
+  supabase: ReturnType<typeof createServiceClient> extends Promise<infer T> ? T : never,
+  userId: string
+): Promise<{ count: number; isNewMonth: boolean }> {
+  const currentMonth = getCurrentMonthString()
+
+  // Get user's current count and reset month
+  const { data: user } = await supabase
+    .from('users')
+    .select('ai_images_count, ai_count_reset_month')
+    .eq('id', userId)
+    .single()
+
+  const storedMonth = user?.ai_count_reset_month
+  const storedCount = user?.ai_images_count || 0
+
+  // If it's a new month, reset the count
+  if (storedMonth !== currentMonth) {
+    await supabase
+      .from('users')
+      .update({
+        ai_images_count: 0,
+        ai_count_reset_month: currentMonth
+      })
+      .eq('id', userId)
+
+    return { count: 0, isNewMonth: true }
+  }
+
+  return { count: storedCount, isNewMonth: false }
+}
 
 export async function POST(
   request: NextRequest,
@@ -22,6 +56,28 @@ export async function POST(
     const hasAccess = await isProjectMember(supabase, conversationId, session.user.id)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
+    // Check if the current user has an active subscription
+    const hasSubscription = isSubscriptionActive(
+      session.user.stripeid,
+      session.user.subscriptionEndsAt
+    )
+    if (!hasSubscription) {
+      return NextResponse.json({ error: 'Subscription required to generate AI images' }, { status: 403 })
+    }
+
+    // Check AI image quota
+    const { count: currentCount } = await getAndUpdateAIImageCount(supabase, session.user.id)
+    const monthlyLimit = subscriptionConfig.features.aiImagesPerMonth
+
+    if (currentCount >= monthlyLimit) {
+      return NextResponse.json({
+        error: 'QUOTA_EXCEEDED',
+        message: `You've created ${monthlyLimit} images and consumed your quota for the month.`,
+        count: currentCount,
+        limit: monthlyLimit
+      }, { status: 429 })
     }
 
     const body = await request.json()
@@ -111,6 +167,13 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to generate image' }, { status: 500 })
     }
 
+    // Increment the user's AI image count (image was generated regardless of save)
+    const newCount = currentCount + 1
+    await supabase
+      .from('users')
+      .update({ ai_images_count: newCount })
+      .eq('id', session.user.id)
+
     // If saveToProject is true but no imageUrl was provided (shouldn't happen in normal flow)
     if (saveToProject) {
       // Download the image from OpenAI
@@ -154,6 +217,8 @@ export async function POST(
         revisedPrompt,
         saved: true,
         asset,
+        aiImageCount: newCount,
+        aiImageLimit: monthlyLimit,
       })
     }
 
@@ -162,6 +227,8 @@ export async function POST(
       url: openaiImageUrl,
       revisedPrompt,
       saved: false,
+      aiImageCount: newCount,
+      aiImageLimit: monthlyLimit,
     })
   } catch (error) {
     console.error('Image generation error:', error)

@@ -169,7 +169,12 @@ export default function ProjectDetailPage() {
     return role === 'creative'
   }
 
-  // Check if project owner has active subscription
+  // Check if current user has active subscription
+  const currentUserHasSubscription = isSubscriptionActive(
+    session?.user?.stripeid,
+    session?.user?.subscriptionEndsAt
+  )
+  // Check if project owner has active subscription (for other features)
   const projectOwner = projectUsers?.find(pu => pu.is_owner)
   const ownerHasSubscription = isSubscriptionActive(
     projectOwner?.user?.stripeid,
@@ -1271,19 +1276,35 @@ export default function ProjectDetailPage() {
       <div className="flex-1">
         {activeTab === 'clients' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* AI Image Generator Card - only visible to client users when owner has subscribed */}
-            {isClient && ownerHasSubscription && (
-              <button
-                onClick={() => setShowAIImageGenerator(true)}
-                className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
-                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
-                <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
-              </button>
+            {/* AI Image Generator Card - only visible to client users when they have subscribed */}
+            {isClient && (
+              currentUserHasSubscription ? (
+                <button
+                  onClick={() => setShowAIImageGenerator(true)}
+                  className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
+                >
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Sparkles className="w-8 h-8 text-white" />
+                  </div>
+                  <p className="font-bold text-moodkin-dark text-center text-sm">AI IMAGE</p>
+                  <p className="font-bold text-moodkin-dark text-center text-sm">GENERATOR</p>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowPaymentDialog(true)}
+                  className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
+                >
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <p className="font-bold text-moodkin-dark text-center text-xs">AI IMAGE</p>
+                  <p className="font-bold text-moodkin-dark text-center text-xs mb-2">GENERATOR</p>
+                  <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Premium feature</p>
+                  <p className="text-[10px] text-moodkin-dark/70 text-center leading-tight">Subscribers only</p>
+                </button>
+              )
             )}
 
             {/* Client Assets - images uploaded by clients only */}
@@ -1328,9 +1349,9 @@ export default function ProjectDetailPage() {
 
         {activeTab === 'creative' && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* AI Image Generator Card - only visible to project owner */}
-            {isOwner && (
-              ownerHasSubscription ? (
+            {/* AI Image Generator Card - visible to creatives with subscription */}
+            {isCreative && (
+              currentUserHasSubscription ? (
                 <button
                   onClick={() => setShowAIImageGenerator(true)}
                   className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
@@ -1494,7 +1515,7 @@ export default function ProjectDetailPage() {
           open={showOwnershipInfoDialog}
           onClose={() => setShowOwnershipInfoDialog(false)}
           isOwner={isOwner}
-          isSubscribed={ownerHasSubscription}
+          isSubscribed={currentUserHasSubscription}
           ownerEmail={projectOwner?.email}
           onSubscribe={() => setShowPaymentDialog(true)}
         />

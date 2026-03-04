@@ -15,6 +15,8 @@ export interface SessionUser {
   subscriptionEndsAt?: string | null
   stripeid?: string | null
   tourDisplayed?: boolean | null
+  aiImagesCount?: number
+  aiCountResetMonth?: string | null
 }
 
 export interface Session {
@@ -96,6 +98,8 @@ export async function getSession(): Promise<Session | null> {
         subscriptionEndsAt: user.subscription_ends_at,
         stripeid: user.stripeid,
         tourDisplayed: user.tour_displayed,
+        aiImagesCount: user.ai_images_count,
+        aiCountResetMonth: user.ai_count_reset_month,
       },
       expiresAt: sessionData.expiresAt,
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Wand2, Loader2, Plus, Sparkles } from 'lucide-react'
+import { X, Wand2, Loader2, Plus, Sparkles, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 
@@ -14,8 +14,9 @@ interface AIImageGeneratorProps {
 
 interface AIImageCount {
   count: number
+  limit: number
   month: string
-  ownerName: string
+  quotaExceeded: boolean
 }
 
 const STYLE_PRESETS = [
@@ -58,16 +59,19 @@ export function AIImageGenerator({
   const [isSaving, setIsSaving] = useState(false)
   const [aiImageCount, setAiImageCount] = useState<AIImageCount | null>(null)
   const [isLoadingCount, setIsLoadingCount] = useState(false)
+  const [showQuotaExceeded, setShowQuotaExceeded] = useState(false)
 
   // Function to fetch AI image count
   const fetchAIImageCount = async () => {
-    if (!conversationId) return
     setIsLoadingCount(true)
     try {
-      const res = await fetch(`/api/user/ai-image-count?conversationId=${conversationId}`)
+      const res = await fetch('/api/user/ai-image-count')
       if (res.ok) {
         const data = await res.json()
         setAiImageCount(data)
+        if (data.quotaExceeded) {
+          setShowQuotaExceeded(true)
+        }
       } else {
         console.error('Failed to fetch AI image count:', res.status)
       }
@@ -80,13 +84,12 @@ export function AIImageGenerator({
 
   // Fetch AI image count when dialog opens
   useEffect(() => {
-    console.log('AIImageGenerator useEffect - open:', open, 'conversationId:', conversationId)
-    if (open && conversationId) {
-      console.log('Fetching AI image count...')
+    if (open) {
       fetchAIImageCount()
+      setShowQuotaExceeded(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, conversationId])
+  }, [open])
 
   // Must be after all hooks
   if (!open) return null
@@ -108,7 +111,22 @@ export function AIImageGenerator({
       const data = await res.json()
 
       if (!res.ok) {
+        // Check for quota exceeded error
+        if (data.error === 'QUOTA_EXCEEDED') {
+          setShowQuotaExceeded(true)
+          setAiImageCount(prev => prev ? { ...prev, count: data.count, quotaExceeded: true } : null)
+          return
+        }
         throw new Error(data.error || 'Failed to generate image')
+      }
+
+      // Update the count from response
+      if (data.aiImageCount !== undefined) {
+        setAiImageCount(prev => prev ? {
+          ...prev,
+          count: data.aiImageCount,
+          quotaExceeded: data.aiImageCount >= (prev.limit || 100)
+        } : null)
       }
 
       setGeneratedImage({
@@ -165,12 +183,81 @@ export function AIImageGenerator({
     setSize('1024x1024')
     setGeneratedImage(null)
     setError(null)
+    setShowQuotaExceeded(false)
     onClose()
   }
 
   const handleGenerateAnother = () => {
     setGeneratedImage(null)
     setError(null)
+  }
+
+  // Quota exceeded view
+  if (showQuotaExceeded && aiImageCount) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={handleClose}
+        />
+
+        {/* Modal */}
+        <div className="relative w-full max-w-md bg-moodkin-cream rounded-3xl shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between p-5 border-b border-moodkin-light-gray">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <h2 className="font-bold text-moodkin-dark text-lg">Monthly Quota Reached</h2>
+            </div>
+            <button
+              onClick={handleClose}
+              className="p-2 text-moodkin-gray hover:text-moodkin-dark rounded-full hover:bg-moodkin-light-gray/50 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 text-center">
+            <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-10 h-10 text-amber-600" />
+            </div>
+            <h3 className="text-xl font-bold text-moodkin-dark mb-2">
+              You&apos;ve created {aiImageCount.limit} images
+            </h3>
+            <p className="text-moodkin-gray mb-4">
+              You&apos;ve consumed your AI image quota for {aiImageCount.month}.
+              Your quota will reset at the beginning of next month.
+            </p>
+            <div className="bg-moodkin-cream/50 rounded-xl p-4 mb-6">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-moodkin-gray">Images used</span>
+                <span className="font-bold text-moodkin-dark">{aiImageCount.count} / {aiImageCount.limit}</span>
+              </div>
+              <div className="mt-2 h-2 bg-moodkin-light-gray rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-5 border-t border-moodkin-light-gray bg-moodkin-cream/50">
+            <Button
+              onClick={handleClose}
+              className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold"
+            >
+              Got it
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -195,7 +282,7 @@ export function AIImageGenerator({
                 <p className="text-sm text-moodkin-gray">Loading...</p>
               ) : aiImageCount !== null ? (
                 <p className="text-sm text-moodkin-gray">
-                  {aiImageCount.count} images generated this month for {aiImageCount.ownerName}
+                  {aiImageCount.count} / {aiImageCount.limit} images this month
                 </p>
               ) : (
                 <p className="text-sm text-moodkin-gray">Create unique images with AI</p>

@@ -38,8 +38,8 @@ export function OwnershipInfoDialog({
         </h2>
         <p className="text-moodkin-gray mb-6">
           {isOwner
-            ? "As the owner, your subscription status determines what features all participants can access."
-            : `This project is owned by ${ownerEmail || 'another user'}. The owner's subscription determines available features.`
+            ? "As the owner, you manage this project. Your subscription unlocks premium features for yourself."
+            : `This project is owned by ${ownerEmail || 'another user'}. Subscribe to unlock premium features like AI image generation.`
           }
         </p>
 
@@ -109,10 +109,16 @@ export function OwnershipInfoDialog({
           </Button>
         )}
 
-        {!isOwner && !isSubscribed && (
-          <p className="text-xs text-moodkin-gray mt-2">
-            Contact the project owner to upgrade for premium features.
-          </p>
+        {!isOwner && !isSubscribed && onSubscribe && (
+          <Button
+            onClick={() => {
+              onClose()
+              onSubscribe()
+            }}
+            className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold"
+          >
+            Subscribe to Unlock Premium
+          </Button>
         )}
       </div>
     </Dialog>

@@ -159,6 +159,8 @@ export async function POST(request: NextRequest) {
         const customerId = invoice.customer as string
 
         // Mark subscription as expired due to payment failure
+        // Note: subscription_ends_at is already at/past current time since Stripe
+        // charges at the end of the billing period
         const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer
         if (customer.email) {
           await supabase

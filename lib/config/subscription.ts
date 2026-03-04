@@ -62,3 +62,52 @@ export function isSubscriptionActive(
   const endsAt = new Date(subscriptionEndsAt)
   return endsAt > new Date()
 }
+
+// Subscription state for UI messaging
+export type SubscriptionState =
+  | { status: 'none' }  // Never subscribed
+  | { status: 'active'; endsAt: Date }  // Active and auto-renewing
+  | { status: 'cancelled'; endsAt: Date }  // Cancelled but still has access until endsAt
+  | { status: 'expired' }  // Payment failed or subscription ended
+
+export function getSubscriptionState(
+  stripeid: string | null | undefined,
+  subscriptionEndsAt: string | null | undefined,
+  subscriptionStatus: string | null | undefined
+): SubscriptionState {
+  // Never had a subscription
+  if (!stripeid || !stripeid.startsWith('cus_')) {
+    return { status: 'none' }
+  }
+
+  // No end date set - treat as none
+  if (!subscriptionEndsAt) {
+    return { status: 'none' }
+  }
+
+  const endsAt = new Date(subscriptionEndsAt)
+  const now = new Date()
+
+  // Subscription has ended
+  if (endsAt <= now) {
+    return { status: 'expired' }
+  }
+
+  // Still has access - check if cancelled or active
+  if (subscriptionStatus === 'cancelled') {
+    return { status: 'cancelled', endsAt }
+  }
+
+  if (subscriptionStatus === 'expired') {
+    // Payment failed but somehow ends_at is still in future (shouldn't happen after fix)
+    return { status: 'expired' }
+  }
+
+  return { status: 'active', endsAt }
+}
+
+// Get current month string in YYYY-MM format for AI image count reset tracking
+export function getCurrentMonthString(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
