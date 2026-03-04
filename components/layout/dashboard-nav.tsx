@@ -17,10 +17,12 @@ import {
   Loader2,
   HelpCircle,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Dialog } from '@/components/ui/dialog'
+import { useToast } from '@/components/ui/toast'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
@@ -43,6 +45,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { restartOnboarding } = useOnboarding()
+  const { showToast } = useToast()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
@@ -252,6 +255,45 @@ export function DashboardNav({ user }: DashboardNavProps) {
 
       {/* Push notification prompt */}
       <PushNotificationPrompt />
+
+      {/* Subscription Warning Banner */}
+      {subscriptionState.status === 'expired' && (
+        <div className="bg-red-500 text-white px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <p className="text-sm">
+                Your subscription has ended. You have not been billed.
+              </p>
+            </div>
+            <button
+              onClick={() => setPaymentDialogOpen(true)}
+              className="px-3 py-1 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
+            >
+              Resubscribe
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subscriptionState.status === 'cancelled' && (
+        <div className="bg-amber-500 text-white px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <p className="text-sm">
+                Your subscription is cancelled. Access ends {subscriptionState.endsAt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}.
+              </p>
+            </div>
+            <button
+              onClick={() => setPaymentDialogOpen(true)}
+              className="px-3 py-1 bg-white text-amber-600 text-sm font-medium rounded-lg hover:bg-amber-50 transition-colors flex-shrink-0"
+            >
+              Resubscribe
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* User Profile Dialog */}
       <Dialog open={profileDialogOpen} onClose={() => setProfileDialogOpen(false)}>

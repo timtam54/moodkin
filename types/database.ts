@@ -28,12 +28,13 @@ export interface Database {
           notes: string | null
           auth_provider: string | null
           auth_provider_id: string | null
-          stripe_customer_id: string | null
           stripeid: string | null
           subscription_status: SubscriptionStatus
           subscription_ends_at: string | null
           creative_client: CreativeClientType | null
           tour_displayed: boolean | null
+          ai_images_count: number
+          ai_count_reset_month: string | null
           created_at: string
           updated_at: string
         }
@@ -47,12 +48,13 @@ export interface Database {
           notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
-          stripe_customer_id?: string | null
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
           tour_displayed?: boolean | null
+          ai_images_count?: number
+          ai_count_reset_month?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -66,12 +68,13 @@ export interface Database {
           notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
-          stripe_customer_id?: string | null
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
           creative_client?: CreativeClientType | null
           tour_displayed?: boolean | null
+          ai_images_count?: number
+          ai_count_reset_month?: string | null
           created_at?: string
           updated_at?: string
         }
