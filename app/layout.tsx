@@ -22,13 +22,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icons/icon-72.png', sizes: '72x72', type: 'image/png' },
-      { url: '/icons/icon-96.png', sizes: '96x96', type: 'image/png' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons-pwa/icon-72.png', sizes: '72x72', type: 'image/png' },
+      { url: '/icons-pwa/icon-96.png', sizes: '96x96', type: 'image/png' },
+      { url: '/icons-pwa/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
     apple: [
-      { url: '/icons/icon-152.png', sizes: '152x152', type: 'image/png' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons-pwa/icon-152.png', sizes: '152x152', type: 'image/png' },
+      { url: '/icons-pwa/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
   },
 }
@@ -50,7 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons-pwa/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>

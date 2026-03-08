@@ -14,7 +14,7 @@ export interface InshotMoodboardOptions {
   borderRadius: number
   borderWidth: number
   spacing: number
-  rotation: number
+  aspectRatio: string
   frameWidth: number
 }
 
@@ -42,6 +42,15 @@ const FRAME_COLORS = [
   { value: '#FFC0CB', label: 'Pink' },
 ]
 
+const ASPECT_RATIOS = [
+  { id: '1:1', label: '1:1', width: 1, height: 1 },
+  { id: '4:5', label: '4:5', width: 4, height: 5 },
+  { id: '9:16', label: '9:16', width: 9, height: 16 },
+  { id: '16:9', label: '16:9', width: 16, height: 9 },
+  { id: '4:3', label: '4:3', width: 4, height: 3 },
+  { id: '3:4', label: '3:4', width: 3, height: 4 },
+]
+
 export function InshotMoodboardCreator({
   open,
   onClose,
@@ -52,9 +61,9 @@ export function InshotMoodboardCreator({
   const [selectedAssets, setSelectedAssets] = useState<string[]>([])
   const [layout, setLayout] = useState('2x2')
   const [frameColor, setFrameColor] = useState('#FFFFFF')
-  const [rotation, setRotation] = useState(3)
+  const [aspectRatio, setAspectRatio] = useState('1:1')
   const [frameWidth, setFrameWidth] = useState(24)
-  const [step, setStep] = useState<'select' | 'customize'>('select')
+  const [step, setStep] = useState<'select' | 'aspectRatio' | 'customize'>('select')
 
   // Filter to only image assets
   const imageAssets = useMemo(() =>
@@ -93,20 +102,31 @@ export function InshotMoodboardCreator({
       borderRadius: 0,
       borderWidth: frameWidth,
       spacing: 2,
-      rotation,
+      aspectRatio,
       frameWidth,
     }, selectedAssets)
   }
 
-  const handleContinue = () => {
+  const handleContinueToAspectRatio = () => {
     if (selectedAssets.length >= 2) {
-      setStep('customize')
+      setStep('aspectRatio')
     }
   }
 
-  const handleBack = () => {
-    setStep('select')
+  const handleContinueToCustomize = () => {
+    setStep('customize')
   }
+
+  const handleBack = () => {
+    if (step === 'customize') {
+      setStep('aspectRatio')
+    } else if (step === 'aspectRatio') {
+      setStep('select')
+    }
+  }
+
+  // Get current aspect ratio dimensions
+  const currentAspectRatio = ASPECT_RATIOS.find(ar => ar.id === aspectRatio) || ASPECT_RATIOS[0]
 
   const renderInshotPreview = () => {
     if (selectedAssetObjects.length === 0) {
@@ -276,7 +296,7 @@ export function InshotMoodboardCreator({
             <div className="text-white/50 text-xs">Select 2-4 photos</div>
           </div>
           <button
-            onClick={handleContinue}
+            onClick={handleContinueToAspectRatio}
             disabled={selectedAssets.length < 2}
             className="px-4 py-2 text-sm font-medium text-moodkin-dark bg-moodkin-gold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -301,14 +321,14 @@ export function InshotMoodboardCreator({
         </div>
 
         {/* Image Grid */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-2">
           {imageAssets.length === 0 ? (
             <div className="text-center py-12 text-white/50">
               <p>No images available</p>
               <p className="text-sm mt-1">Upload some images first</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1">
               {imageAssets.map((asset, index) => {
                 const isSelected = selectedAssets.includes(asset.id)
                 const selectionIndex = selectedAssets.indexOf(asset.id)
@@ -316,8 +336,8 @@ export function InshotMoodboardCreator({
                   <button
                     key={asset.id}
                     onClick={() => handleToggleAsset(asset.id)}
-                    className={`relative aspect-square rounded-lg overflow-hidden transition-all ${
-                      isSelected ? 'ring-2 ring-moodkin-gold ring-offset-2 ring-offset-[#1a1a1a]' : ''
+                    className={`relative aspect-square rounded-md overflow-hidden transition-all ${
+                      isSelected ? 'ring-2 ring-moodkin-gold ring-offset-1 ring-offset-[#1a1a1a]' : ''
                     }`}
                   >
                     <Image
@@ -327,7 +347,7 @@ export function InshotMoodboardCreator({
                       className="object-cover"
                     />
                     {isSelected && (
-                      <div className="absolute top-1 right-1 w-6 h-6 bg-moodkin-gold rounded-full flex items-center justify-center text-xs font-bold text-moodkin-dark">
+                      <div className="absolute top-0.5 right-0.5 w-5 h-5 bg-moodkin-gold rounded-full flex items-center justify-center text-[10px] font-bold text-moodkin-dark">
                         {selectionIndex + 1}
                       </div>
                     )}
@@ -341,7 +361,80 @@ export function InshotMoodboardCreator({
     )
   }
 
-  // Step 2: Customize
+  // Step 2: Aspect Ratio Selection
+  if (step === 'aspectRatio') {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-[#1a1a1a]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <button
+            onClick={handleBack}
+            className="p-2 text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="text-center">
+            <div className="text-white font-medium">Select Ratio</div>
+            <div className="text-white/50 text-xs">Choose aspect ratio</div>
+          </div>
+          <button
+            onClick={handleContinueToCustomize}
+            className="px-4 py-2 text-sm font-medium text-moodkin-dark bg-moodkin-gold rounded-xl"
+          >
+            Next
+          </button>
+        </div>
+
+        {/* Preview Area */}
+        <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+          <div
+            className="rounded-xl overflow-hidden shadow-2xl bg-white relative"
+            style={{
+              aspectRatio: `${currentAspectRatio.width} / ${currentAspectRatio.height}`,
+              width: currentAspectRatio.width >= currentAspectRatio.height ? 'min(80%, 300px)' : 'auto',
+              height: currentAspectRatio.height > currentAspectRatio.width ? 'min(100%, 400px)' : 'auto',
+            }}
+          >
+            {renderInshotPreview()}
+          </div>
+        </div>
+
+        {/* Aspect Ratio Selector */}
+        <div className="bg-[#2a2a2a] rounded-t-3xl">
+          <div className="p-4 pb-8">
+            <div className="text-white/60 text-xs uppercase tracking-wide mb-3">Aspect Ratio</div>
+            <div className="grid grid-cols-3 gap-3">
+              {ASPECT_RATIOS.map((ar) => (
+                <button
+                  key={ar.id}
+                  onClick={() => setAspectRatio(ar.id)}
+                  className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all ${
+                    aspectRatio === ar.id
+                      ? 'bg-moodkin-gold text-moodkin-dark'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  {/* Visual representation of aspect ratio */}
+                  <div
+                    className={`border-2 mb-2 ${
+                      aspectRatio === ar.id ? 'border-moodkin-dark' : 'border-white/50'
+                    }`}
+                    style={{
+                      width: `${Math.min(40, 40 * (ar.width / Math.max(ar.width, ar.height)))}px`,
+                      height: `${Math.min(40, 40 * (ar.height / Math.max(ar.width, ar.height)))}px`,
+                    }}
+                  />
+                  <span className="text-sm font-medium">{ar.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 3: Customize
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#1a1a1a]">
       {/* Header */}
@@ -366,12 +459,13 @@ export function InshotMoodboardCreator({
       </div>
 
       {/* Preview Area */}
-      <div className="flex-1 flex items-center justify-center p-8 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
         <div
-          className="w-full max-w-xs aspect-square rounded-xl overflow-hidden shadow-2xl"
+          className="rounded-xl overflow-hidden shadow-2xl relative"
           style={{
-            transform: `rotate(${rotation}deg)`,
-            transition: 'transform 0.3s ease',
+            aspectRatio: `${currentAspectRatio.width} / ${currentAspectRatio.height}`,
+            width: currentAspectRatio.width >= currentAspectRatio.height ? 'min(80%, 300px)' : 'auto',
+            height: currentAspectRatio.height > currentAspectRatio.width ? 'min(100%, 400px)' : 'auto',
           }}
         >
           {renderInshotPreview()}
@@ -399,19 +493,6 @@ export function InshotMoodboardCreator({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Rotation Slider */}
-          <div className="space-y-2">
-            <div className="text-white/60 text-xs uppercase tracking-wide">Tilt: {rotation}°</div>
-            <input
-              type="range"
-              min="-15"
-              max="15"
-              value={rotation}
-              onChange={(e) => setRotation(Number(e.target.value))}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-            />
           </div>
 
           {/* Frame Width Slider */}

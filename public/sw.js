@@ -1,11 +1,11 @@
-const CACHE_NAME = 'moodkin-v2';
+const CACHE_NAME = 'moodkin-v3';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  '/icons-pwa/icon-192.png',
+  '/icons-pwa/icon-512.png',
   '/logo.png',
   '/darklogo.png',
 ];
@@ -84,8 +84,8 @@ self.addEventListener('push', (event) => {
 
     const options = {
       body: data.body || 'New message',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-72.png',
+      icon: '/icons-pwa/icon-192.png',
+      badge: '/icons-pwa/icon-72.png',
       data: {
         conversationId: data.conversationId,
       },
