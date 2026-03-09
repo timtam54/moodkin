@@ -855,12 +855,11 @@ export function InshotMoodboardCreator({
                     onClick={() => setCollageType(type.id)}
                     className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
                       collageType === type.id
-                        ? 'bg-white/15 ring-2'
+                        ? 'bg-white/15'
                         : 'bg-white/5 hover:bg-white/10'
                     }`}
                     style={{
-                      borderColor: collageType === type.id ? type.color : 'transparent',
-                      ringColor: type.color,
+                      boxShadow: collageType === type.id ? `0 0 0 2px ${type.color}` : 'none',
                     }}
                   >
                     <div
