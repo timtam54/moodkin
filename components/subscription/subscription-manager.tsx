@@ -93,7 +93,6 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   }
 
   const handleSubscribe = () => {
-    onClose?.()
     setPaymentDialogOpen(true)
   }
 
@@ -239,7 +238,7 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
                 className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
               >
                 <Crown className="w-4 h-4" />
-                Subscribe Now - {formatPrice()}/month
+                Subscribe now - {formatPrice()}/month
               </button>
             </>
           )}
@@ -254,7 +253,7 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
                 className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
               >
                 <Crown className="w-4 h-4" />
-                Subscribe Now - {formatPrice()}/month
+                Subscribe now - {formatPrice()}/month
               </button>
             </>
           )}
