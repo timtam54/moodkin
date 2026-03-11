@@ -25,7 +25,7 @@ interface SubscriptionManagerProps {
 
 export function SubscriptionManager({ onClose, showProfileActions = true }: SubscriptionManagerProps) {
   const router = useRouter()
-  const { session } = useSession()
+  const { session, refetch } = useSession()
   const { restartOnboarding } = useOnboarding()
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
@@ -63,6 +63,7 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
         body: JSON.stringify({ stripeid: customerId }),
       })
       if (response.ok) {
+        await refetch()
         router.refresh()
       }
     } catch (error) {
