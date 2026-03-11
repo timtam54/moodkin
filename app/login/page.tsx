@@ -106,9 +106,7 @@ function LoginContent() {
         {/* Help link */}
         <p className="text-center text-sm text-moodkin-gray mt-6">
           Need help?{' '}
-          <a href="#" className="text-moodkin-dark underline underline-offset-4">
-            Contact support
-          </a>
+          <a href="mailto:hello@moodkinstudio.com" className="underline hover:text-moodkin-pink transition-colors" >hello@moodkinstudio.com</a>
         </p>
       </div>
     </div>

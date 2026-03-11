@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useOnboarding } from '@/hooks/use-onboarding'
+import { SubscriptionManager } from '@/components/subscription/subscription-manager'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -183,31 +184,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="p-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-moodkin-cream/50 to-moodkin-cream/30">
-              <div>
-                <p className="font-medium text-moodkin-dark">Current Plan</p>
-                <p className="text-sm text-moodkin-gray capitalize">
-                  {session?.user.subscriptionStatus === 'trial' && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      Trial
-                    </span>
-                  )}
-                  {session?.user.subscriptionStatus === 'active' && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      Active
-                    </span>
-                  )}
-                  {!session?.user.subscriptionStatus && 'Free'}
-                </p>
-              </div>
-              {session?.user.subscriptionStatus === 'trial' && (
-                <Button className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-full px-6">
-                  Upgrade
-                </Button>
-              )}
-            </div>
+            <SubscriptionManager showProfileActions={false} />
           </div>
         </div>
 
@@ -241,7 +218,13 @@ export default function SettingsPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-moodkin-gray">
-          Need help? Contact support@moodkin.com
+          Need help? Contact{" "}
+          <a
+            href="mailto:hello@moodkinstudio.com"
+            className="underline hover:text-moodkin-pink transition-colors"
+          >
+            hello@moodkinstudio.com
+          </a>
         </p>
       </div>
     </div>
