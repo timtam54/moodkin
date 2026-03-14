@@ -61,6 +61,14 @@ const ASPECT_RATIOS: { value: AspectRatioType; label: string; icon: React.ReactN
   },
 ]
 
+const STEPS: { id: StepType; label: string; description: string }[] = [
+  { id: 'aspect', label: 'Aspect', description: 'Choose the output aspect ratio for your moodboard' },
+  { id: 'gallery', label: 'Gallery', description: 'Select photos to include in your moodboard' },
+  { id: 'layout', label: 'Layout', description: 'Choose auto-suggested layouts or set a manual grid' },
+  { id: 'position', label: 'Position', description: 'Drag and drop images to rearrange their order' },
+  { id: 'border', label: 'Border', description: 'Customize spacing, corners, and background color' },
+]
+
 const DEFAULT_BACKGROUND_COLORS = [
   { value: '#FFFFFF', label: 'White' },
   { value: '#F5F5F0', label: 'Cream' },
@@ -1256,39 +1264,42 @@ export function ManualMoodboardCreator({
               </div>
             </div>
 
-            {/* Right side - Controls panel */}
-            <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
-              {/* Step tabs */}
-              <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
-                <button
-                  onClick={() => goToStep('aspect')}
-                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
-                >
-                  Aspect
-                </button>
-                <button
-                  onClick={() => goToStep('gallery')}
-                  className="text-sm font-medium transition-colors text-white"
-                >
-                  Gallery
-                </button>
-                <button
-                  onClick={() => goToStep('layout')}
-                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
-                >
-                  Layout
-                </button>
+            {/* Right side - Step navigation panel */}
+            <div className="w-72 bg-[#252525] flex flex-col">
+              {/* Vertical step list */}
+              <div className="flex-shrink-0">
+                {STEPS.map((step, index) => {
+                  const isActive = currentStep === step.id
+                  const isPast = steps.indexOf(step.id) < currentStepIndex
+                  return (
+                    <button
+                      key={step.id}
+                      onClick={() => goToStep(step.id)}
+                      className={`w-full text-left p-4 border-l-4 transition-all ${
+                        isActive ? 'bg-white/10 border-moodkin-gold' : isPast ? 'border-moodkin-gold/50 hover:bg-white/5' : 'border-transparent hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          isActive ? 'bg-moodkin-gold text-black' : isPast ? 'bg-moodkin-gold/50 text-black' : 'bg-white/20 text-white/50'
+                        }`}>{index + 1}</div>
+                        <span className={`font-medium ${isActive ? 'text-white' : 'text-white/70'}`}>{step.label}</span>
+                      </div>
+                      {isActive && <p className="text-white/50 text-sm mt-2 ml-9">{step.description}</p>}
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Step content */}
-              <div className="flex-1">
+              <div className="flex-1 border-t border-white/10 p-4 overflow-y-auto">
                 <p className="text-white/50 text-sm">
                   Click photos to select or deselect them for your moodboard.
                 </p>
               </div>
 
               {/* Action buttons */}
-              <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+              <div className="p-4 border-t border-white/10 flex gap-2">
                 <Button
                   variant="outline"
                   onClick={() => goToStep('aspect')}
@@ -1300,7 +1311,7 @@ export function ManualMoodboardCreator({
                   variant="primary"
                   onClick={() => goToStep('layout')}
                   disabled={!canProceed}
-                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                  className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />
@@ -1331,30 +1342,40 @@ export function ManualMoodboardCreator({
             </div>
           </div>
 
-          {/* Right side - Controls */}
-          <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
-            {/* Step tabs */}
-            <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
-              {['layout', 'position', 'border'].map((step) => (
-                <button
-                  key={step}
-                  onClick={() => goToStep(step as StepType)}
-                  className={`text-sm font-medium capitalize transition-colors ${
-                    currentStep === step ? 'text-white' : 'text-white/50 hover:text-white/70'
-                  }`}
-                >
-                  {step}
-                </button>
-              ))}
+          {/* Right side - Step navigation panel */}
+          <div className="w-72 bg-[#252525] flex flex-col">
+            {/* Vertical step list */}
+            <div className="flex-shrink-0">
+              {STEPS.map((step, index) => {
+                const isActive = currentStep === step.id
+                const isPast = steps.indexOf(step.id) < currentStepIndex
+                return (
+                  <button
+                    key={step.id}
+                    onClick={() => goToStep(step.id)}
+                    className={`w-full text-left p-4 border-l-4 transition-all ${
+                      isActive ? 'bg-white/10 border-moodkin-gold' : isPast ? 'border-moodkin-gold/50 hover:bg-white/5' : 'border-transparent hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        isActive ? 'bg-moodkin-gold text-black' : isPast ? 'bg-moodkin-gold/50 text-black' : 'bg-white/20 text-white/50'
+                      }`}>{index + 1}</div>
+                      <span className={`font-medium ${isActive ? 'text-white' : 'text-white/70'}`}>{step.label}</span>
+                    </div>
+                    {isActive && <p className="text-white/50 text-sm mt-2 ml-9">{step.description}</p>}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Step controls */}
-            <div className="flex-1">
+            <div className="flex-1 border-t border-white/10 p-4 overflow-y-auto">
               {renderStepControls()}
             </div>
 
             {/* Action buttons */}
-            <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+            <div className="p-4 border-t border-white/10 flex gap-2">
               <Button
                 variant="outline"
                 onClick={() => goToStep(steps[currentStepIndex - 1])}
@@ -1366,7 +1387,7 @@ export function ManualMoodboardCreator({
                 variant="primary"
                 onClick={isLastStep ? handleCreate : () => goToStep(steps[currentStepIndex + 1])}
                 disabled={isLoading || !canProceed}
-                className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
               >
                 {isLoading ? (
                   <>
@@ -1374,7 +1395,7 @@ export function ManualMoodboardCreator({
                     Creating...
                   </>
                 ) : isLastStep ? (
-                  'Create Moodboard'
+                  'Create'
                 ) : (
                   <>
                     Next
@@ -1510,43 +1531,46 @@ export function ManualMoodboardCreator({
               </div>
             </div>
 
-            {/* Right side - Controls panel */}
-            <div className="w-80 bg-[#2a2a2a] p-6 overflow-y-auto flex flex-col">
-              {/* Step tabs */}
-              <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
-                <button
-                  onClick={() => goToStep('aspect')}
-                  className="text-sm font-medium transition-colors text-white"
-                >
-                  Aspect
-                </button>
-                <button
-                  onClick={() => goToStep('gallery')}
-                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
-                >
-                  Gallery
-                </button>
-                <button
-                  onClick={() => goToStep('layout')}
-                  className="text-sm font-medium transition-colors text-white/50 hover:text-white/70"
-                >
-                  Layout
-                </button>
+            {/* Right side - Step navigation panel */}
+            <div className="w-72 bg-[#252525] flex flex-col">
+              {/* Vertical step list */}
+              <div className="flex-shrink-0">
+                {STEPS.map((step, index) => {
+                  const isActive = currentStep === step.id
+                  const isPast = steps.indexOf(step.id) < currentStepIndex
+                  return (
+                    <button
+                      key={step.id}
+                      onClick={() => goToStep(step.id)}
+                      className={`w-full text-left p-4 border-l-4 transition-all ${
+                        isActive ? 'bg-white/10 border-moodkin-gold' : isPast ? 'border-moodkin-gold/50 hover:bg-white/5' : 'border-transparent hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          isActive ? 'bg-moodkin-gold text-black' : isPast ? 'bg-moodkin-gold/50 text-black' : 'bg-white/20 text-white/50'
+                        }`}>{index + 1}</div>
+                        <span className={`font-medium ${isActive ? 'text-white' : 'text-white/70'}`}>{step.label}</span>
+                      </div>
+                      {isActive && <p className="text-white/50 text-sm mt-2 ml-9">{step.description}</p>}
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Step content */}
-              <div className="flex-1">
+              <div className="flex-1 border-t border-white/10 p-4 overflow-y-auto">
                 <p className="text-white/50 text-sm">
                   Select the shape for your moodboard output.
                 </p>
               </div>
 
               {/* Action buttons */}
-              <div className="pt-4 mt-4 border-t border-white/10 flex gap-3">
+              <div className="p-4 border-t border-white/10 flex gap-2">
                 <Button
                   variant="primary"
                   onClick={() => goToStep('gallery')}
-                  className="flex-1 py-3 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
+                  className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
                 >
                   Next
                   <ChevronRight className="w-4 h-4 ml-2" />

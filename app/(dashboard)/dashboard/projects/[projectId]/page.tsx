@@ -20,9 +20,7 @@ import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
 import { AssetPickerDialog } from '@/components/assets/asset-picker-dialog'
 import { MoodboardCreatorDialog, type MoodboardOptions, type RankedAsset } from '@/components/moodboard/moodboard-creator-dialog'
-import { MoodboardModeSelector, type MoodboardMode } from '@/components/moodboard/moodboard-mode-selector'
 import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
-import { InshotMoodboardCreator, type InshotMoodboardOptions } from '@/components/moodboard/inshot-moodboard-creator'
 import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
 import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
 import { OwnershipInfoDialog } from '@/components/subscription/ownership-info-dialog'
@@ -97,9 +95,7 @@ export default function ProjectDetailPage() {
   const [showCreativePicker, setShowCreativePicker] = useState(false)
   const [isSelectingCreative, setIsSelectingCreative] = useState(false)
   const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
-  const [showMoodboardModeSelector, setShowMoodboardModeSelector] = useState(false)
   const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
-  const [showInshotCreator, setShowInshotCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
   const [showOwnershipInfoDialog, setShowOwnershipInfoDialog] = useState(false)
@@ -436,17 +432,9 @@ export default function ProjectDetailPage() {
   }
 
   const handleOpenMoodboardCreator = () => {
-    setShowMoodboardModeSelector(true)
+    setShowManualMoodboardCreator(true)
   }
 
-  const handleSelectMoodboardMode = (mode: MoodboardMode) => {
-    setShowMoodboardModeSelector(false)
-    if (mode === 'automatic') {
-      setShowMoodboardCreator(true)
-    } else if (mode === 'manual') {
-      setShowManualMoodboardCreator(true)
-    }
-  }
 
   const handleCreateMoodboard = async (options: MoodboardOptions) => {
     setIsCreatingMoodboard(true)
@@ -487,27 +475,6 @@ export default function ProjectDetailPage() {
       setActiveTab('moodboards')
     } catch (error) {
       console.error('Failed to create moodboard:', error)
-      alert(error instanceof Error ? error.message : 'Failed to create moodboard')
-    } finally {
-      setIsCreatingMoodboard(false)
-    }
-  }
-
-  const handleCreateInshotMoodboard = async (options: InshotMoodboardOptions, selectedAssetIds: string[]) => {
-    setIsCreatingMoodboard(true)
-    try {
-      await createMoodboard.mutateAsync({
-        backgroundColor: options.backgroundColor,
-        gridLayout: options.gridLayout,
-        borderRadius: options.borderRadius,
-        spacing: options.spacing,
-        mode: 'manual',
-        selectedAssetIds: selectedAssetIds,
-      })
-      setShowInshotCreator(false)
-      setActiveTab('moodboards')
-    } catch (error) {
-      console.error('Failed to create InShot moodboard:', error)
       alert(error instanceof Error ? error.message : 'Failed to create moodboard')
     } finally {
       setIsCreatingMoodboard(false)
@@ -1461,13 +1428,6 @@ export default function ProjectDetailPage() {
           isLoading={isSelectingCreative}
         />
 
-        {/* Moodboard Mode Selector */}
-        <MoodboardModeSelector
-          open={showMoodboardModeSelector}
-          onClose={() => setShowMoodboardModeSelector(false)}
-          onSelectMode={handleSelectMoodboardMode}
-        />
-
         {/* Moodboard Creator Dialog (Automatic) */}
         <MoodboardCreatorDialog
           open={showMoodboardCreator}
@@ -1482,15 +1442,6 @@ export default function ProjectDetailPage() {
           open={showManualMoodboardCreator}
           onClose={() => setShowManualMoodboardCreator(false)}
           onCreate={handleCreateManualMoodboard}
-          assets={assets || []}
-          isLoading={isCreatingMoodboard}
-        />
-
-        {/* InShot Moodboard Creator */}
-        <InshotMoodboardCreator
-          open={showInshotCreator}
-          onClose={() => setShowInshotCreator(false)}
-          onCreate={handleCreateInshotMoodboard}
           assets={assets || []}
           isLoading={isCreatingMoodboard}
         />
@@ -1759,14 +1710,6 @@ export default function ProjectDetailPage() {
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Moodboard
-                </Button>
-                <Button
-                  onClick={() => setShowInshotCreator(true)}
-                  disabled={isCreatingMoodboard}
-                  className="bg-white hover:bg-moodkin-cream text-moodkin-dark font-semibold rounded-xl border border-moodkin-light-gray"
-                >
-                  <Layout className="w-4 h-4 mr-2" />
-                  Create InShot
                 </Button>
                 <button
                   onClick={() => setShowMoodboardHelp(true)}
