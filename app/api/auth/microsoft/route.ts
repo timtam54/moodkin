@@ -9,14 +9,9 @@ export async function GET(request: NextRequest) {
   // Don't encode here - URLSearchParams will handle encoding
   const state = returnUrl || ''
 
-  // Get the base URL from the request
-  const protocol = request.headers.get('x-forwarded-proto') || 'http'
-  const host = request.headers.get('host') || 'localhost:3000'
-  const baseUrl = `${protocol}://${host}`
-
   const params = new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_AZURE_AD_CLIENT_ID!,
-    redirect_uri: `${baseUrl}/api/auth/microsoft/callback`,
+    redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/microsoft/callback`,
     response_type: 'code',
     scope: 'openid profile email User.Read',
     response_mode: 'query',

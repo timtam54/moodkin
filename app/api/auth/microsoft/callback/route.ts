@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const redirectUri = `${request.nextUrl.origin}/api/auth/microsoft/callback`
+    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/microsoft/callback`
 
     // Exchange code for tokens
     const tokens = await exchangeMicrosoftCode(code, redirectUri)

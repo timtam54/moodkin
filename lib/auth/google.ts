@@ -42,7 +42,7 @@ export async function exchangeGoogleCode(code: string): Promise<GoogleTokenRespo
       code,
       client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: `${process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`,
+      redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`,
       grant_type: 'authorization_code',
     }),
   })
