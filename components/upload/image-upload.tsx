@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { upload } from '@vercel/blob/client'
-import { Upload, X, Loader2, ImageIcon } from 'lucide-react'
+import { X, Loader2, ImageIcon } from 'lucide-react'
+import { uploadFile } from '@/lib/supabase/storage'
 
 interface ImageUploadProps {
   onUploadComplete?: (url: string) => void
@@ -46,16 +46,12 @@ export function ImageUpload({
     }
     reader.readAsDataURL(file)
 
-    // Upload to Vercel Blob
+    // Upload directly to Supabase Storage
     setIsUploading(true)
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      })
-
-      setUploadedUrl(blob.url)
-      onUploadComplete?.(blob.url)
+      const url = await uploadFile(file)
+      setUploadedUrl(url)
+      onUploadComplete?.(url)
     } catch (error) {
       console.error('Upload failed:', error)
       onError?.('Failed to upload image')

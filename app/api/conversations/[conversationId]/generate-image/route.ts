@@ -3,8 +3,9 @@ import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { isProjectMember } from '@/lib/auth/project-access'
 import { isSubscriptionActive, subscriptionConfig, getCurrentMonthString } from '@/lib/config/subscription'
-import { put } from '@vercel/blob'
 import OpenAI from 'openai'
+
+const BUCKET_NAME = 'assets'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -98,19 +99,33 @@ export async function POST(
 
       const imageBuffer = await imageResponse.arrayBuffer()
       const filename = `ai-generated-${Date.now()}.png`
+      const storagePath = `images/${filename}`
 
-      // Upload to Vercel Blob
-      const blob = await put(filename, imageBuffer, {
-        access: 'public',
-        contentType: 'image/png',
-      })
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(storagePath, Buffer.from(imageBuffer), {
+          contentType: 'image/png',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error('Failed to upload to storage:', uploadError)
+        return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 })
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(storagePath)
+
+      const imageUrl2 = urlData.publicUrl
 
       // Save to project assets
       const { data: asset, error: assetError } = await supabase
         .from('project_assets')
         .insert({
           conversation_id: conversationId,
-          url: blob.url,
+          url: imageUrl2,
           filename: filename,
           asset_type: 'image',
           title: prompt.slice(0, 100),
@@ -127,7 +142,7 @@ export async function POST(
       }
 
       return NextResponse.json({
-        url: blob.url,
+        url: imageUrl2,
         saved: true,
         asset,
       })
@@ -184,19 +199,33 @@ export async function POST(
 
       const imageBuffer = await imageResponse.arrayBuffer()
       const filename = `ai-generated-${Date.now()}.png`
+      const storagePath = `images/${filename}`
 
-      // Upload to Vercel Blob
-      const blob = await put(filename, imageBuffer, {
-        access: 'public',
-        contentType: 'image/png',
-      })
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(storagePath, Buffer.from(imageBuffer), {
+          contentType: 'image/png',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error('Failed to upload to storage:', uploadError)
+        return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 })
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(storagePath)
+
+      const savedImageUrl = urlData.publicUrl
 
       // Save to project assets
       const { data: asset, error: assetError } = await supabase
         .from('project_assets')
         .insert({
           conversation_id: conversationId,
-          url: blob.url,
+          url: savedImageUrl,
           filename: filename,
           asset_type: 'image',
           title: prompt.slice(0, 100),
@@ -213,7 +242,7 @@ export async function POST(
       }
 
       return NextResponse.json({
-        url: blob.url,
+        url: savedImageUrl,
         revisedPrompt,
         saved: true,
         asset,

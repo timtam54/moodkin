@@ -2,8 +2,8 @@
 
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { upload } from '@vercel/blob/client'
 import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info } from 'lucide-react'
+import { uploadFile } from '@/lib/supabase/storage'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
 import { useMoodboards, useCreateMoodboard, useDeleteMoodboard } from '@/hooks/use-moodboards'
@@ -289,15 +289,12 @@ export default function ProjectDetailPage() {
     setIsUploading(true)
     try {
       for (const file of Array.from(files)) {
-        // Upload to Vercel Blob
-        const blob = await upload(file.name, file, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-        })
+        // Upload directly to Supabase Storage
+        const url = await uploadFile(file)
 
         // Save to database with user info
         const asset = await createAsset.mutateAsync({
-          url: blob.url,
+          url,
           filename: file.name,
         })
 

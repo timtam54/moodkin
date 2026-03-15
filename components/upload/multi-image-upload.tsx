@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { upload } from '@vercel/blob/client'
 import { Plus, X, Loader2, ImageIcon } from 'lucide-react'
+import { uploadFile } from '@/lib/supabase/storage'
 
 interface UploadedImage {
   id: string
@@ -45,24 +45,21 @@ export function MultiImageUpload({
   )
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const uploadFile = async (pending: PendingUpload) => {
+  const uploadSingleFile = async (pending: PendingUpload) => {
     try {
       setUploads((prev) =>
         prev.map((u) => (u.id === pending.id ? { ...u, progress: 'uploading' } : u))
       )
 
-      const blob = await upload(pending.file.name, pending.file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      })
+      const url = await uploadFile(pending.file)
 
       setUploads((prev) =>
         prev.map((u) =>
-          u.id === pending.id ? { ...u, progress: 'complete', url: blob.url } : u
+          u.id === pending.id ? { ...u, progress: 'complete', url } : u
         )
       )
 
-      return blob.url
+      return url
     } catch (error) {
       console.error('Upload failed:', error)
       setUploads((prev) =>
@@ -101,7 +98,7 @@ export function MultiImageUpload({
     setUploads((prev) => [...prev, ...validFiles])
 
     // Upload all files
-    const uploadPromises = validFiles.map((pending) => uploadFile(pending))
+    const uploadPromises = validFiles.map((pending) => uploadSingleFile(pending))
     await Promise.all(uploadPromises)
 
     // Notify parent of completed uploads

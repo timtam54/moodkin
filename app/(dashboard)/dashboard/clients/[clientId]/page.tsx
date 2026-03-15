@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, Phone, MapPin, Camera, Loader2, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { upload } from '@vercel/blob/client'
 import { Button } from '@/components/ui/button'
+import { uploadFile } from '@/lib/supabase/storage'
 import { EditClientDialog } from '@/components/clients/edit-client-dialog'
 import { useClient, useUpdateClient, useClientProjects } from '@/hooks/use-clients'
 import { useToast } from '@/components/ui/toast'
@@ -37,13 +37,10 @@ export default function ClientDetailPage() {
 
     setIsUploadingPhoto(true)
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      })
+      const url = await uploadFile(file)
 
       updateClient.mutate(
-        { avatar_url: blob.url },
+        { avatar_url: url },
         {
           onSuccess: () => {
             showToast('Photo updated successfully', 'success')

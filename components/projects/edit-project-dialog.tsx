@@ -5,8 +5,8 @@ import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Camera, Loader2, User } from 'lucide-react'
-import { upload } from '@vercel/blob/client'
 import Image from 'next/image'
+import { uploadFile } from '@/lib/supabase/storage'
 import { useClients } from '@/hooks/use-clients'
 import { useProjectUsers, useInviteUser, useRemoveProjectUser } from '@/hooks/use-project-users'
 
@@ -67,11 +67,8 @@ export function EditProjectDialog({ open, onClose, project, onSubmit, isLoading 
 
     setIsUploading(true)
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      })
-      setCoverUrl(blob.url)
+      const url = await uploadFile(file)
+      setCoverUrl(url)
     } catch (error) {
       console.error('Upload failed:', error)
       alert('Failed to upload image')
