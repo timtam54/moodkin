@@ -1294,19 +1294,7 @@ export default function ProjectDetailPage() {
               )
             )}
 
-            {/* Client Assets - images uploaded by clients only */}
-            {clientAssets.map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                onDelete={handleDeleteAsset}
-                currentUserId={currentUserId}
-                onImageClick={(url) => openLightbox(url, clientTabImages)}
-                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
-              />
-            ))}
-
-            {/* Add Asset Card - only visible to client users */}
+            {/* Add Asset Card - only visible to client users - placed next to AI Generator */}
             {isClient && (
               <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
                 {isUploading ? (
@@ -1331,6 +1319,18 @@ export default function ProjectDetailPage() {
                 />
               </label>
             )}
+
+            {/* Client Assets - images uploaded by clients only */}
+            {clientAssets.map((asset) => (
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                onDelete={handleDeleteAsset}
+                currentUserId={currentUserId}
+                onImageClick={(url) => openLightbox(url, clientTabImages)}
+                canDelete={asset.uploaded_by_id === currentUserId || isCreative}
+              />
+            ))}
           </div>
         )}
 

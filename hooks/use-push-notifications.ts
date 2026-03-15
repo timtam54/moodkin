@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -56,6 +56,12 @@ export function usePushNotifications() {
       console.log('[Push] Waiting for service worker to be ready...')
       const registration = await navigator.serviceWorker.ready
       console.log('[Push] Service worker ready, subscribing to push manager...')
+
+      if (!VAPID_PUBLIC_KEY) {
+        console.error('[Push] VAPID_PUBLIC_KEY is not set! Check NEXT_PUBLIC_VAPID_PUBLIC_KEY env var')
+        return false
+      }
+      console.log('[Push] Using VAPID key:', VAPID_PUBLIC_KEY.slice(0, 20) + '...')
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
