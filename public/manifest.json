@@ -1,5 +1,19 @@
 {
   "id": "/",
+  "lang": "en",
+  "categories": ["photography", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard/projects",
+      "icons": [{ "src": "/icons-pwa/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "New Project",
+      "url": "/dashboard/projects/new",
+      "icons": [{ "src": "/icons-pwa/icon-96.png", "sizes": "96x96" }]
+    }
+  ],
   "name": "Moodkin",
   "short_name": "Moodkin",
   "description": "Visual moodboards for photographers and clients",
