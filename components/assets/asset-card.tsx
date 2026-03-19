@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { Heart, Flag, MessageCircle, X, Send, Loader2 } from 'lucide-react'
+import { Heart, Flag, MessageCircle, Trash2, Send, Loader2 } from 'lucide-react'
 import { useAssetReactions, useAddReaction, useRemoveReaction, useAssetComments, useAddComment } from '@/hooks/use-asset-interactions'
 import type { ProjectAsset } from '@/types/database'
 
@@ -74,9 +74,9 @@ export function AssetCard({ asset, onDelete, currentUserId, onImageClick, canDel
         {showDeleteButton && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(asset.id) }}
-            className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
+            className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-white rounded-full transition-colors shadow-sm z-10"
           >
-            <X className="w-4 h-4 text-white" />
+            <Trash2 className="w-4 h-4 text-gray-600" />
           </button>
         )}
 
