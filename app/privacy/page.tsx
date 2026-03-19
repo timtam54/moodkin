@@ -1,4 +1,4 @@
-import { Logo } from '@/components/ui/logo'
+import Image from 'next/image'
 import Link from 'next/link'
 
 export const metadata = {
@@ -12,7 +12,13 @@ export default function PrivacyPolicyPage() {
       <header className="sticky top-0 z-40 bg-moodkin-dark">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center">
           <Link href="/">
-            <Logo size="sm" variant="light" />
+            <Image
+              src="/darklogo.png"
+              alt="Moodkin"
+              width={120}
+              height={38}
+              className="object-contain"
+            />
           </Link>
         </div>
       </header>
