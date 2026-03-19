@@ -96,9 +96,6 @@ export function AssetCard({ asset, onDelete, currentUserId, onImageClick, canDel
 
         {/* Bottom info */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
-          <p className="text-white text-sm font-medium truncate">
-            {asset.filename}
-          </p>
           <p className="text-white/70 text-xs truncate">
             by {asset.uploaded_by_name || 'Unknown'}
           </p>
