@@ -131,9 +131,11 @@ export function FreeformMoodboardCreator({
     }
   }, [open])
 
-  // Get canvas dimensions based on aspect ratio
+  // Get canvas dimensions based on aspect ratio (responsive)
   const getCanvasDimensions = () => {
-    const baseSize = 500
+    // Use smaller size on mobile
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+    const baseSize = isMobile ? 300 : 500
     switch (aspectRatio) {
       case 'portrait':
         return { width: baseSize * 0.75, height: baseSize }
@@ -145,6 +147,35 @@ export function FreeformMoodboardCreator({
   }
 
   const canvasDimensions = getCanvasDimensions()
+
+  // Add image to canvas (used for both drag-drop and tap-to-add on mobile)
+  const addImageToCanvas = (assetId: string, x?: number, y?: number) => {
+    const asset = visualAssets.find(a => a.id === assetId)
+    if (!asset) return
+
+    // Check if already on canvas
+    if (canvasImages.some(img => img.assetId === assetId)) return
+
+    const newImage: CanvasImage = {
+      assetId,
+      asset,
+      x: x ?? 30, // Default to center-ish
+      y: y ?? 30,
+      width: 35,
+      height: 35,
+      rotation: 0,
+      zIndex: nextZIndex,
+    }
+
+    setCanvasImages(prev => [...prev, newImage])
+    setNextZIndex(prev => prev + 1)
+    setSelectedImageId(assetId)
+  }
+
+  // Handle tapping an image in gallery (mobile)
+  const handleGalleryImageTap = (assetId: string) => {
+    addImageToCanvas(assetId)
+  }
 
   // Handle dropping an image onto the canvas
   const handleDrop = (e: React.DragEvent) => {
@@ -196,7 +227,7 @@ export function FreeformMoodboardCreator({
     setSelectedImageId(null)
   }
 
-  // Start dragging an image on canvas
+  // Start dragging an image on canvas (mouse)
   const handleImageMouseDown = (e: React.MouseEvent, assetId: string) => {
     e.stopPropagation()
     e.preventDefault()
@@ -207,6 +238,20 @@ export function FreeformMoodboardCreator({
     setSelectedImageId(assetId)
     setIsDragging(true)
     setDragStart({ x: e.clientX, y: e.clientY })
+    setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
+  }
+
+  // Start dragging an image on canvas (touch)
+  const handleImageTouchStart = (e: React.TouchEvent, assetId: string) => {
+    e.stopPropagation()
+
+    const touch = e.touches[0]
+    const img = canvasImages.find(i => i.assetId === assetId)
+    if (!img) return
+
+    setSelectedImageId(assetId)
+    setIsDragging(true)
+    setDragStart({ x: touch.clientX, y: touch.clientY })
     setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
   }
 
@@ -225,17 +270,17 @@ export function FreeformMoodboardCreator({
     setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
   }
 
-  // Handle mouse move for dragging/resizing
+  // Handle mouse/touch move for dragging/resizing
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientX: number, clientY: number) => {
       if (!selectedImageId || (!isDragging && !isResizing)) return
 
       const canvas = canvasRef.current
       if (!canvas) return
 
       const rect = canvas.getBoundingClientRect()
-      const deltaX = ((e.clientX - dragStart.x) / rect.width) * 100
-      const deltaY = ((e.clientY - dragStart.y) / rect.height) * 100
+      const deltaX = ((clientX - dragStart.x) / rect.width) * 100
+      const deltaY = ((clientY - dragStart.y) / rect.height) * 100
 
       setCanvasImages(prev => prev.map(img => {
         if (img.assetId !== selectedImageId) return img
@@ -282,7 +327,15 @@ export function FreeformMoodboardCreator({
       }))
     }
 
-    const handleMouseUp = () => {
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY)
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        e.preventDefault() // Prevent scrolling while dragging
+        handleMove(e.touches[0].clientX, e.touches[0].clientY)
+      }
+    }
+
+    const handleEnd = () => {
       setIsDragging(false)
       setIsResizing(false)
       setResizeCorner(null)
@@ -290,12 +343,16 @@ export function FreeformMoodboardCreator({
 
     if (isDragging || isResizing) {
       window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('mouseup', handleEnd)
+      window.addEventListener('touchmove', handleTouchMove, { passive: false })
+      window.addEventListener('touchend', handleEnd)
     }
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('mouseup', handleEnd)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleEnd)
     }
   }, [isDragging, isResizing, selectedImageId, dragStart, imageStartPos, resizeCorner])
 
@@ -470,13 +527,14 @@ export function FreeformMoodboardCreator({
 
           {/* Step 2: Canvas Editor */}
           {currentStep === 'canvas' && (
-            <div className="flex gap-6 h-[500px]">
-              {/* Left Sidebar - Image Gallery */}
-              <div className="w-48 flex-shrink-0 border-r border-moodkin-light-gray/30 pr-4 overflow-y-auto">
+            <div className="flex flex-col md:flex-row gap-6 md:h-[500px]">
+              {/* Image Gallery - Top on mobile, Left sidebar on desktop */}
+              <div className="w-full md:w-48 flex-shrink-0 md:border-r border-b md:border-b-0 border-moodkin-light-gray/30 pb-4 md:pb-0 md:pr-4 overflow-x-auto md:overflow-y-auto">
                 <h3 className="text-sm font-medium text-moodkin-dark mb-3 sticky top-0 bg-white py-1">
-                  Drag images to canvas
+                  <span className="hidden md:inline">Drag images to canvas</span>
+                  <span className="md:hidden">Tap to add images</span>
                 </h3>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-4 md:grid-cols-2 gap-2">
                   {visualAssets.map(asset => {
                     const isOnCanvas = canvasImages.some(img => img.assetId === asset.id)
                     return (
@@ -486,15 +544,16 @@ export function FreeformMoodboardCreator({
                         onDragStart={(e) => {
                           e.dataTransfer.setData('assetId', asset.id)
                         }}
-                        className={`relative aspect-square rounded-lg overflow-hidden cursor-grab active:cursor-grabbing ${
-                          isOnCanvas ? 'opacity-40' : 'hover:ring-2 hover:ring-moodkin-gold'
+                        onClick={() => !isOnCanvas && handleGalleryImageTap(asset.id)}
+                        className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer md:cursor-grab active:cursor-grabbing ${
+                          isOnCanvas ? 'opacity-40' : 'hover:ring-2 hover:ring-moodkin-gold active:ring-2 active:ring-moodkin-gold'
                         }`}
                       >
                         <Image
                           src={getImageUrl(asset)}
                           alt={asset.filename}
                           fill
-                          className="object-cover"
+                          className="object-cover pointer-events-none"
                         />
                         {isOnCanvas && (
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
@@ -508,7 +567,7 @@ export function FreeformMoodboardCreator({
               </div>
 
               {/* Canvas Area */}
-              <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] md:min-h-0">
                 <div
                   ref={canvasRef}
                   onClick={handleCanvasClick}
@@ -525,7 +584,8 @@ export function FreeformMoodboardCreator({
                     <div className="absolute inset-0 flex items-center justify-center text-moodkin-gray">
                       <div className="text-center">
                         <Move className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>Drop images here</p>
+                        <p className="hidden md:block">Drop images here</p>
+                        <p className="md:hidden">Tap images above to add</p>
                       </div>
                     </div>
                   )}
@@ -535,7 +595,8 @@ export function FreeformMoodboardCreator({
                       key={img.assetId}
                       onClick={(e) => handleImageClick(e, img.assetId)}
                       onMouseDown={(e) => handleImageMouseDown(e, img.assetId)}
-                      className={`absolute cursor-move ${
+                      onTouchStart={(e) => handleImageTouchStart(e, img.assetId)}
+                      className={`absolute cursor-move touch-none ${
                         selectedImageId === img.assetId ? 'ring-2 ring-moodkin-gold' : ''
                       }`}
                       style={{

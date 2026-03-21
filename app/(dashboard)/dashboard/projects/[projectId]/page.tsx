@@ -1730,9 +1730,9 @@ export default function ProjectDetailPage() {
         {activeTab === 'moodboards' && (
           <div className="space-y-6">
             {/* Header with Create Button and Help */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h2 className="text-lg font-semibold text-moodkin-dark">Your Moodboards</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   onClick={handleOpenMoodboardCreator}
                   disabled={isCreatingMoodboard}
