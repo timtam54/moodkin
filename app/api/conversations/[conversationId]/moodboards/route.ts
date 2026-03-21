@@ -72,8 +72,9 @@ export async function POST(
       borderWidth = 0,
       spacing = 8,
       aspectRatio = 'square', // 'portrait', 'square', or 'landscape'
-      mode = 'automatic', // 'automatic' or 'manual'
+      mode = 'automatic', // 'automatic', 'manual', or 'freeform'
       selectedAssetIds = [], // Only used in manual mode
+      freeformImages = [], // Only used in freeform mode: { assetId, x, y, width, height, rotation, zIndex }[]
     } = body
 
     // Helper to determine layout based on image count for automatic mode
@@ -110,8 +111,25 @@ export async function POST(
     }
 
     let sortedAssets: { asset: typeof assets[0]; score: number }[]
+    let isFreeform = false
+    let freeformImageData: { assetId: string; x: number; y: number; width: number; height: number; rotation: number; zIndex: number }[] = []
 
-    if (mode === 'manual' && selectedAssetIds.length > 0) {
+    if (mode === 'freeform' && freeformImages.length > 0) {
+      // Freeform mode: use images with position data
+      isFreeform = true
+      freeformImageData = freeformImages
+      const assetIds = freeformImages.map((img: { assetId: string }) => img.assetId)
+      const freeformAssets = assets.filter(a => assetIds.includes(a.id))
+
+      sortedAssets = freeformAssets.map((asset, index) => ({
+        asset,
+        score: freeformAssets.length - index,
+      }))
+
+      if (sortedAssets.length === 0) {
+        return NextResponse.json({ error: 'No valid images in freeform data' }, { status: 400 })
+      }
+    } else if (mode === 'manual' && selectedAssetIds.length > 0) {
       // Manual mode: use selected assets in the order provided
       const selectedSet = new Set(selectedAssetIds as string[])
       const selectedAssets = assets.filter(a => selectedSet.has(a.id))
@@ -220,6 +238,7 @@ export async function POST(
         border_width: borderWidth,
         spacing: spacing,
         aspect_ratio: aspectRatio,
+        moodboard_type: isFreeform ? 'freeform' : 'grid',
       })
       .select()
       .single()
@@ -230,12 +249,32 @@ export async function POST(
     }
 
     // Add images to the moodboard
-    const moodboardImages = sortedAssets.map((item, index) => ({
-      moodboard_id: moodboard.id,
-      asset_id: item.asset.id,
-      position: index,
-      score: item.score,
-    }))
+    const moodboardImages = sortedAssets.map((item, index) => {
+      const baseImage = {
+        moodboard_id: moodboard.id,
+        asset_id: item.asset.id,
+        position: index,
+        score: item.score,
+      }
+
+      // Add freeform positioning data if in freeform mode
+      if (isFreeform) {
+        const freeformData = freeformImageData.find(f => f.assetId === item.asset.id)
+        if (freeformData) {
+          return {
+            ...baseImage,
+            x: freeformData.x,
+            y: freeformData.y,
+            width: freeformData.width,
+            height: freeformData.height,
+            rotation: freeformData.rotation,
+            z_index: freeformData.zIndex,
+          }
+        }
+      }
+
+      return baseImage
+    })
 
     const { error: imagesError } = await supabase
       .from('moodboard_images')

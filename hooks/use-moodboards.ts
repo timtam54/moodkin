@@ -13,6 +13,16 @@ export function useMoodboards(conversationId: string) {
   })
 }
 
+export interface FreeformImageData {
+  assetId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  zIndex: number
+}
+
 export interface MoodboardStyleOptions {
   backgroundColor?: string
   gridLayout?: string
@@ -22,8 +32,9 @@ export interface MoodboardStyleOptions {
   borderWidth?: number
   spacing?: number
   aspectRatio?: 'portrait' | 'square' | 'landscape'
-  mode?: 'automatic' | 'manual'
+  mode?: 'automatic' | 'manual' | 'freeform'
   selectedAssetIds?: string[]
+  freeformImages?: FreeformImageData[]
 }
 
 export function useCreateMoodboard(conversationId: string) {

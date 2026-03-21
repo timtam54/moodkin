@@ -344,6 +344,7 @@ export interface Database {
           border_width: number
           spacing: number
           aspect_ratio: 'portrait' | 'square' | 'landscape'
+          moodboard_type: 'grid' | 'freeform'
           created_at: string
         }
         Insert: {
@@ -361,6 +362,7 @@ export interface Database {
           border_width?: number
           spacing?: number
           aspect_ratio?: 'portrait' | 'square' | 'landscape'
+          moodboard_type?: 'grid' | 'freeform'
           created_at?: string
         }
         Update: {
@@ -378,6 +380,7 @@ export interface Database {
           border_width?: number
           spacing?: number
           aspect_ratio?: 'portrait' | 'square' | 'landscape'
+          moodboard_type?: 'grid' | 'freeform'
           created_at?: string
         }
       }
@@ -388,6 +391,12 @@ export interface Database {
           asset_id: string
           position: number
           score: number
+          x: number
+          y: number
+          width: number
+          height: number
+          rotation: number
+          z_index: number
           created_at: string
         }
         Insert: {
@@ -396,6 +405,12 @@ export interface Database {
           asset_id: string
           position: number
           score?: number
+          x?: number
+          y?: number
+          width?: number
+          height?: number
+          rotation?: number
+          z_index?: number
           created_at?: string
         }
         Update: {
@@ -404,6 +419,12 @@ export interface Database {
           asset_id?: string
           position?: number
           score?: number
+          x?: number
+          y?: number
+          width?: number
+          height?: number
+          rotation?: number
+          z_index?: number
           created_at?: string
         }
       }

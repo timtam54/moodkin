@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info, FileText } from 'lucide-react'
 import { uploadFile } from '@/lib/supabase/storage'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
@@ -21,6 +21,7 @@ import { LinkCard } from '@/components/assets/link-card'
 import { AssetPickerDialog } from '@/components/assets/asset-picker-dialog'
 import { MoodboardCreatorDialog, type MoodboardOptions, type RankedAsset } from '@/components/moodboard/moodboard-creator-dialog'
 import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
+import { FreeformMoodboardCreator, type FreeformMoodboardOptions } from '@/components/moodboard/freeform-moodboard-creator'
 import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
 import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
 import { OwnershipInfoDialog } from '@/components/subscription/ownership-info-dialog'
@@ -96,6 +97,7 @@ export default function ProjectDetailPage() {
   const [isSelectingCreative, setIsSelectingCreative] = useState(false)
   const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
   const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
+  const [showFreeformCreator, setShowFreeformCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
   const [showOwnershipInfoDialog, setShowOwnershipInfoDialog] = useState(false)
@@ -472,6 +474,28 @@ export default function ProjectDetailPage() {
       setActiveTab('moodboards')
     } catch (error) {
       console.error('Failed to create moodboard:', error)
+      alert(error instanceof Error ? error.message : 'Failed to create moodboard')
+    } finally {
+      setIsCreatingMoodboard(false)
+    }
+  }
+
+  const handleCreateFreeformMoodboard = async (options: FreeformMoodboardOptions) => {
+    setIsCreatingMoodboard(true)
+    try {
+      await createMoodboard.mutateAsync({
+        backgroundColor: options.backgroundColor,
+        gridLayout: 'freeform',
+        borderRadius: 0,
+        spacing: 0,
+        aspectRatio: options.aspectRatio,
+        mode: 'freeform',
+        freeformImages: options.images,
+      })
+      setShowFreeformCreator(false)
+      setActiveTab('moodboards')
+    } catch (error) {
+      console.error('Failed to create freeform moodboard:', error)
       alert(error instanceof Error ? error.message : 'Failed to create moodboard')
     } finally {
       setIsCreatingMoodboard(false)
@@ -1443,6 +1467,15 @@ export default function ProjectDetailPage() {
           isLoading={isCreatingMoodboard}
         />
 
+        {/* Freeform Moodboard Creator (Blank Piece of Paper) */}
+        <FreeformMoodboardCreator
+          open={showFreeformCreator}
+          onClose={() => setShowFreeformCreator(false)}
+          onCreate={handleCreateFreeformMoodboard}
+          assets={assets || []}
+          isLoading={isCreatingMoodboard}
+        />
+
         {/* AI Image Generator */}
         <AIImageGenerator
           open={showAIImageGenerator}
@@ -1708,6 +1741,14 @@ export default function ProjectDetailPage() {
                   <Plus className="w-4 h-4 mr-2" />
                   Create Moodboard
                 </Button>
+                <Button
+                  onClick={() => setShowFreeformCreator(true)}
+                  disabled={isCreatingMoodboard}
+                  className="animate-pulse bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Blank Piece of Paper
+                </Button>
                 <button
                   onClick={() => setShowMoodboardHelp(true)}
                   className="p-2 text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream rounded-xl transition-colors"
@@ -1768,6 +1809,36 @@ export default function ProjectDetailPage() {
 
                   // Render layout based on grid_layout
                   const renderMoodboardLayout = () => {
+                    // Freeform moodboard - render with absolute positioning
+                    if (moodboard.moodboard_type === 'freeform') {
+                      return (
+                        <div className="w-full h-full relative">
+                          {displayImages.map(img => {
+                            const imgUrl = getImgUrl(img)
+                            if (!imgUrl) return null
+                            return (
+                              <button
+                                key={img.id}
+                                onClick={() => setLightboxImage(imgUrl)}
+                                className="absolute cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                                style={{
+                                  left: `${img.x || 0}%`,
+                                  top: `${img.y || 0}%`,
+                                  width: `${img.width || 20}%`,
+                                  height: `${img.height || 20}%`,
+                                  transform: `rotate(${img.rotation || 0}deg)`,
+                                  zIndex: img.z_index || 0,
+                                  borderRadius: `${borderRadius}px`,
+                                }}
+                              >
+                                <Image src={imgUrl} alt="" fill className="object-cover" />
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+
                     // Single image
                     if (gridLayout === '1' || displayImages.length === 1) {
                       return displayImages[0] ? renderImage(displayImages[0], 'w-full h-full') : null
