@@ -3,7 +3,7 @@
 
 export const subscriptionConfig = {
   // Price in AUD (will be converted to cents for Stripe)
-  price: 1,
+  price: 15,
 
   // Currency code
   currency: 'aud' as const,
