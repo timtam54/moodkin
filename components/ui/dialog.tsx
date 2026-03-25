@@ -35,10 +35,10 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
         if (e.target === overlayRef.current) onClose()
       }}
     >
-      <div className="fixed inset-0 bg-black/50" />
+      <div className="fixed inset-0 bg-black/50 z-0" />
       <div
         className={cn(
-          'relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-8 max-h-[90vh] overflow-y-auto',
+          'relative z-10 bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-8 max-h-[90vh] overflow-y-auto',
           className
         )}
       >

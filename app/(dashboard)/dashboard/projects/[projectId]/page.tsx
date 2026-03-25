@@ -13,6 +13,7 @@ import { useSession } from '@/hooks/use-session'
 import type { MoodboardWithImages } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { InviteUserDialog } from '@/components/projects/invite-user-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
@@ -109,6 +110,13 @@ export default function ProjectDetailPage() {
   const [customWidth, setCustomWidth] = useState('1920')
   const [customHeight, setCustomHeight] = useState('1080')
   const [isExporting, setIsExporting] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    description?: string
+    onConfirm: () => void
+    isLoading?: boolean
+  }>({ open: false, title: '', onConfirm: () => {} })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const creativeFileInputRef = useRef<HTMLInputElement>(null)
   const { data: projectUsers } = useProjectUsers(projectId)
@@ -318,38 +326,63 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleDeleteAsset = async (assetId: string) => {
-    if (!confirm('Delete this image?')) return
-    try {
-      await deleteAsset.mutateAsync(assetId)
-    } catch (error) {
-      console.error('Failed to delete asset:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete asset')
-    }
+  const handleDeleteAsset = (assetId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete this image?',
+      description: 'This action cannot be undone.',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isLoading: true }))
+        try {
+          await deleteAsset.mutateAsync(assetId)
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        } catch (error) {
+          console.error('Failed to delete asset:', error)
+          showToast(error instanceof Error ? error.message : 'Failed to delete asset', 'error')
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        }
+      }
+    })
   }
 
-  const handleRemoveFromCreative = async (assetId: string) => {
-    if (!confirm('Remove this image from creative selection?')) return
-    try {
-      await updateAssetCreative.mutateAsync({ assetId, creative: false })
-    } catch (error) {
-      console.error('Failed to remove from creative:', error)
-      alert(error instanceof Error ? error.message : 'Failed to remove from creative')
-    }
+  const handleRemoveFromCreative = (assetId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Remove from creative selection?',
+      description: 'The image will remain in the Client tab.',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isLoading: true }))
+        try {
+          await updateAssetCreative.mutateAsync({ assetId, creative: false })
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        } catch (error) {
+          console.error('Failed to remove from creative:', error)
+          showToast(error instanceof Error ? error.message : 'Failed to remove from creative', 'error')
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        }
+      }
+    })
   }
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-      return
-    }
-    setIsDeleting(true)
-    try {
-      await deleteProject.mutateAsync(projectId)
-      router.push('/dashboard/projects')
-    } catch (error) {
-      console.error('Failed to delete project:', error)
-      setIsDeleting(false)
-    }
+  const handleDelete = () => {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete this project?',
+      description: 'This action cannot be undone. All images, links, and moodboards will be permanently deleted.',
+      onConfirm: async () => {
+        setIsDeleting(true)
+        try {
+          await deleteProject.mutateAsync(projectId)
+          router.push('/dashboard/projects')
+        } catch (error) {
+          console.error('Failed to delete project:', error)
+          setIsDeleting(false)
+          setConfirmDialog(prev => ({ ...prev, open: false }))
+        }
+      }
+    })
   }
 
   const handleAddLink = async (e: React.FormEvent) => {
@@ -1430,7 +1463,7 @@ export default function ProjectDetailPage() {
               <AssetCard
                 key={asset.id}
                 asset={asset}
-                onDelete={handleRemoveFromCreative}
+                onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
                 onImageClick={(url) => openLightbox(url, creativeTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
@@ -2152,9 +2185,23 @@ export default function ProjectDetailPage() {
                         {(moodboard.created_by_id === currentUserId || isCreative) && (
                           <button
                             onClick={() => {
-                              if (confirm('Delete this moodboard?')) {
-                                deleteMoodboard.mutate(moodboard.id)
-                              }
+                              setConfirmDialog({
+                                open: true,
+                                title: 'Delete this moodboard?',
+                                description: 'This action cannot be undone.',
+                                isLoading: false,
+                                onConfirm: async () => {
+                                  setConfirmDialog(prev => ({ ...prev, isLoading: true }))
+                                  try {
+                                    await deleteMoodboard.mutateAsync(moodboard.id)
+                                    setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+                                  } catch (error) {
+                                    console.error('Failed to delete moodboard:', error)
+                                    showToast('Failed to delete moodboard', 'error')
+                                    setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+                                  }
+                                }
+                              })
                             }}
                             className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete moodboard"
@@ -2334,6 +2381,18 @@ export default function ProjectDetailPage() {
         onClose={() => setShowInviteDialog(false)}
         projectId={projectId}
         projectTitle={project.title}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => !confirmDialog.isLoading && setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={confirmDialog.isLoading}
       />
 
       {/* Image Lightbox */}
