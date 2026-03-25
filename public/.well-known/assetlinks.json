@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "com.moodkinstudio.app",
-    "sha256_cert_fingerprints": ["CB:26:52:3D:72:46:09:4A:73:C1:B3:AF:33:D5:C1:44:3D:8C:64:17:66:61:6C:2B:8C:72:61:FE:5C:E2:64:74"]
+    "sha256_cert_fingerprints": ["D7:B5:C6:50:8C:90:96:41:49:7C:92:4D:48:A0:2E:F0:83:DE:41:95:79:71:35:AE:11:DC:36:6F:C4:34:F3:A8"]
   }
 }]
