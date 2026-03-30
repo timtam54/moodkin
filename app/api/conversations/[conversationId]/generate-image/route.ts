@@ -3,12 +3,13 @@ import { requireSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { isProjectMember } from '@/lib/auth/project-access'
 import { isSubscriptionActive, subscriptionConfig, getCurrentMonthString } from '@/lib/config/subscription'
-import OpenAI from 'openai'
+import { fal } from '@fal-ai/client'
 
 const BUCKET_NAME = 'assets'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// Configure Fal.ai client
+fal.config({
+  credentials: process.env.FAL_KEY,
 })
 
 // Helper to get current AI image count, resetting if new month
@@ -164,21 +165,28 @@ export async function POST(
       enhancedPrompt = `For a project called "${project.title}": ${enhancedPrompt}`
     }
 
-    // Generate image with DALL-E 3
-    const response = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: enhancedPrompt,
-      n: 1,
-      size: size as '1024x1024' | '1792x1024' | '1024x1792',
-      quality: 'standard',
-      response_format: 'url',
+    // Map size parameter to Nano Banana aspect ratio format
+    type NanoBananaAspectRatio = '1:1' | '21:9' | '16:9' | '3:2' | '4:3' | '5:4' | '4:5' | '3:4' | '2:3' | '9:16'
+    const aspectRatioMap: Record<string, NanoBananaAspectRatio> = {
+      '1024x1024': '1:1',
+      '1792x1024': '16:9',
+      '1024x1792': '9:16',
+    }
+    const aspectRatio: NanoBananaAspectRatio = aspectRatioMap[size] || '1:1'
+
+    // Generate image with Fal.ai Nano Banana (Google's Gemini-based model)
+    const result = await fal.subscribe('fal-ai/nano-banana', {
+      input: {
+        prompt: enhancedPrompt,
+        aspect_ratio: aspectRatio,
+        num_images: 1,
+        output_format: 'png',
+      },
     })
 
-    const imageData = response.data?.[0]
-    const openaiImageUrl = imageData?.url
-    const revisedPrompt = imageData?.revised_prompt
+    const falImageUrl = result.data?.images?.[0]?.url
 
-    if (!openaiImageUrl) {
+    if (!falImageUrl) {
       return NextResponse.json({ error: 'Failed to generate image' }, { status: 500 })
     }
 
@@ -191,8 +199,8 @@ export async function POST(
 
     // If saveToProject is true but no imageUrl was provided (shouldn't happen in normal flow)
     if (saveToProject) {
-      // Download the image from OpenAI
-      const imageResponse = await fetch(openaiImageUrl)
+      // Download the image from Fal.ai
+      const imageResponse = await fetch(falImageUrl)
       if (!imageResponse.ok) {
         return NextResponse.json({ error: 'Failed to download generated image' }, { status: 500 })
       }
@@ -243,7 +251,6 @@ export async function POST(
 
       return NextResponse.json({
         url: savedImageUrl,
-        revisedPrompt,
         saved: true,
         asset,
         aiImageCount: newCount,
@@ -251,10 +258,9 @@ export async function POST(
       })
     }
 
-    // Just return the OpenAI URL for preview (temporary)
+    // Just return the Fal.ai URL for preview (temporary)
     return NextResponse.json({
-      url: openaiImageUrl,
-      revisedPrompt,
+      url: falImageUrl,
       saved: false,
       aiImageCount: newCount,
       aiImageLimit: monthlyLimit,
@@ -262,13 +268,14 @@ export async function POST(
   } catch (error) {
     console.error('Image generation error:', error)
 
-    if (error instanceof OpenAI.APIError) {
-      if (error.status === 400) {
+    // Handle Fal.ai errors
+    if (error instanceof Error) {
+      if (error.message.includes('safety') || error.message.includes('content')) {
         return NextResponse.json({
-          error: 'Your prompt was rejected. Please try a different description.'
+          error: 'Your prompt was rejected by the safety filter. Please try a different description.'
         }, { status: 400 })
       }
-      if (error.status === 429) {
+      if (error.message.includes('rate') || error.message.includes('limit')) {
         return NextResponse.json({
           error: 'Too many requests. Please wait a moment and try again.'
         }, { status: 429 })

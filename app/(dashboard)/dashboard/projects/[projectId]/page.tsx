@@ -1428,13 +1428,15 @@ export default function ProjectDetailPage() {
 
             {/* Upload Image button - only visible to creative users */}
             {isCreative && (
-              <label className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors">
+              <label className="aspect-square bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 flex flex-col items-center justify-center cursor-pointer hover:from-blue-100 hover:via-indigo-100 hover:to-purple-100 hover:border-indigo-200 hover:shadow-md transition-all group">
                 {isUploading ? (
-                  <Loader2 className="w-8 h-8 text-moodkin-gold animate-spin" />
+                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
                 ) : (
                   <>
-                    <ImagePlus className="w-8 h-8 text-moodkin-gold mb-2" />
-                    <p className="text-sm text-moodkin-gray font-medium">Upload Image</p>
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform">
+                      <ImagePlus className="w-6 h-6 text-white" />
+                    </div>
+                    <p className="text-sm text-indigo-600 font-medium">Upload Image</p>
                   </>
                 )}
                 <input
@@ -1453,10 +1455,34 @@ export default function ProjectDetailPage() {
             {isCreative && (
               <button
                 onClick={() => setShowCreativePicker(true)}
-                className="aspect-square bg-moodkin-cream/50 rounded-2xl border-2 border-dashed border-moodkin-light-gray flex flex-col items-center justify-center cursor-pointer hover:border-moodkin-gold hover:bg-moodkin-cream transition-colors"
+                className="aspect-square bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 rounded-2xl border border-amber-100 flex flex-col items-center justify-center cursor-pointer hover:from-amber-100 hover:via-orange-100 hover:to-rose-100 hover:border-amber-200 hover:shadow-md transition-all group relative overflow-hidden"
               >
-                <Plus className="w-8 h-8 text-moodkin-gold mb-2" />
-                <p className="text-sm text-moodkin-gray font-medium">Add from Client</p>
+                {/* Mini thumbnail grid preview */}
+                {clientAssets.length > 0 && (
+                  <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity">
+                    <div className="grid grid-cols-2 gap-0.5 h-full w-full">
+                      {clientAssets.slice(0, 4).map((asset, i) => (
+                        <div key={asset.id} className="relative overflow-hidden">
+                          <Image
+                            src={asset.url}
+                            alt=""
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform">
+                    <Plus className="w-6 h-6 text-white" />
+                  </div>
+                  <p className="text-sm text-amber-700 font-medium">Add from Client</p>
+                  {clientAssets.length > 0 && (
+                    <p className="text-xs text-amber-600/70 mt-0.5">{clientAssets.length} available</p>
+                  )}
+                </div>
               </button>
             )}
 

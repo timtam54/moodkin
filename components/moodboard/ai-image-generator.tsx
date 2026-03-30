@@ -54,7 +54,7 @@ export function AIImageGenerator({
   const [style, setStyle] = useState('')
   const [size, setSize] = useState('1024x1024')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedImage, setGeneratedImage] = useState<{ url: string; revisedPrompt?: string } | null>(null)
+  const [generatedImage, setGeneratedImage] = useState<{ url: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [aiImageCount, setAiImageCount] = useState<AIImageCount | null>(null)
@@ -131,7 +131,6 @@ export function AIImageGenerator({
 
       setGeneratedImage({
         url: data.url,
-        revisedPrompt: data.revisedPrompt,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate image')
@@ -311,15 +310,9 @@ export function AIImageGenerator({
                   alt="Generated image"
                   fill
                   className="object-contain"
-                  unoptimized // External URL from OpenAI
+                  unoptimized // External URL from Fal.ai
                 />
               </div>
-              {generatedImage.revisedPrompt && (
-                <div className="p-3 bg-moodkin-cream/50 rounded-xl">
-                  <p className="text-xs text-moodkin-gray mb-1">AI interpreted your prompt as:</p>
-                  <p className="text-sm text-moodkin-dark italic">{generatedImage.revisedPrompt}</p>
-                </div>
-              )}
             </div>
           ) : (
             // Show input form
