@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { X, Check, Loader2, ChevronLeft, ChevronRight, RotateCw, Layers, ArrowUp, ArrowDown, Trash2, Move } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { X, Check, Loader2, ChevronLeft, ChevronRight, RotateCw, ArrowUp, ArrowDown, Trash2, Move, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import type { ProjectAsset } from '@/types/database'
+import { FreeformHelpDialog } from './freeform-help-dialog'
 
 export interface FreeformImageData {
   assetId: string
@@ -69,7 +70,7 @@ const ASPECT_RATIOS: { value: AspectRatioType; label: string; icon: React.ReactN
 
 const STEPS: { id: StepType; label: string; description: string }[] = [
   { id: 'aspect', label: 'Size', description: 'Choose the canvas size for your moodboard' },
-  { id: 'canvas', label: 'Canvas', description: 'Drag photos onto the canvas and arrange them freely' },
+  { id: 'canvas', label: 'Canvas', description: 'Drag photos onto the canvas and arrange them freely, drag corners to resize' },
 ]
 
 const DEFAULT_BACKGROUND_COLORS = [
@@ -109,6 +110,7 @@ export function FreeformMoodboardCreator({
   const [resizeCorner, setResizeCorner] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const [nextZIndex, setNextZIndex] = useState(1)
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false)
 
   // Filter to visual assets (images and links with thumbnails)
   const visualAssets = useMemo(() =>
@@ -255,7 +257,7 @@ export function FreeformMoodboardCreator({
     setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
   }
 
-  // Start resizing
+  // Start resizing (mouse)
   const handleResizeMouseDown = (e: React.MouseEvent, assetId: string, corner: string) => {
     e.stopPropagation()
     e.preventDefault()
@@ -267,6 +269,21 @@ export function FreeformMoodboardCreator({
     setIsResizing(true)
     setResizeCorner(corner)
     setDragStart({ x: e.clientX, y: e.clientY })
+    setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
+  }
+
+  // Start resizing (touch)
+  const handleResizeTouchStart = (e: React.TouchEvent, assetId: string, corner: string) => {
+    e.stopPropagation()
+
+    const touch = e.touches[0]
+    const img = canvasImages.find(i => i.assetId === assetId)
+    if (!img) return
+
+    setSelectedImageId(assetId)
+    setIsResizing(true)
+    setResizeCorner(corner)
+    setDragStart({ x: touch.clientX, y: touch.clientY })
     setImageStartPos({ x: img.x, y: img.y, width: img.width, height: img.height })
   }
 
@@ -530,10 +547,19 @@ export function FreeformMoodboardCreator({
             <div className="flex flex-col md:flex-row gap-6 md:h-[500px]">
               {/* Image Gallery - Top on mobile, Left sidebar on desktop */}
               <div className="w-full md:w-48 flex-shrink-0 md:border-r border-b md:border-b-0 border-moodkin-light-gray/30 pb-4 md:pb-0 md:pr-4 overflow-x-auto md:overflow-y-auto">
-                <h3 className="text-sm font-medium text-moodkin-dark mb-3 sticky top-0 bg-white py-1">
-                  <span className="hidden md:inline">Drag images to canvas</span>
-                  <span className="md:hidden">Tap to add images</span>
-                </h3>
+                <div className="flex items-center justify-between sticky top-0 bg-white py-1 mb-3">
+                  <h3 className="text-sm font-medium text-moodkin-dark">
+                    <span className="hidden md:inline">Drag images to canvas</span>
+                    <span className="md:hidden">Tap to add images</span>
+                  </h3>
+                  <button
+                    onClick={() => setHelpDialogOpen(true)}
+                    className="p-1.5 rounded-full hover:bg-moodkin-cream transition-colors"
+                    title="Help"
+                  >
+                    <HelpCircle className="w-4 h-4 text-moodkin-gray" />
+                  </button>
+                </div>
                 <div className="grid grid-cols-4 md:grid-cols-2 gap-2">
                   {visualAssets.map(asset => {
                     const isOnCanvas = canvasImages.some(img => img.assetId === asset.id)
@@ -616,24 +642,28 @@ export function FreeformMoodboardCreator({
                         draggable={false}
                       />
 
-                      {/* Resize handles (only for selected image) */}
+                      {/* Resize handles (only for selected image) - larger on mobile for touch */}
                       {selectedImageId === img.assetId && (
                         <>
                           <div
                             onMouseDown={(e) => handleResizeMouseDown(e, img.assetId, 'nw')}
-                            className="absolute -top-1 -left-1 w-3 h-3 bg-white border-2 border-moodkin-gold rounded-full cursor-nw-resize"
+                            onTouchStart={(e) => handleResizeTouchStart(e, img.assetId, 'nw')}
+                            className="absolute -top-2 -left-2 w-5 h-5 md:w-3 md:h-3 md:-top-1 md:-left-1 bg-white border-2 border-moodkin-gold rounded-full cursor-nw-resize touch-none"
                           />
                           <div
                             onMouseDown={(e) => handleResizeMouseDown(e, img.assetId, 'ne')}
-                            className="absolute -top-1 -right-1 w-3 h-3 bg-white border-2 border-moodkin-gold rounded-full cursor-ne-resize"
+                            onTouchStart={(e) => handleResizeTouchStart(e, img.assetId, 'ne')}
+                            className="absolute -top-2 -right-2 w-5 h-5 md:w-3 md:h-3 md:-top-1 md:-right-1 bg-white border-2 border-moodkin-gold rounded-full cursor-ne-resize touch-none"
                           />
                           <div
                             onMouseDown={(e) => handleResizeMouseDown(e, img.assetId, 'sw')}
-                            className="absolute -bottom-1 -left-1 w-3 h-3 bg-white border-2 border-moodkin-gold rounded-full cursor-sw-resize"
+                            onTouchStart={(e) => handleResizeTouchStart(e, img.assetId, 'sw')}
+                            className="absolute -bottom-2 -left-2 w-5 h-5 md:w-3 md:h-3 md:-bottom-1 md:-left-1 bg-white border-2 border-moodkin-gold rounded-full cursor-sw-resize touch-none"
                           />
                           <div
                             onMouseDown={(e) => handleResizeMouseDown(e, img.assetId, 'se')}
-                            className="absolute -bottom-1 -right-1 w-3 h-3 bg-white border-2 border-moodkin-gold rounded-full cursor-se-resize"
+                            onTouchStart={(e) => handleResizeTouchStart(e, img.assetId, 'se')}
+                            className="absolute -bottom-2 -right-2 w-5 h-5 md:w-3 md:h-3 md:-bottom-1 md:-right-1 bg-white border-2 border-moodkin-gold rounded-full cursor-se-resize touch-none"
                           />
                         </>
                       )}
@@ -641,56 +671,76 @@ export function FreeformMoodboardCreator({
                   ))}
                 </div>
 
+                {/* Help tips - show when images exist */}
+                {canvasImages.length > 0 && !selectedImage && (
+                  <div className="mt-3 flex items-center justify-center gap-4 text-xs text-moodkin-gray">
+                    <span className="hidden md:inline">Tip: Click an image to select, drag corners to resize</span>
+                    <span className="md:hidden">Tip: Tap to select, drag corners to resize</span>
+                    <button
+                      onClick={() => setHelpDialogOpen(true)}
+                      className="text-moodkin-gold hover:underline"
+                    >
+                      More help
+                    </button>
+                  </div>
+                )}
+
                 {/* Controls for selected image */}
                 {selectedImage && (
-                  <div className="mt-4 flex items-center gap-2 bg-moodkin-cream rounded-lg p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRotate(-15)}
-                      title="Rotate left"
-                    >
-                      <RotateCw className="w-4 h-4 rotate-180" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRotate(15)}
-                      title="Rotate right"
-                    >
-                      <RotateCw className="w-4 h-4" />
-                    </Button>
-                    <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={bringToFront}
-                      title="Bring to front"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={sendToBack}
-                      title="Send to back"
-                    >
-                      <ArrowDown className="w-4 h-4" />
-                    </Button>
-                    <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={deleteSelected}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                    <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
-                    <span className="text-xs text-moodkin-gray px-2">
-                      Rotation: {selectedImage.rotation}°
-                    </span>
+                  <div className="mt-4 flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2 bg-moodkin-cream rounded-lg p-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRotate(-15)}
+                        title="Rotate left"
+                      >
+                        <RotateCw className="w-4 h-4 rotate-180" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRotate(15)}
+                        title="Rotate right"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </Button>
+                      <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={bringToFront}
+                        title="Bring to front"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={sendToBack}
+                        title="Send to back"
+                      >
+                        <ArrowDown className="w-4 h-4" />
+                      </Button>
+                      <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={deleteSelected}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <div className="w-px h-6 bg-moodkin-light-gray mx-1" />
+                      <span className="text-xs text-moodkin-gray px-2">
+                        Rotation: {selectedImage.rotation}°
+                      </span>
+                    </div>
+                    <p className="text-xs text-moodkin-gray">
+                      <span className="hidden md:inline">Drag corners to resize</span>
+                      <span className="md:hidden">Drag corner circles to resize</span>
+                    </p>
                   </div>
                 )}
               </div>
@@ -746,6 +796,12 @@ export function FreeformMoodboardCreator({
           </div>
         </div>
       </div>
+
+      {/* Help Dialog */}
+      <FreeformHelpDialog
+        open={helpDialogOpen}
+        onClose={() => setHelpDialogOpen(false)}
+      />
     </div>
   )
 }

@@ -128,6 +128,7 @@ export default function ProjectDetailPage() {
   const { markSeen } = useMarkAsSeen(projectId)
 
   const currentUserId = session?.user?.id || ''
+  const currentUserName = session?.user?.name || session?.user?.email || 'Unknown'
 
   // Compute ranked assets for automatic moodboard (sorted by likes, excludes flagged)
   const rankedAssets: RankedAsset[] = useMemo(() => {
@@ -1384,6 +1385,7 @@ export default function ProjectDetailPage() {
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
+                currentUserName={currentUserName}
                 onImageClick={(url) => openLightbox(url, clientTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
@@ -1465,6 +1467,7 @@ export default function ProjectDetailPage() {
                 asset={asset}
                 onDelete={handleDeleteAsset}
                 currentUserId={currentUserId}
+                currentUserName={currentUserName}
                 onImageClick={(url) => openLightbox(url, creativeTabImages)}
                 canDelete={asset.uploaded_by_id === currentUserId || isCreative}
               />
@@ -1745,6 +1748,7 @@ export default function ProjectDetailPage() {
                   link={link}
                   onDelete={handleDeleteAsset}
                   currentUserId={currentUserId}
+                  currentUserName={currentUserName}
                   getLinkIcon={getLinkIcon}
                 />
               ))}

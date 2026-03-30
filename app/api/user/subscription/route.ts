@@ -10,8 +10,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const { stripeid } = body as { stripeid: string }
 
-    // Validate that stripeid starts with 'cus_' (Stripe customer ID format)
-    if (!stripeid || !stripeid.startsWith('cus_')) {
+    // Validate stripeid - allow 'cus_' prefix (Stripe) or 'Free Tester' (promo code)
+    if (!stripeid || (!stripeid.startsWith('cus_') && stripeid !== 'Free Tester')) {
       return NextResponse.json({ error: 'Invalid customer ID' }, { status: 400 })
     }
 

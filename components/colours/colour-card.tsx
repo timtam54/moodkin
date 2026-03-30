@@ -9,18 +9,19 @@ interface ColourCardProps {
   colour: ProjectColour
   onDelete: (id: string) => void
   currentUserId: string
+  currentUserName?: string
   canDelete: boolean
 }
 
-export function ColourCard({ colour, onDelete, currentUserId, canDelete }: ColourCardProps) {
+export function ColourCard({ colour, onDelete, currentUserId, currentUserName = 'Unknown', canDelete }: ColourCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [copied, setCopied] = useState(false)
 
   const { data: reactions = [] } = useColourReactions(colour.id)
   const { data: comments = [] } = useColourComments(colour.id)
-  const addReaction = useAddColourReaction(colour.id)
-  const removeReaction = useRemoveColourReaction(colour.id)
+  const addReaction = useAddColourReaction(colour.id, currentUserId, currentUserName)
+  const removeReaction = useRemoveColourReaction(colour.id, currentUserId)
   const addComment = useAddColourComment(colour.id)
 
   const likes = reactions.filter(r => r.reaction_type === 'like')

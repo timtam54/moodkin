@@ -19,6 +19,10 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [succeeded, setSucceeded] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [showPromoInput, setShowPromoInput] = useState(false)
+  const [promoApplied, setPromoApplied] = useState(false)
+  const [promoError, setPromoError] = useState<string | null>(null)
   const stripe = useStripe()
   const elements = useElements()
 
@@ -42,6 +46,18 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+
+    // Check for promo code bypass
+    if (promoApplied) {
+      setProcessing(true)
+      setError(null)
+
+      // Bypass Stripe - use "Free Tester" as the customer ID
+      setSucceeded(true)
+      onResult(true, 'Free Tester')
+      setProcessing(false)
+      return
+    }
 
     if (!stripe || !elements) {
       return
@@ -103,23 +119,82 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-moodkin-dark mb-2">
-          Monthly Subscription
-        </label>
-        <div className="border border-moodkin-light-gray rounded-xl p-3 bg-moodkin-cream/50">
-          <span className="text-xl font-bold text-moodkin-dark">${amount.toFixed(2)}</span>
-          <span className="text-moodkin-gray ml-1">AUD / month</span>
-        </div>
-      </div>
+      {/* Hide price and card when promo applied */}
+      {!promoApplied && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-moodkin-dark mb-2">
+              Monthly Subscription
+            </label>
+            <div className="border border-moodkin-light-gray rounded-xl p-3 bg-moodkin-cream/50">
+              <span className="text-xl font-bold text-moodkin-dark">${amount.toFixed(2)}</span>
+              <span className="text-moodkin-gray ml-1">AUD / month</span>
+            </div>
+          </div>
 
+          <div>
+            <label htmlFor="card-element" className="block text-sm font-medium text-moodkin-dark mb-2">
+              Credit or debit card
+            </label>
+            <div className="border border-moodkin-light-gray rounded-xl p-4 bg-white min-h-[44px]">
+              <CardElement id="card-element" options={cardElementOptions} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Promotion Code */}
       <div>
-        <label htmlFor="card-element" className="block text-sm font-medium text-moodkin-dark mb-2">
-          Credit or debit card
-        </label>
-        <div className="border border-moodkin-light-gray rounded-xl p-4 bg-white min-h-[44px]">
-          <CardElement id="card-element" options={cardElementOptions} />
-        </div>
+        {!showPromoInput ? (
+          <button
+            type="button"
+            onClick={() => setShowPromoInput(true)}
+            className="text-sm text-moodkin-gold hover:text-moodkin-gold-hover underline"
+          >
+            Have a promotion code?
+          </button>
+        ) : promoApplied ? (
+          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-green-700 font-medium">Free Tester code applied!</span>
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="promo-code" className="block text-sm font-medium text-moodkin-dark mb-2">
+              Promotion Code
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id="promo-code"
+                value={promoCode}
+                onChange={(e) => {
+                  setPromoCode(e.target.value)
+                  setPromoError(null)
+                }}
+                placeholder="Enter promotion code"
+                className="flex-1 border border-moodkin-light-gray rounded-xl p-3 bg-white text-moodkin-dark placeholder:text-moodkin-gray focus:outline-none focus:ring-2 focus:ring-moodkin-gold/50"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (promoCode.trim().toLowerCase() === 'free tester') {
+                    setPromoApplied(true)
+                    setPromoError(null)
+                  } else {
+                    setPromoError('Invalid promotion code')
+                  }
+                }}
+                className="px-4 py-3 bg-moodkin-dark text-white font-medium rounded-xl hover:bg-moodkin-dark/90 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+            {promoError && <p className="text-red-500 text-sm mt-1">{promoError}</p>}
+          </div>
+        )}
       </div>
 
       {error && <div className="text-red-500 text-sm">{error}</div>}
@@ -127,10 +202,10 @@ export function CreditCardPay({ amount, username, email, onResult }: CreditCardP
 
       <button
         type="submit"
-        disabled={!stripe || processing || succeeded}
+        disabled={(!stripe && !promoApplied) || processing || succeeded}
         className="w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {processing ? 'Processing...' : succeeded ? 'Subscribed!' : 'Subscribe'}
+        {processing ? 'Processing...' : succeeded ? 'Subscribed!' : promoApplied ? 'Activate Free Access' : 'Subscribe'}
       </button>
     </form>
   )

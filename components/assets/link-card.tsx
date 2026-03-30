@@ -10,17 +10,18 @@ interface LinkCardProps {
   link: ProjectAsset
   onDelete: (id: string) => void
   currentUserId: string
+  currentUserName?: string
   getLinkIcon: (url: string) => string
 }
 
-export function LinkCard({ link, onDelete, currentUserId, getLinkIcon }: LinkCardProps) {
+export function LinkCard({ link, onDelete, currentUserId, currentUserName = 'Unknown', getLinkIcon }: LinkCardProps) {
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
 
   const { data: reactions = [] } = useAssetReactions(link.id)
   const { data: comments = [] } = useAssetComments(link.id)
-  const addReaction = useAddReaction(link.id)
-  const removeReaction = useRemoveReaction(link.id)
+  const addReaction = useAddReaction(link.id, currentUserId, currentUserName)
+  const removeReaction = useRemoveReaction(link.id, currentUserId)
   const addComment = useAddComment(link.id)
 
   const likes = reactions.filter(r => r.reaction_type === 'like')

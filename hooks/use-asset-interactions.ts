@@ -27,7 +27,7 @@ export function useAssetReactions(assetId: string) {
   })
 }
 
-export function useAddReaction(assetId: string) {
+export function useAddReaction(assetId: string, currentUserId: string, currentUserName: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (reactionType: 'like' | 'redflag') => {
@@ -42,13 +42,44 @@ export function useAddReaction(assetId: string) {
       }
       return res.json() as Promise<AssetReaction>
     },
-    onSuccess: () => {
+    onMutate: async (reactionType) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['asset-reactions', assetId] })
+
+      // Snapshot previous value
+      const previousReactions = queryClient.getQueryData<AssetReaction[]>(['asset-reactions', assetId])
+
+      // Optimistically add the reaction
+      const optimisticReaction: AssetReaction = {
+        id: `temp-${Date.now()}`,
+        asset_id: assetId,
+        user_id: currentUserId,
+        user_name: currentUserName,
+        reaction_type: reactionType,
+        created_at: new Date().toISOString(),
+      }
+
+      queryClient.setQueryData<AssetReaction[]>(['asset-reactions', assetId], (old = []) => [
+        ...old,
+        optimisticReaction,
+      ])
+
+      return { previousReactions }
+    },
+    onError: (_err, _reactionType, context) => {
+      // Rollback on error
+      if (context?.previousReactions) {
+        queryClient.setQueryData(['asset-reactions', assetId], context.previousReactions)
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server
       queryClient.invalidateQueries({ queryKey: ['asset-reactions', assetId] })
     },
   })
 }
 
-export function useRemoveReaction(assetId: string) {
+export function useRemoveReaction(assetId: string, currentUserId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (reactionType: 'like' | 'redflag') => {
@@ -58,7 +89,28 @@ export function useRemoveReaction(assetId: string) {
       if (!res.ok) throw new Error('Failed to remove reaction')
       return res.json()
     },
-    onSuccess: () => {
+    onMutate: async (reactionType) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['asset-reactions', assetId] })
+
+      // Snapshot previous value
+      const previousReactions = queryClient.getQueryData<AssetReaction[]>(['asset-reactions', assetId])
+
+      // Optimistically remove the reaction
+      queryClient.setQueryData<AssetReaction[]>(['asset-reactions', assetId], (old = []) =>
+        old.filter(r => !(r.user_id === currentUserId && r.reaction_type === reactionType))
+      )
+
+      return { previousReactions }
+    },
+    onError: (_err, _reactionType, context) => {
+      // Rollback on error
+      if (context?.previousReactions) {
+        queryClient.setQueryData(['asset-reactions', assetId], context.previousReactions)
+      }
+    },
+    onSettled: () => {
+      // Refetch to sync with server
       queryClient.invalidateQueries({ queryKey: ['asset-reactions', assetId] })
     },
   })

@@ -60,7 +60,7 @@ export function useColourReactions(colourId: string) {
   })
 }
 
-export function useAddColourReaction(colourId: string) {
+export function useAddColourReaction(colourId: string, currentUserId: string, currentUserName: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (reactionType: 'like' | 'redflag') => {
@@ -72,13 +72,39 @@ export function useAddColourReaction(colourId: string) {
       if (!res.ok) throw new Error('Failed to add reaction')
       return res.json() as Promise<ColourReaction>
     },
-    onSuccess: () => {
+    onMutate: async (reactionType) => {
+      await queryClient.cancelQueries({ queryKey: ['colour-reactions', colourId] })
+
+      const previousReactions = queryClient.getQueryData<ColourReaction[]>(['colour-reactions', colourId])
+
+      const optimisticReaction: ColourReaction = {
+        id: `temp-${Date.now()}`,
+        colour_id: colourId,
+        user_id: currentUserId,
+        user_name: currentUserName,
+        reaction_type: reactionType,
+        created_at: new Date().toISOString(),
+      }
+
+      queryClient.setQueryData<ColourReaction[]>(['colour-reactions', colourId], (old = []) => [
+        ...old,
+        optimisticReaction,
+      ])
+
+      return { previousReactions }
+    },
+    onError: (_err, _reactionType, context) => {
+      if (context?.previousReactions) {
+        queryClient.setQueryData(['colour-reactions', colourId], context.previousReactions)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['colour-reactions', colourId] })
     },
   })
 }
 
-export function useRemoveColourReaction(colourId: string) {
+export function useRemoveColourReaction(colourId: string, currentUserId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (reactionType: 'like' | 'redflag') => {
@@ -88,7 +114,23 @@ export function useRemoveColourReaction(colourId: string) {
       if (!res.ok) throw new Error('Failed to remove reaction')
       return res.json()
     },
-    onSuccess: () => {
+    onMutate: async (reactionType) => {
+      await queryClient.cancelQueries({ queryKey: ['colour-reactions', colourId] })
+
+      const previousReactions = queryClient.getQueryData<ColourReaction[]>(['colour-reactions', colourId])
+
+      queryClient.setQueryData<ColourReaction[]>(['colour-reactions', colourId], (old = []) =>
+        old.filter(r => !(r.user_id === currentUserId && r.reaction_type === reactionType))
+      )
+
+      return { previousReactions }
+    },
+    onError: (_err, _reactionType, context) => {
+      if (context?.previousReactions) {
+        queryClient.setQueryData(['colour-reactions', colourId], context.previousReactions)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['colour-reactions', colourId] })
     },
   })

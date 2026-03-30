@@ -43,13 +43,19 @@ export function getPriceInCents(price: number = subscriptionConfig.price): numbe
   return Math.round(price * 100)
 }
 
+// Check if stripeid is valid (Stripe customer ID or Free Tester promo)
+function isValidStripeid(stripeid: string | null | undefined): boolean {
+  if (!stripeid) return false
+  return stripeid.startsWith('cus_') || stripeid === 'Free Tester'
+}
+
 // Check if subscription is active based on stripeid and subscription_ends_at
 export function isSubscriptionActive(
   stripeid: string | null | undefined,
   subscriptionEndsAt: string | null | undefined
 ): boolean {
-  // Must have a valid Stripe customer ID
-  if (!stripeid || !stripeid.startsWith('cus_')) {
+  // Must have a valid Stripe customer ID or promo code
+  if (!isValidStripeid(stripeid)) {
     return false
   }
 
@@ -76,7 +82,7 @@ export function getSubscriptionState(
   subscriptionStatus: string | null | undefined
 ): SubscriptionState {
   // Never had a subscription
-  if (!stripeid || !stripeid.startsWith('cus_')) {
+  if (!isValidStripeid(stripeid)) {
     return { status: 'none' }
   }
 

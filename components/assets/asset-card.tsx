@@ -10,11 +10,12 @@ interface AssetCardProps {
   asset: ProjectAsset
   onDelete: (id: string) => void
   currentUserId: string
+  currentUserName?: string
   onImageClick?: (url: string) => void
   canDelete?: boolean // If true, show delete button. If undefined, check if user is uploader
 }
 
-export function AssetCard({ asset, onDelete, currentUserId, onImageClick, canDelete }: AssetCardProps) {
+export function AssetCard({ asset, onDelete, currentUserId, currentUserName = 'Unknown', onImageClick, canDelete }: AssetCardProps) {
   // Show delete if explicitly allowed OR if user uploaded this asset
   const showDeleteButton = canDelete ?? (asset.uploaded_by_id === currentUserId)
   const [showComments, setShowComments] = useState(false)
@@ -22,8 +23,8 @@ export function AssetCard({ asset, onDelete, currentUserId, onImageClick, canDel
 
   const { data: reactions = [] } = useAssetReactions(asset.id)
   const { data: comments = [] } = useAssetComments(asset.id)
-  const addReaction = useAddReaction(asset.id)
-  const removeReaction = useRemoveReaction(asset.id)
+  const addReaction = useAddReaction(asset.id, currentUserId, currentUserName)
+  const removeReaction = useRemoveReaction(asset.id, currentUserId)
   const addComment = useAddComment(asset.id)
 
   const likes = reactions.filter(r => r.reaction_type === 'like')
