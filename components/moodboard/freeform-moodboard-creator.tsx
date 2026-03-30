@@ -498,21 +498,21 @@ export function FreeformMoodboardCreator({
           {/* Step 1: Aspect Ratio Selection */}
           {currentStep === 'aspect' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 max-w-lg mx-auto">
                 {ASPECT_RATIOS.map(ratio => (
                   <button
                     key={ratio.value}
                     onClick={() => setAspectRatio(ratio.value)}
-                    className={`flex flex-col items-center gap-3 p-6 rounded-xl border-2 transition-all ${
+                    className={`flex flex-row sm:flex-col items-center gap-3 sm:gap-3 p-4 sm:p-6 rounded-xl border-2 transition-all ${
                       aspectRatio === ratio.value
                         ? 'border-moodkin-gold bg-moodkin-gold/10'
                         : 'border-moodkin-light-gray hover:border-moodkin-gold/50'
                     }`}
                   >
-                    <div className={aspectRatio === ratio.value ? 'text-moodkin-gold' : 'text-moodkin-gray'}>
+                    <div className={`flex-shrink-0 ${aspectRatio === ratio.value ? 'text-moodkin-gold' : 'text-moodkin-gray'}`}>
                       {ratio.icon}
                     </div>
-                    <div className="text-center">
+                    <div className="text-left sm:text-center">
                       <p className="font-medium text-moodkin-dark">{ratio.label}</p>
                       <p className="text-sm text-moodkin-gray">{ratio.dimensions}</p>
                     </div>
@@ -754,14 +754,14 @@ export function FreeformMoodboardCreator({
             variant="ghost"
             onClick={currentStepIndex === 0 ? onClose : handleBack}
           >
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            {currentStepIndex === 0 ? 'Cancel' : 'Back'}
+            <ChevronLeft className="w-4 h-4 sm:mr-1" />
+            <span className="hidden sm:inline">{currentStepIndex === 0 ? 'Cancel' : 'Back'}</span>
           </Button>
 
           <div className="flex items-center gap-2">
             {currentStep === 'canvas' && (
               <span className="text-sm text-moodkin-gray mr-4">
-                {canvasImages.length} image{canvasImages.length !== 1 ? 's' : ''} on canvas
+                {canvasImages.length} image{canvasImages.length !== 1 ? 's' : ''}
               </span>
             )}
 
@@ -779,7 +779,7 @@ export function FreeformMoodboardCreator({
                 ) : (
                   <>
                     <Check className="w-4 h-4 mr-2" />
-                    Create Moodboard
+                    Create
                   </>
                 )}
               </Button>
