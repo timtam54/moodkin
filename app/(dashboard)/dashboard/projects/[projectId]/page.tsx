@@ -957,65 +957,151 @@ export default function ProjectDetailPage() {
         const borderWidthMm = borderWidth * 0.264583
         const borderRadiusMm = borderRadius * 0.264583
 
-        // Get layout rects for PDF (using mm units)
-        const layoutRects = getLayoutRectsPixels(
-          gridLayout,
-          validImages.length,
-          usableWidth + margin * 2,
-          usableHeight + startY,
-          spacing,
-          margin,
-          startY - margin
-        )
+        // Handle freeform moodboards with absolute positioning
+        if (moodboard.moodboard_type === 'freeform') {
+          // Sort by z_index for proper layering
+          const sortedImages = [...validImages].sort((a, b) => (a.z_index || 0) - (b.z_index || 0))
 
-        for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
-          const img = validImages[i]
-          const rect = layoutRects[i]
-          const url = getImgUrl(img)
-          const isExternal = img.asset.asset_type === 'link'
+          for (const img of sortedImages) {
+            const url = getImgUrl(img)
+            const isExternal = img.asset.asset_type === 'link'
+            if (!url) continue
 
-          if (!url) continue
+            const imageData = await loadImage(url, isExternal)
+            if (imageData) {
+              // Convert percentage positions to mm within usable area
+              const rectX = margin + (img.x || 0) / 100 * usableWidth
+              const rectY = startY + (img.y || 0) / 100 * usableHeight
+              const rectW = (img.width || 20) / 100 * usableWidth
+              const rectH = (img.height || 20) / 100 * usableHeight
+              const rotation = img.rotation || 0
 
-          const imageData = await loadImage(url, isExternal)
-          if (imageData) {
-            const imgRatio = imageData.width / imageData.height
-            const rectRatio = rect.w / rect.h
+              const imgRatio = imageData.width / imageData.height
+              const rectRatio = rectW / rectH
 
-            let drawW: number, drawH: number, drawX: number, drawY: number
+              let drawW: number, drawH: number, drawX: number, drawY: number
 
-            if (imgRatio > rectRatio) {
-              drawH = rect.h
-              drawW = rect.h * imgRatio
-              drawX = rect.x - (drawW - rect.w) / 2
-              drawY = rect.y
-            } else {
-              drawW = rect.w
-              drawH = rect.w / imgRatio
-              drawX = rect.x
-              drawY = rect.y - (drawH - rect.h) / 2
-            }
-
-            const ctx = pdf.context2d
-            ctx.save()
-            ctx.beginPath()
-            ctx.rect(rect.x, rect.y, rect.w, rect.h)
-            ctx.clip()
-            pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
-            ctx.restore()
-
-            if (borderEnabled && borderWidthMm > 0) {
-              const border = hexToRgb(borderColor)
-              pdf.setDrawColor(border.r, border.g, border.b)
-              pdf.setLineWidth(borderWidthMm)
-              if (borderRadiusMm > 0) {
-                pdf.roundedRect(rect.x, rect.y, rect.w, rect.h, borderRadiusMm, borderRadiusMm, 'S')
+              if (imgRatio > rectRatio) {
+                drawH = rectH
+                drawW = rectH * imgRatio
+                drawX = rectX - (drawW - rectW) / 2
+                drawY = rectY
               } else {
-                pdf.rect(rect.x, rect.y, rect.w, rect.h, 'S')
+                drawW = rectW
+                drawH = rectW / imgRatio
+                drawX = rectX
+                drawY = rectY - (drawH - rectH) / 2
+              }
+
+              const ctx = pdf.context2d
+              ctx.save()
+
+              // Apply rotation around center of the rect
+              if (rotation !== 0) {
+                const centerX = rectX + rectW / 2
+                const centerY = rectY + rectH / 2
+                ctx.translate(centerX, centerY)
+                ctx.rotate(rotation * Math.PI / 180)
+                ctx.translate(-centerX, -centerY)
+              }
+
+              ctx.beginPath()
+              ctx.rect(rectX, rectY, rectW, rectH)
+              ctx.clip()
+              pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
+              ctx.restore()
+
+              if (borderEnabled && borderWidthMm > 0) {
+                const border = hexToRgb(borderColor)
+                pdf.setDrawColor(border.r, border.g, border.b)
+                pdf.setLineWidth(borderWidthMm)
+
+                // For rotated images, we need to draw the border with rotation too
+                if (rotation !== 0) {
+                  const ctx2 = pdf.context2d
+                  ctx2.save()
+                  const centerX = rectX + rectW / 2
+                  const centerY = rectY + rectH / 2
+                  ctx2.translate(centerX, centerY)
+                  ctx2.rotate(rotation * Math.PI / 180)
+                  ctx2.translate(-centerX, -centerY)
+                  if (borderRadiusMm > 0) {
+                    pdf.roundedRect(rectX, rectY, rectW, rectH, borderRadiusMm, borderRadiusMm, 'S')
+                  } else {
+                    pdf.rect(rectX, rectY, rectW, rectH, 'S')
+                  }
+                  ctx2.restore()
+                } else {
+                  if (borderRadiusMm > 0) {
+                    pdf.roundedRect(rectX, rectY, rectW, rectH, borderRadiusMm, borderRadiusMm, 'S')
+                  } else {
+                    pdf.rect(rectX, rectY, rectW, rectH, 'S')
+                  }
+                }
               }
             }
-          } else {
-            pdf.setFillColor(240, 240, 240)
-            pdf.rect(rect.x, rect.y, rect.w, rect.h, 'F')
+          }
+        } else {
+          // Grid-based moodboards - use layout rects
+          const layoutRects = getLayoutRectsPixels(
+            gridLayout,
+            validImages.length,
+            usableWidth + margin * 2,
+            usableHeight + startY,
+            spacing,
+            margin,
+            startY - margin
+          )
+
+          for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
+            const img = validImages[i]
+            const rect = layoutRects[i]
+            const url = getImgUrl(img)
+            const isExternal = img.asset.asset_type === 'link'
+
+            if (!url) continue
+
+            const imageData = await loadImage(url, isExternal)
+            if (imageData) {
+              const imgRatio = imageData.width / imageData.height
+              const rectRatio = rect.w / rect.h
+
+              let drawW: number, drawH: number, drawX: number, drawY: number
+
+              if (imgRatio > rectRatio) {
+                drawH = rect.h
+                drawW = rect.h * imgRatio
+                drawX = rect.x - (drawW - rect.w) / 2
+                drawY = rect.y
+              } else {
+                drawW = rect.w
+                drawH = rect.w / imgRatio
+                drawX = rect.x
+                drawY = rect.y - (drawH - rect.h) / 2
+              }
+
+              const ctx = pdf.context2d
+              ctx.save()
+              ctx.beginPath()
+              ctx.rect(rect.x, rect.y, rect.w, rect.h)
+              ctx.clip()
+              pdf.addImage(imageData.base64, 'JPEG', drawX, drawY, drawW, drawH)
+              ctx.restore()
+
+              if (borderEnabled && borderWidthMm > 0) {
+                const border = hexToRgb(borderColor)
+                pdf.setDrawColor(border.r, border.g, border.b)
+                pdf.setLineWidth(borderWidthMm)
+                if (borderRadiusMm > 0) {
+                  pdf.roundedRect(rect.x, rect.y, rect.w, rect.h, borderRadiusMm, borderRadiusMm, 'S')
+                } else {
+                  pdf.rect(rect.x, rect.y, rect.w, rect.h, 'S')
+                }
+              }
+            } else {
+              pdf.setFillColor(240, 240, 240)
+              pdf.rect(rect.x, rect.y, rect.w, rect.h, 'F')
+            }
           }
         }
 
@@ -1056,82 +1142,173 @@ export default function ProjectDetailPage() {
           ctx.fillText(moodboard.description, width / 2, margin + fontSize + descFontSize + 5)
         }
 
-        // Get layout rectangles
-        const layoutRects = getLayoutRectsPixels(
-          gridLayout,
-          validImages.length,
-          width,
-          height - Math.round(height * 0.03), // Leave space for footer
-          spacingPx,
-          margin,
-          titleHeight
-        )
+        // Calculate usable area for images
+        const usableWidth = width - margin * 2
+        const usableHeight = height - titleHeight - margin - Math.round(height * 0.03)
 
-        // Load and draw images
-        for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
-          const img = validImages[i]
-          const rect = layoutRects[i]
-          const url = getImgUrl(img)
-          const isExternal = img.asset.asset_type === 'link'
+        // Handle freeform moodboards with absolute positioning
+        if (moodboard.moodboard_type === 'freeform') {
+          // Sort by z_index for proper layering
+          const sortedImages = [...validImages].sort((a, b) => (a.z_index || 0) - (b.z_index || 0))
 
-          if (!url) continue
+          for (const img of sortedImages) {
+            const url = getImgUrl(img)
+            const isExternal = img.asset.asset_type === 'link'
+            if (!url) continue
 
-          const imageData = await loadImage(url, isExternal)
-          if (imageData) {
-            const imgRatio = imageData.width / imageData.height
-            const rectRatio = rect.w / rect.h
+            const imageData = await loadImage(url, isExternal)
+            if (imageData) {
+              // Convert percentage positions to pixels within usable area
+              const rectX = margin + (img.x || 0) / 100 * usableWidth
+              const rectY = titleHeight + (img.y || 0) / 100 * usableHeight
+              const rectW = (img.width || 20) / 100 * usableWidth
+              const rectH = (img.height || 20) / 100 * usableHeight
+              const rotation = img.rotation || 0
 
-            let drawW: number, drawH: number, drawX: number, drawY: number
+              const imgRatio = imageData.width / imageData.height
+              const rectRatio = rectW / rectH
 
-            if (imgRatio > rectRatio) {
-              drawH = rect.h
-              drawW = rect.h * imgRatio
-              drawX = rect.x - (drawW - rect.w) / 2
-              drawY = rect.y
-            } else {
-              drawW = rect.w
-              drawH = rect.w / imgRatio
-              drawX = rect.x
-              drawY = rect.y - (drawH - rect.h) / 2
+              let drawW: number, drawH: number, drawX: number, drawY: number
+
+              if (imgRatio > rectRatio) {
+                drawH = rectH
+                drawW = rectH * imgRatio
+                drawX = rectX - (drawW - rectW) / 2
+                drawY = rectY
+              } else {
+                drawW = rectW
+                drawH = rectW / imgRatio
+                drawX = rectX
+                drawY = rectY - (drawH - rectH) / 2
+              }
+
+              // Create temporary image element
+              const tempImg = new window.Image()
+              tempImg.crossOrigin = 'anonymous'
+              await new Promise<void>((resolve) => {
+                tempImg.onload = () => resolve()
+                tempImg.onerror = () => resolve()
+                tempImg.src = imageData.base64
+              })
+
+              ctx.save()
+
+              // Apply rotation around center of the rect
+              if (rotation !== 0) {
+                const centerX = rectX + rectW / 2
+                const centerY = rectY + rectH / 2
+                ctx.translate(centerX, centerY)
+                ctx.rotate(rotation * Math.PI / 180)
+                ctx.translate(-centerX, -centerY)
+              }
+
+              // Clip to rect with border radius
+              if (borderRadius > 0) {
+                const r = borderRadius
+                ctx.beginPath()
+                ctx.moveTo(rectX + r, rectY)
+                ctx.lineTo(rectX + rectW - r, rectY)
+                ctx.quadraticCurveTo(rectX + rectW, rectY, rectX + rectW, rectY + r)
+                ctx.lineTo(rectX + rectW, rectY + rectH - r)
+                ctx.quadraticCurveTo(rectX + rectW, rectY + rectH, rectX + rectW - r, rectY + rectH)
+                ctx.lineTo(rectX + r, rectY + rectH)
+                ctx.quadraticCurveTo(rectX, rectY + rectH, rectX, rectY + rectH - r)
+                ctx.lineTo(rectX, rectY + r)
+                ctx.quadraticCurveTo(rectX, rectY, rectX + r, rectY)
+                ctx.closePath()
+                ctx.clip()
+              } else {
+                ctx.beginPath()
+                ctx.rect(rectX, rectY, rectW, rectH)
+                ctx.clip()
+              }
+              ctx.drawImage(tempImg, drawX, drawY, drawW, drawH)
+              ctx.restore()
+
+              // Draw border if enabled (need to apply rotation again)
+              if (borderEnabled && borderWidth > 0) {
+                ctx.save()
+                if (rotation !== 0) {
+                  const centerX = rectX + rectW / 2
+                  const centerY = rectY + rectH / 2
+                  ctx.translate(centerX, centerY)
+                  ctx.rotate(rotation * Math.PI / 180)
+                  ctx.translate(-centerX, -centerY)
+                }
+                ctx.strokeStyle = borderColor
+                ctx.lineWidth = borderWidth
+                if (borderRadius > 0) {
+                  const r = borderRadius
+                  ctx.beginPath()
+                  ctx.moveTo(rectX + r, rectY)
+                  ctx.lineTo(rectX + rectW - r, rectY)
+                  ctx.quadraticCurveTo(rectX + rectW, rectY, rectX + rectW, rectY + r)
+                  ctx.lineTo(rectX + rectW, rectY + rectH - r)
+                  ctx.quadraticCurveTo(rectX + rectW, rectY + rectH, rectX + rectW - r, rectY + rectH)
+                  ctx.lineTo(rectX + r, rectY + rectH)
+                  ctx.quadraticCurveTo(rectX, rectY + rectH, rectX, rectY + rectH - r)
+                  ctx.lineTo(rectX, rectY + r)
+                  ctx.quadraticCurveTo(rectX, rectY, rectX + r, rectY)
+                  ctx.closePath()
+                  ctx.stroke()
+                } else {
+                  ctx.strokeRect(rectX, rectY, rectW, rectH)
+                }
+                ctx.restore()
+              }
             }
+          }
+        } else {
+          // Grid-based moodboards - use layout rects
+          const layoutRects = getLayoutRectsPixels(
+            gridLayout,
+            validImages.length,
+            width,
+            height - Math.round(height * 0.03), // Leave space for footer
+            spacingPx,
+            margin,
+            titleHeight
+          )
 
-            // Create temporary image element
-            const tempImg = new window.Image()
-            tempImg.crossOrigin = 'anonymous'
-            await new Promise<void>((resolve) => {
-              tempImg.onload = () => resolve()
-              tempImg.onerror = () => resolve()
-              tempImg.src = imageData.base64
-            })
+          // Load and draw images
+          for (let i = 0; i < Math.min(validImages.length, layoutRects.length); i++) {
+            const img = validImages[i]
+            const rect = layoutRects[i]
+            const url = getImgUrl(img)
+            const isExternal = img.asset.asset_type === 'link'
 
-            // Save context, clip to rect, draw image
-            ctx.save()
-            if (borderRadius > 0) {
-              const r = borderRadius
-              ctx.beginPath()
-              ctx.moveTo(rect.x + r, rect.y)
-              ctx.lineTo(rect.x + rect.w - r, rect.y)
-              ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r)
-              ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r)
-              ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h)
-              ctx.lineTo(rect.x + r, rect.y + rect.h)
-              ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r)
-              ctx.lineTo(rect.x, rect.y + r)
-              ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y)
-              ctx.closePath()
-              ctx.clip()
-            } else {
-              ctx.beginPath()
-              ctx.rect(rect.x, rect.y, rect.w, rect.h)
-              ctx.clip()
-            }
-            ctx.drawImage(tempImg, drawX, drawY, drawW, drawH)
-            ctx.restore()
+            if (!url) continue
 
-            // Draw border if enabled
-            if (borderEnabled && borderWidth > 0) {
-              ctx.strokeStyle = borderColor
-              ctx.lineWidth = borderWidth
+            const imageData = await loadImage(url, isExternal)
+            if (imageData) {
+              const imgRatio = imageData.width / imageData.height
+              const rectRatio = rect.w / rect.h
+
+              let drawW: number, drawH: number, drawX: number, drawY: number
+
+              if (imgRatio > rectRatio) {
+                drawH = rect.h
+                drawW = rect.h * imgRatio
+                drawX = rect.x - (drawW - rect.w) / 2
+                drawY = rect.y
+              } else {
+                drawW = rect.w
+                drawH = rect.w / imgRatio
+                drawX = rect.x
+                drawY = rect.y - (drawH - rect.h) / 2
+              }
+
+              // Create temporary image element
+              const tempImg = new window.Image()
+              tempImg.crossOrigin = 'anonymous'
+              await new Promise<void>((resolve) => {
+                tempImg.onload = () => resolve()
+                tempImg.onerror = () => resolve()
+                tempImg.src = imageData.base64
+              })
+
+              // Save context, clip to rect, draw image
+              ctx.save()
               if (borderRadius > 0) {
                 const r = borderRadius
                 ctx.beginPath()
@@ -1145,15 +1322,42 @@ export default function ProjectDetailPage() {
                 ctx.lineTo(rect.x, rect.y + r)
                 ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y)
                 ctx.closePath()
-                ctx.stroke()
+                ctx.clip()
               } else {
-                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+                ctx.beginPath()
+                ctx.rect(rect.x, rect.y, rect.w, rect.h)
+                ctx.clip()
               }
+              ctx.drawImage(tempImg, drawX, drawY, drawW, drawH)
+              ctx.restore()
+
+              // Draw border if enabled
+              if (borderEnabled && borderWidth > 0) {
+                ctx.strokeStyle = borderColor
+                ctx.lineWidth = borderWidth
+                if (borderRadius > 0) {
+                  const r = borderRadius
+                  ctx.beginPath()
+                  ctx.moveTo(rect.x + r, rect.y)
+                  ctx.lineTo(rect.x + rect.w - r, rect.y)
+                  ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r)
+                  ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r)
+                  ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h)
+                  ctx.lineTo(rect.x + r, rect.y + rect.h)
+                  ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r)
+                  ctx.lineTo(rect.x, rect.y + r)
+                  ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y)
+                  ctx.closePath()
+                  ctx.stroke()
+                } else {
+                  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+                }
+              }
+            } else {
+              // Placeholder
+              ctx.fillStyle = '#F0F0F0'
+              ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
             }
-          } else {
-            // Placeholder
-            ctx.fillStyle = '#F0F0F0'
-            ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
           }
         }
 
