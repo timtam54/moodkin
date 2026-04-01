@@ -1632,15 +1632,15 @@ export default function ProjectDetailPage() {
 
             {/* Upload Image button - only visible to creative users */}
             {isCreative && (
-              <label className="aspect-square bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 flex flex-col items-center justify-center cursor-pointer hover:from-blue-100 hover:via-indigo-100 hover:to-purple-100 hover:border-indigo-200 hover:shadow-md transition-all group">
+              <label className="aspect-square bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 rounded-2xl border border-amber-200 flex flex-col items-center justify-center cursor-pointer hover:from-amber-100 hover:via-yellow-100 hover:to-orange-100 hover:border-amber-300 hover:shadow-md transition-all group">
                 {isUploading ? (
-                  <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
                 ) : (
                   <>
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform">
+                    <div className="w-12 h-12 bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-xl flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform">
                       <ImagePlus className="w-6 h-6 text-white" />
                     </div>
-                    <p className="text-sm text-indigo-600 font-medium">Upload Image</p>
+                    <p className="text-sm text-amber-700 font-medium">Upload Image</p>
                   </>
                 )}
                 <input

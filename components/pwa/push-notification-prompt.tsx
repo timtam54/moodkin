@@ -39,6 +39,8 @@ export function PushNotificationPrompt() {
     try {
       const success = await subscribe()
       if (success) {
+        // Mark as dismissed so it never shows again
+        localStorage.setItem(PROMPT_DISMISSED_KEY, 'true')
         setShowPrompt(false)
       }
     } finally {

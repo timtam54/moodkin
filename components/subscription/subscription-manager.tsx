@@ -11,12 +11,15 @@ import {
   Loader2,
   HelpCircle,
   Sparkles,
+  Bell,
+  BellOff,
 } from 'lucide-react'
 import { logout } from '@/lib/auth/client'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
 import { subscriptionConfig, formatPrice, getSubscriptionState } from '@/lib/config/subscription'
 import { useOnboarding } from '@/hooks/use-onboarding'
 import { useSession } from '@/hooks/use-session'
+import { usePushNotifications } from '@/hooks/use-push-notifications'
 
 interface SubscriptionManagerProps {
   onClose?: () => void
@@ -27,8 +30,10 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   const router = useRouter()
   const { session, refetch } = useSession()
   const { restartOnboarding } = useOnboarding()
+  const { isSupported: pushSupported, isSubscribed: pushSubscribed, permission: pushPermission, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications()
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
+  const [isTogglingPush, setIsTogglingPush] = useState(false)
   const [aiImageCount, setAiImageCount] = useState<{ count: number; limit: number; month: string } | null>(null)
 
   const user = session?.user
@@ -95,6 +100,19 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
 
   const handleSubscribe = () => {
     setPaymentDialogOpen(true)
+  }
+
+  const handleTogglePush = async () => {
+    setIsTogglingPush(true)
+    try {
+      if (pushSubscribed) {
+        await pushUnsubscribe()
+      } else {
+        await pushSubscribe()
+      }
+    } finally {
+      setIsTogglingPush(false)
+    }
   }
 
   if (!user) return null
@@ -284,6 +302,30 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
               <HelpCircle className="w-4 h-4" />
               Take a tour.
             </button>
+
+            {/* Push Notifications Toggle */}
+            {pushSupported && pushPermission !== 'denied' && (
+              <button
+                onClick={handleTogglePush}
+                disabled={isTogglingPush}
+                className="flex items-center justify-center gap-2 px-4 py-2 text-moodkin-gray hover:text-moodkin-dark text-sm transition-colors disabled:opacity-50"
+              >
+                {isTogglingPush ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : pushSubscribed ? (
+                  <Bell className="w-4 h-4" />
+                ) : (
+                  <BellOff className="w-4 h-4" />
+                )}
+                {isTogglingPush ? 'Updating...' : pushSubscribed ? 'Notifications On' : 'Enable Notifications'}
+              </button>
+            )}
+
+            {pushPermission === 'denied' && (
+              <p className="text-xs text-moodkin-gray text-center">
+                Notifications blocked. Enable in browser settings.
+              </p>
+            )}
           </div>
         )}
       </div>
