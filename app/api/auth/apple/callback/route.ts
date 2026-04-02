@@ -3,6 +3,12 @@ import { exchangeAppleCode, getAppleUserInfo } from '@/lib/auth/apple'
 import { createSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 
+// Helper to redirect with 303 (See Other) - required for POST handlers
+// so browser uses GET for the redirect instead of POST
+function redirect(url: URL) {
+  return NextResponse.redirect(url, { status: 303 })
+}
+
 // Apple sends the callback as a POST request with form data
 export async function POST(request: NextRequest) {
   const formData = await request.formData()
@@ -15,11 +21,11 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     console.error('Apple auth error:', error)
-    return NextResponse.redirect(new URL('/login?error=apple_auth_failed', request.url))
+    return redirect(new URL('/login?error=apple_auth_failed', request.url))
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=no_code', request.url))
+    return redirect(new URL('/login?error=no_code', request.url))
   }
 
   try {
@@ -48,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!userInfo.email) {
-      return NextResponse.redirect(new URL('/login?error=no_email', request.url))
+      return redirect(new URL('/login?error=no_email', request.url))
     }
 
     const supabase = await createServiceClient()
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
         .eq('id', existingUser.id)
 
       await createSession(existingUser.id)
-      return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
+      return redirect(new URL(returnUrl || '/dashboard', request.url))
     }
 
     // New user - create account
@@ -95,13 +101,13 @@ export async function POST(request: NextRequest) {
 
     if (createError || !newUser) {
       console.error('Error creating user:', createError)
-      return NextResponse.redirect(new URL('/login?error=create_failed', request.url))
+      return redirect(new URL('/login?error=create_failed', request.url))
     }
 
     await createSession(newUser.id)
-    return NextResponse.redirect(new URL(returnUrl || '/dashboard', request.url))
+    return redirect(new URL(returnUrl || '/dashboard', request.url))
   } catch (error) {
     console.error('Apple auth error:', error)
-    return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))
+    return redirect(new URL('/login?error=auth_failed', request.url))
   }
 }
