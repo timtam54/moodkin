@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Dialog } from '@/components/ui/dialog'
-import { useToast } from '@/components/ui/toast'
+import { Button } from '@/components/ui/button'
 import { logout } from '@/lib/auth/client'
 import { PushNotificationPrompt } from '@/components/pwa/push-notification-prompt'
 import { NotificationsHub } from '@/components/notifications/notifications-hub'
@@ -36,27 +36,21 @@ const navItems = [
 
 export function DashboardNav({ user }: DashboardNavProps) {
   const pathname = usePathname()
-  const { showToast } = useToast()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [subscriptionNoticeOpen, setSubscriptionNoticeOpen] = useState(false)
   const subscriptionState = getSubscriptionState(user.stripeid, user.subscriptionEndsAt, user.subscriptionStatus)
 
-  // Show toast notification once per session for subscription issues
+  // Show subscription notice dialog once per session
   useEffect(() => {
-    const toastKey = 'subscription_toast_shown'
-    const alreadyShown = sessionStorage.getItem(toastKey)
+    const noticeKey = 'subscription_notice_shown'
+    const alreadyShown = sessionStorage.getItem(noticeKey)
 
-    if (!alreadyShown) {
-      if (subscriptionState.status === 'expired') {
-        showToast('Your subscription has ended. You have not been billed.', 'error')
-        sessionStorage.setItem(toastKey, 'true')
-      } else if (subscriptionState.status === 'cancelled') {
-        const endsAt = subscriptionState.endsAt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })
-        showToast(`Your subscription is cancelled. Access ends ${endsAt}.`, 'info')
-        sessionStorage.setItem(toastKey, 'true')
-      }
+    if (!alreadyShown && (subscriptionState.status === 'expired' || subscriptionState.status === 'cancelled')) {
+      setSubscriptionNoticeOpen(true)
+      sessionStorage.setItem(noticeKey, 'true')
     }
-  }, [subscriptionState, showToast])
+  }, [subscriptionState])
 
   return (
     <header className="sticky top-0 z-50 bg-moodkin-dark">
@@ -202,44 +196,41 @@ export function DashboardNav({ user }: DashboardNavProps) {
       {/* Push notification prompt */}
       <PushNotificationPrompt />
 
-      {/* Subscription Warning Banner */}
-      {subscriptionState.status === 'expired' && (
-        <div className="bg-red-500 text-white px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <p className="text-sm">
-                Your subscription has ended. You have not been billed.
-              </p>
-            </div>
-            <button
-              onClick={() => setProfileDialogOpen(true)}
-              className="px-3 py-1 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
+      {/* Subscription Notice Dialog */}
+      <Dialog open={subscriptionNoticeOpen} onClose={() => setSubscriptionNoticeOpen(false)}>
+        <div className="flex flex-col items-center text-center">
+          <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+            <AlertTriangle className="w-7 h-7 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-bold text-moodkin-dark mb-2">
+            {subscriptionState.status === 'expired' ? 'Subscription Ended' : 'Subscription Cancelled'}
+          </h2>
+          <p className="text-moodkin-gray mb-6">
+            {subscriptionState.status === 'expired'
+              ? 'Your subscription has ended. You have not been billed. Resubscribe anytime to continue enjoying premium features.'
+              : subscriptionState.status === 'cancelled'
+                ? `Your subscription is cancelled. You'll have access until ${subscriptionState.endsAt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}.`
+                : ''}
+          </p>
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setSubscriptionNoticeOpen(false)}
+            >
+              OK
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setSubscriptionNoticeOpen(false)
+                setProfileDialogOpen(true)
+              }}
             >
               Resubscribe
-            </button>
+            </Button>
           </div>
         </div>
-      )}
-
-      {subscriptionState.status === 'cancelled' && (
-        <div className="bg-amber-500 text-white px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <p className="text-sm">
-                Your subscription is cancelled. Access ends {subscriptionState.endsAt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' })}.
-              </p>
-            </div>
-            <button
-              onClick={() => setProfileDialogOpen(true)}
-              className="px-3 py-1 bg-white text-amber-600 text-sm font-medium rounded-lg hover:bg-amber-50 transition-colors flex-shrink-0"
-            >
-              Resubscribe
-            </button>
-          </div>
-        </div>
-      )}
+      </Dialog>
 
       {/* User Profile Dialog */}
       <Dialog open={profileDialogOpen} onClose={() => setProfileDialogOpen(false)}>

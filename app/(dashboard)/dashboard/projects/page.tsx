@@ -100,7 +100,7 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-moodkin-dark">Projects</h1>
-          <p className="text-moodkin-gray mt-1">Moodboard sessions with your clients</p>
+          <p className="text-moodkin-gray mt-1">Moodboard sessions</p>
         </div>
         <Button variant="primary" onClick={handleNewProjectClick} data-tour="new-project">
           <Plus className="w-4 h-4 mr-2" />
@@ -125,7 +125,7 @@ export default function ProjectsPage() {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {/* New Project Card */}
           <button
             onClick={handleNewProjectClick}
