@@ -1,9 +1,13 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
+import { reconcileSubscriptionFromLastInvoice } from '@/lib/stripe/reconcile-from-invoice'
 import type { SubscriptionStatus, CreativeClientType } from '@/types/database'
 
 const SESSION_COOKIE_NAME = 'moodkin_session'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
+
+const BILLING_NOTICE_COOKIE = 'moodkin_billing_notice'
+const BILLING_NOTICE_MAX_AGE = 60 * 5 // 5 minutes — long enough for first dashboard render
 
 export interface SessionUser {
   id: string
@@ -48,7 +52,46 @@ export async function createSession(userId: string): Promise<string> {
     path: '/',
   })
 
+  // Catch up on any missed Stripe webhooks: if DB says lapsed but Stripe has a
+  // recent paid invoice, extend subscription_ends_at to last_payment + 31 days.
+  // If Stripe shows the user has lapsed, mark expired and drop a one-shot
+  // cookie so the dashboard can show a billing notice toast.
+  try {
+    const supabase = await createServiceClient()
+    const { data: u } = await supabase
+      .from('users')
+      .select('stripeid, subscription_ends_at')
+      .eq('id', userId)
+      .single()
+    if (u) {
+      const result = await reconcileSubscriptionFromLastInvoice({
+        userId,
+        stripeId: u.stripeid,
+        subscriptionEndsAt: u.subscription_ends_at,
+      })
+      if (result.kind === 'lapsed') {
+        cookieStore.set(BILLING_NOTICE_COOKIE, '1', {
+          httpOnly: false, // dashboard layout reads server-side; client-readable is fine
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: BILLING_NOTICE_MAX_AGE,
+          path: '/',
+        })
+      }
+    }
+  } catch (err) {
+    console.error('[createSession] reconcile failed (non-fatal)', err)
+  }
+
   return sessionToken
+}
+
+export async function consumeBillingNotice(): Promise<boolean> {
+  const cookieStore = await cookies()
+  const present = cookieStore.get(BILLING_NOTICE_COOKIE)?.value
+  if (!present) return false
+  cookieStore.delete(BILLING_NOTICE_COOKIE)
+  return true
 }
 
 export async function getSession(): Promise<Session | null> {
