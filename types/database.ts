@@ -28,6 +28,9 @@ export interface Database {
           notes: string | null
           auth_provider: string | null
           auth_provider_id: string | null
+          password_hash: string | null
+          password_set_token_hash: string | null
+          password_set_expires_at: string | null
           stripeid: string | null
           subscription_status: SubscriptionStatus
           subscription_ends_at: string | null
@@ -48,6 +51,9 @@ export interface Database {
           notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
+          password_hash?: string | null
+          password_set_token_hash?: string | null
+          password_set_expires_at?: string | null
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
@@ -68,6 +74,9 @@ export interface Database {
           notes?: string | null
           auth_provider?: string | null
           auth_provider_id?: string | null
+          password_hash?: string | null
+          password_set_token_hash?: string | null
+          password_set_expires_at?: string | null
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null

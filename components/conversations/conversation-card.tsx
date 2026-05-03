@@ -33,41 +33,41 @@ export function ConversationCard({ conversation, unseenCount }: ConversationCard
   return (
     <Link
       href={`/dashboard/projects/${conversation.id}`}
-      className="aspect-square relative rounded-2xl overflow-hidden group cursor-pointer bg-moodkin-cream"
+      className="aspect-square relative rounded-2xl overflow-hidden group cursor-pointer bg-moodkin-cream shadow-md hover:shadow-xl transition-all duration-300 ring-1 ring-black/5"
     >
       <Image
         src={imageUrl}
         alt={conversation.title}
         fill
-        className="object-cover transition-transform group-hover:scale-105"
+        className="object-cover transition-transform duration-300 group-hover:scale-105"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-      <div className="absolute top-3 right-3 flex items-center gap-2">
-        {unseenCount && unseenCount > 0 ? (
-          <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+      {/* Notification badge - top right */}
+      {unseenCount && unseenCount > 0 ? (
+        <div className="absolute top-2 right-2">
+          <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[22px] h-[22px] px-1.5 flex items-center justify-center shadow-lg">
             {unseenCount > 99 ? '99+' : unseenCount}
           </span>
-        ) : null}
-        <Badge
-          variant={conversation.status === 'active' ? 'success' : 'default'}
-          className="backdrop-blur-sm"
-        >
-          {conversation.status}
-        </Badge>
-      </div>
+        </div>
+      ) : null}
 
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <p className="text-white font-semibold text-base truncate">
+      {/* Clean bottom info area */}
+      <div className="absolute bottom-0 left-0 right-0 p-3">
+        <p className="text-white font-semibold text-sm leading-tight truncate mb-1">
           {conversation.title}
         </p>
-        <p className="text-white/80 text-sm truncate flex items-center gap-1 mt-1">
-          <MessageSquare className="w-3 h-3" />
-          {conversation.status}
-        </p>
-        <p className="text-white/60 text-xs mt-1">
-          {formatRelativeTime(conversation.updated_at)}
-        </p>
+        <div className="flex items-center justify-between">
+          <span className="text-white/70 text-xs">
+            {formatRelativeTime(conversation.updated_at)}
+          </span>
+          <Badge
+            variant={conversation.status === 'active' ? 'success' : 'default'}
+            className="backdrop-blur-sm text-[10px] px-1.5 py-0.5"
+          >
+            {conversation.status}
+          </Badge>
+        </div>
       </div>
     </Link>
   )

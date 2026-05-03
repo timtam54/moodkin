@@ -91,28 +91,18 @@ export function DashboardNav({ user }: DashboardNavProps) {
             })}
           </nav>
 
-          {/* Desktop User section */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Desktop User section - simplified */}
+          <div className="hidden md:flex items-center gap-2">
             <NotificationsHub />
             <button
               onClick={() => setProfileDialogOpen(true)}
-              className="hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
             >
               <Avatar
                 src={user.avatarUrl}
                 fallback={user.name || user.email}
                 size="sm"
               />
-            </button>
-            <span className="text-sm text-white/70 hidden lg:block">
-              {user.name || user.email}
-            </span>
-            <button
-              onClick={() => logout()}
-              className="p-2 text-white/50 hover:text-white rounded-lg hover:bg-white/10"
-              title="Sign out"
-            >
-              <LogOut className="w-5 h-5" />
             </button>
           </div>
 
@@ -133,10 +123,10 @@ export function DashboardNav({ user }: DashboardNavProps) {
         </div>
       </div>
 
-      {/* Mobile dropdown menu */}
+      {/* Mobile dropdown menu - simplified */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-moodkin-dark border-t border-white/10">
-          <nav className="px-4 py-2 space-y-1">
+          <nav className="px-4 py-3 space-y-1">
             {navItems.map((item) => {
               const isActive = pathname.startsWith(item.href)
 
@@ -157,39 +147,16 @@ export function DashboardNav({ user }: DashboardNavProps) {
                 </Link>
               )
             })}
-          </nav>
 
-          {/* Mobile user section */}
-          <div className="px-4 py-4 border-t border-white/10">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false)
-                  setProfileDialogOpen(true)
-                }}
-                className="hover:opacity-80 transition-opacity"
-              >
-                <Avatar
-                  src={user.avatarUrl}
-                  fallback={user.name || user.email}
-                  size="md"
-                />
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {user.name || 'User'}
-                </p>
-                <p className="text-xs text-white/50 truncate">{user.email}</p>
-              </div>
-              <button
-                onClick={() => logout()}
-                className="p-2 text-white/50 hover:text-white rounded-xl hover:bg-white/10"
-                title="Sign out"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+            {/* Sign out as a nav item */}
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors w-full"
+            >
+              <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
+          </nav>
         </div>
       )}
 
