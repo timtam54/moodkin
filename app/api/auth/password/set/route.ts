@@ -20,7 +20,12 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { token?: unknown; password?: unknown }
+  let body: {
+    token?: unknown
+    password?: unknown
+    firstName?: unknown
+    lastName?: unknown
+  }
   try {
     body = await request.json()
   } catch {
@@ -29,6 +34,8 @@ export async function POST(request: Request) {
 
   const token = typeof body.token === 'string' ? body.token : ''
   const password = typeof body.password === 'string' ? body.password : ''
+  const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : ''
+  const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : ''
 
   if (!token) {
     return NextResponse.json({ error: 'Invalid or expired link' }, { status: 400 })
@@ -44,7 +51,7 @@ export async function POST(request: Request) {
 
   const { data: user } = await supabase
     .from('users')
-    .select('id, password_set_token_hash, password_set_expires_at')
+    .select('id, name, password_set_token_hash, password_set_expires_at')
     .eq('password_set_token_hash', tokenLookup)
     .maybeSingle()
 
@@ -57,15 +64,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid or expired link' }, { status: 400 })
   }
 
+  const needsName = !user.name || user.name.trim().length === 0
+  if (needsName) {
+    if (!firstName || !lastName) {
+      return NextResponse.json(
+        { error: 'First and last name are required' },
+        { status: 400 },
+      )
+    }
+    if (firstName.length > 60 || lastName.length > 60) {
+      return NextResponse.json({ error: 'Name is too long' }, { status: 400 })
+    }
+  }
+
   const passwordHash = await hashPassword(password)
+
+  const update: {
+    password_hash: string
+    password_set_token_hash: null
+    password_set_expires_at: null
+    name?: string
+  } = {
+    password_hash: passwordHash,
+    password_set_token_hash: null,
+    password_set_expires_at: null,
+  }
+  if (needsName) {
+    update.name = `${firstName} ${lastName}`
+  }
 
   const { error: updateError } = await supabase
     .from('users')
-    .update({
-      password_hash: passwordHash,
-      password_set_token_hash: null,
-      password_set_expires_at: null,
-    })
+    .update(update)
     .eq('id', user.id)
 
   if (updateError) {

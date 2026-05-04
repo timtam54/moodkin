@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/ui/logo'
 import { Button } from '@/components/ui/button'
@@ -12,17 +12,60 @@ function SetPasswordContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token') || ''
 
+  const [checking, setChecking] = useState(true)
+  const [tokenValid, setTokenValid] = useState(false)
+  const [needsName, setNeedsName] = useState(false)
+
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!token) {
+  useEffect(() => {
+    if (!token) {
+      setChecking(false)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/auth/password/check-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (res.ok && data.valid) {
+          setTokenValid(true)
+          setNeedsName(Boolean(data.needsName))
+        }
+      } finally {
+        if (!cancelled) setChecking(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  if (checking) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loading message="Loading..." />
+      </div>
+    )
+  }
+
+  if (!token || !tokenValid) {
     return (
       <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
-        <h2 className="text-xl font-semibold text-moodkin-dark mb-2">Invalid link</h2>
+        <h2 className="text-xl font-semibold text-moodkin-dark mb-2">Invalid or expired link</h2>
         <p className="text-moodkin-gray mb-6">
-          This password link is missing or malformed.
+          This password link is no longer valid. Request a new one from the sign in
+          page.
         </p>
         <a href="/login" className="text-moodkin-pink hover:underline">
           Back to sign in
@@ -35,6 +78,10 @@ function SetPasswordContent() {
     e.preventDefault()
     setError(null)
 
+    if (needsName && (!firstName.trim() || !lastName.trim())) {
+      setError('Please enter your first and last name')
+      return
+    }
     if (password !== confirm) {
       setError('Passwords do not match')
       return
@@ -45,7 +92,11 @@ function SetPasswordContent() {
       const res = await fetch('/api/auth/password/set', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          token,
+          password,
+          ...(needsName ? { firstName: firstName.trim(), lastName: lastName.trim() } : {}),
+        }),
       })
       if (res.ok) {
         router.push('/dashboard')
@@ -62,13 +113,49 @@ function SetPasswordContent() {
   return (
     <div className="bg-white rounded-2xl shadow-sm p-8">
       <h2 className="text-2xl font-bold text-moodkin-dark text-center mb-2">
-        Choose a password
+        {needsName ? 'Finish setting up your account' : 'Choose a password'}
       </h2>
       <p className="text-moodkin-gray text-center mb-8">
-        Use at least 10 characters with letters and numbers.
+        {needsName
+          ? 'Tell us your name and pick a password to get started.'
+          : 'Use at least 10 characters with letters and numbers.'}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {needsName && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="firstName" className="block text-sm font-medium text-moodkin-dark mb-1">
+                First name
+              </label>
+              <Input
+                id="firstName"
+                type="text"
+                required
+                autoFocus
+                maxLength={60}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="h-12 rounded-xl"
+              />
+            </div>
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-moodkin-dark mb-1">
+                Last name
+              </label>
+              <Input
+                id="lastName"
+                type="text"
+                required
+                maxLength={60}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="h-12 rounded-xl"
+              />
+            </div>
+          </div>
+        )}
+
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-moodkin-dark mb-1">
             New password
@@ -77,13 +164,19 @@ function SetPasswordContent() {
             id="password"
             type="password"
             required
-            autoFocus
+            autoFocus={!needsName}
             minLength={10}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="h-12 rounded-xl"
           />
+          {!needsName && (
+            <p className="text-xs text-moodkin-gray mt-1">
+              At least 10 characters with letters and numbers.
+            </p>
+          )}
         </div>
+
         <div>
           <label htmlFor="confirm" className="block text-sm font-medium text-moodkin-dark mb-1">
             Confirm password
@@ -104,7 +197,7 @@ function SetPasswordContent() {
         )}
 
         <Button type="submit" disabled={submitting} className="w-full h-12 rounded-xl">
-          {submitting ? 'Saving…' : 'Save password and sign in'}
+          {submitting ? 'Saving…' : 'Save and sign in'}
         </Button>
       </form>
     </div>

@@ -1,22 +1,67 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle, HelpCircle } from 'lucide-react'
+import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle, HelpCircle, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useOnboarding } from '@/hooks/use-onboarding'
+import { useToast } from '@/components/ui/toast'
 import { SubscriptionManager } from '@/components/subscription/subscription-manager'
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { session } = useSession()
+  const { session, refetch } = useSession()
+  const { showToast } = useToast()
   const { isSupported, isSubscribed, permission, subscribe, unsubscribe } = usePushNotifications()
   const { restartOnboarding } = useOnboarding()
   const [isTestingPush, setIsTestingPush] = useState(false)
   const [pushTestResult, setPushTestResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
+
+  useEffect(() => {
+    setNameInput(session?.user.name ?? '')
+  }, [session?.user.name])
+
+  // Auto-open the editor for users who haven't set a name yet (e.g. just
+  // verified email but skipped the set-password name capture for any reason).
+  useEffect(() => {
+    if (session && (!session.user.name || session.user.name.trim().length === 0)) {
+      setEditingName(true)
+    }
+  }, [session])
+
+  async function handleSaveName() {
+    const trimmed = nameInput.trim()
+    if (!trimmed) {
+      showToast('Name is required', 'error')
+      return
+    }
+    setSavingName(true)
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast(data.error || 'Could not save', 'error')
+        return
+      }
+      await refetch()
+      setEditingName(false)
+      showToast('Name updated', 'success')
+    } finally {
+      setSavingName(false)
+    }
+  }
 
   const handleRestartTour = () => {
     restartOnboarding()
@@ -85,15 +130,64 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Name - Read only */}
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-moodkin-cream/30">
-              <div className="w-10 h-10 rounded-xl bg-moodkin-light-gray/50 flex items-center justify-center">
-                <User className="w-5 h-5 text-moodkin-gray" />
+            {/* Name - Editable */}
+            <div className="p-4 rounded-xl bg-moodkin-cream/30">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-moodkin-light-gray/50 flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-moodkin-gray" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-moodkin-dark">Name</p>
+                  {!editingName && (
+                    <p className="text-sm text-moodkin-gray truncate">
+                      {session?.user.name || 'Not set'}
+                    </p>
+                  )}
+                </div>
+                {!editingName && (
+                  <Button
+                    onClick={() => setEditingName(true)}
+                    variant="outline"
+                    className="rounded-full px-4"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" />
+                    Edit
+                  </Button>
+                )}
               </div>
-              <div>
-                <p className="font-medium text-moodkin-dark">Name</p>
-                <p className="text-sm text-moodkin-gray">{session?.user.name || 'Not set'}</p>
-              </div>
+
+              {editingName && (
+                <div className="mt-3 space-y-2">
+                  <Input
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="First Last"
+                    maxLength={120}
+                    autoFocus
+                    className="h-11 rounded-xl"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      onClick={() => {
+                        setEditingName(false)
+                        setNameInput(session?.user.name ?? '')
+                      }}
+                      variant="outline"
+                      className="rounded-full px-4"
+                      disabled={savingName}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSaveName}
+                      disabled={savingName}
+                      className="rounded-full px-4"
+                    >
+                      {savingName ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
