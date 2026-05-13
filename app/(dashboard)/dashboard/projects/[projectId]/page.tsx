@@ -21,7 +21,6 @@ import { AssetCard } from '@/components/assets/asset-card'
 import { LinkCard } from '@/components/assets/link-card'
 import { AssetPickerDialog } from '@/components/assets/asset-picker-dialog'
 import { MoodboardCreatorDialog, type MoodboardOptions, type RankedAsset } from '@/components/moodboard/moodboard-creator-dialog'
-import { ManualMoodboardCreator, type ManualMoodboardOptions } from '@/components/moodboard/manual-moodboard-creator'
 import { FreeformMoodboardCreator, type FreeformMoodboardOptions } from '@/components/moodboard/freeform-moodboard-creator'
 import { AIImageGenerator } from '@/components/moodboard/ai-image-generator'
 import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
@@ -97,7 +96,6 @@ export default function ProjectDetailPage() {
   const [showCreativePicker, setShowCreativePicker] = useState(false)
   const [isSelectingCreative, setIsSelectingCreative] = useState(false)
   const [showMoodboardCreator, setShowMoodboardCreator] = useState(false)
-  const [showManualMoodboardCreator, setShowManualMoodboardCreator] = useState(false)
   const [showFreeformCreator, setShowFreeformCreator] = useState(false)
   const [showAIImageGenerator, setShowAIImageGenerator] = useState(false)
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
@@ -110,6 +108,7 @@ export default function ProjectDetailPage() {
   const [customWidth, setCustomWidth] = useState('1920')
   const [customHeight, setCustomHeight] = useState('1080')
   const [isExporting, setIsExporting] = useState(false)
+  const [fullscreenMoodboardId, setFullscreenMoodboardId] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean
     title: string
@@ -282,6 +281,15 @@ export default function ProjectDetailPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [lightboxImage, goToPrevImage, goToNextImage])
+
+  useEffect(() => {
+    if (!fullscreenMoodboardId) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreenMoodboardId(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreenMoodboardId])
 
   const handleSelectForCreative = async (assetIds: string[]) => {
     setIsSelectingCreative(true)
@@ -464,11 +472,6 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleOpenMoodboardCreator = () => {
-    setShowManualMoodboardCreator(true)
-  }
-
-
   const handleCreateMoodboard = async (options: MoodboardOptions) => {
     setIsCreatingMoodboard(true)
     try {
@@ -483,28 +486,6 @@ export default function ProjectDetailPage() {
         mode: 'automatic',
       })
       setShowMoodboardCreator(false)
-      setActiveTab('moodboards')
-    } catch (error) {
-      console.error('Failed to create moodboard:', error)
-      alert(error instanceof Error ? error.message : 'Failed to create moodboard')
-    } finally {
-      setIsCreatingMoodboard(false)
-    }
-  }
-
-  const handleCreateManualMoodboard = async (options: ManualMoodboardOptions) => {
-    setIsCreatingMoodboard(true)
-    try {
-      await createMoodboard.mutateAsync({
-        backgroundColor: options.backgroundColor,
-        gridLayout: options.gridLayout,
-        borderRadius: options.borderRadius,
-        spacing: options.spacing,
-        aspectRatio: options.aspectRatio,
-        mode: 'manual',
-        selectedAssetIds: options.selectedAssetIds,
-      })
-      setShowManualMoodboardCreator(false)
       setActiveTab('moodboards')
     } catch (error) {
       console.error('Failed to create moodboard:', error)
@@ -1724,15 +1705,6 @@ export default function ProjectDetailPage() {
           isLoading={isCreatingMoodboard}
         />
 
-        {/* Manual Moodboard Creator */}
-        <ManualMoodboardCreator
-          open={showManualMoodboardCreator}
-          onClose={() => setShowManualMoodboardCreator(false)}
-          onCreate={handleCreateManualMoodboard}
-          assets={assets || []}
-          isLoading={isCreatingMoodboard}
-        />
-
         {/* Freeform Moodboard Creator (Blank Piece of Paper) */}
         <FreeformMoodboardCreator
           open={showFreeformCreator}
@@ -2001,20 +1973,12 @@ export default function ProjectDetailPage() {
               <h2 className="text-lg font-semibold text-moodkin-dark">Your Moodboards</h2>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  onClick={handleOpenMoodboardCreator}
-                  disabled={isCreatingMoodboard}
-                  className="bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Moodboard
-                </Button>
-                <Button
                   onClick={() => setShowFreeformCreator(true)}
                   disabled={isCreatingMoodboard}
                   className="animate-pulse bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl"
                 >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Blank Piece of Paper
+                  <Plus className="w-4 h-4 mr-2" />
+                  Moodboard
                 </Button>
                 <button
                   onClick={() => setShowMoodboardHelp(true)}
@@ -2396,7 +2360,16 @@ export default function ProjectDetailPage() {
                   >
                     {/* Moodboard Preview - Layout Based on grid_layout */}
                     <div
-                      className={`flex flex-col ${aspectRatioClass}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setFullscreenMoodboardId(moodboard.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setFullscreenMoodboardId(moodboard.id)
+                        }
+                      }}
+                      className={`flex flex-col cursor-zoom-in ${aspectRatioClass}`}
                       style={{
                         backgroundColor: bgColor,
                         gap: `${spacingPx}px`,
@@ -2405,6 +2378,38 @@ export default function ProjectDetailPage() {
                     >
                       {renderMoodboardLayout()}
                     </div>
+
+                    {fullscreenMoodboardId === moodboard.id && (
+                      <div
+                        className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 sm:p-8"
+                        onClick={() => setFullscreenMoodboardId(null)}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setFullscreenMoodboardId(null)
+                          }}
+                          className="absolute top-4 right-4 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                          aria-label="Close fullscreen"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className={`flex flex-col rounded-lg overflow-hidden max-h-full max-w-full ${aspectRatioClass}`}
+                          style={{
+                            backgroundColor: bgColor,
+                            gap: `${spacingPx}px`,
+                            padding: `${spacingPx}px`,
+                            height: moodboard.aspect_ratio === 'landscape' ? 'auto' : '90vh',
+                            width: moodboard.aspect_ratio === 'landscape' ? '90vw' : 'auto',
+                          }}
+                        >
+                          {renderMoodboardLayout()}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Moodboard Info */}
                     <div className="p-4">
@@ -2474,7 +2479,7 @@ export default function ProjectDetailPage() {
               <div className="text-center py-8 text-moodkin-gray">
                 <Layout className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No moodboards created yet</p>
-                <p className="text-sm mt-1">Click "Create Moodboard" to generate one from your images</p>
+                <p className="text-sm mt-1">Click "Blank Piece of Paper" to start a new moodboard</p>
               </div>
             )}
           </div>
