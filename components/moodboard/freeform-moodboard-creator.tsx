@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { X, Check, Loader2, ChevronLeft, ChevronRight, RotateCw, ArrowUp, ArrowDown, Trash2, Move, HelpCircle } from 'lucide-react'
+import { X, Check, Loader2, ChevronLeft, ChevronRight, RotateCw, ArrowUp, ArrowDown, Trash2, Move, HelpCircle, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import type { ProjectAsset } from '@/types/database'
@@ -74,11 +74,38 @@ const STEPS: { id: StepType; label: string; description: string }[] = [
 ]
 
 const DEFAULT_BACKGROUND_COLORS = [
+  // Neutrals
   { value: '#FFFFFF', label: 'White' },
   { value: '#F5F5F0', label: 'Cream' },
-  { value: '#1A1A1A', label: 'Black' },
+  { value: '#FAF7F2', label: 'Ivory' },
   { value: '#F5F5F5', label: 'Light Gray' },
   { value: '#E8E4DF', label: 'Warm Gray' },
+  { value: '#9CA3AF', label: 'Slate Gray' },
+  { value: '#4B5563', label: 'Charcoal' },
+  { value: '#1A1A1A', label: 'Black' },
+  // Warm tones
+  { value: '#FCE7D6', label: 'Peach' },
+  { value: '#F4C2A1', label: 'Apricot' },
+  { value: '#E9B824', label: 'Gold' },
+  { value: '#D97706', label: 'Amber' },
+  { value: '#B45309', label: 'Terracotta' },
+  { value: '#7C2D12', label: 'Rust' },
+  // Pinks / reds
+  { value: '#FBCFE8', label: 'Blush' },
+  { value: '#F472B6', label: 'Pink' },
+  { value: '#DC2626', label: 'Red' },
+  { value: '#881337', label: 'Wine' },
+  // Greens
+  { value: '#D1FAE5', label: 'Mint' },
+  { value: '#10B981', label: 'Emerald' },
+  { value: '#065F46', label: 'Forest' },
+  { value: '#3F6212', label: 'Olive' },
+  // Blues / purples
+  { value: '#DBEAFE', label: 'Sky' },
+  { value: '#3B82F6', label: 'Blue' },
+  { value: '#1E3A8A', label: 'Navy' },
+  { value: '#7C3AED', label: 'Violet' },
+  { value: '#4C1D95', label: 'Plum' },
 ]
 
 // Helper to get image URL (use thumbnail for links)
@@ -111,6 +138,9 @@ export function FreeformMoodboardCreator({
   const canvasRef = useRef<HTMLDivElement>(null)
   const [nextZIndex, setNextZIndex] = useState(1)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
+  const [customColors, setCustomColors] = useState<string[]>([])
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const [pickerColor, setPickerColor] = useState('#E9B824')
 
   // Filter to visual assets (images and links with thumbnails)
   const visualAssets = useMemo(() =>
@@ -130,6 +160,9 @@ export function FreeformMoodboardCreator({
       setSelectedImageId(null)
       setBackgroundColor('#FFFFFF')
       setNextZIndex(1)
+      setCustomColors([])
+      setColorPickerOpen(false)
+      setPickerColor('#E9B824')
     }
   }, [open])
 
@@ -455,7 +488,7 @@ export function FreeformMoodboardCreator({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-moodkin-light-gray/30">
           <div>
-            <h2 className="text-lg font-semibold text-moodkin-dark">Blank Piece of Paper</h2>
+            <h2 className="text-lg font-semibold text-moodkin-dark">Moodboard</h2>
             <p className="text-sm text-moodkin-gray">{STEPS[currentStepIndex].description}</p>
           </div>
           <button
@@ -537,6 +570,30 @@ export function FreeformMoodboardCreator({
                       title={color.label}
                     />
                   ))}
+                  {customColors.map(color => (
+                    <button
+                      key={`custom-${color}`}
+                      onClick={() => setBackgroundColor(color)}
+                      className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                        backgroundColor === color
+                          ? 'border-moodkin-gold scale-110'
+                          : 'border-moodkin-light-gray hover:border-moodkin-gold/50'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={`Custom ${color}`}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPickerColor(backgroundColor)
+                      setColorPickerOpen(true)
+                    }}
+                    className="w-10 h-10 rounded-lg border-2 border-dashed border-moodkin-light-gray hover:border-moodkin-gold flex items-center justify-center text-moodkin-gray hover:text-moodkin-dark transition-all"
+                    title="Custom color"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -802,6 +859,79 @@ export function FreeformMoodboardCreator({
         open={helpDialogOpen}
         onClose={() => setHelpDialogOpen(false)}
       />
+
+      {/* Custom Color Picker Modal */}
+      {colorPickerOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setColorPickerOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl border border-moodkin-light-gray p-5 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-base font-semibold text-moodkin-dark">Pick a color</h4>
+              <button
+                type="button"
+                onClick={() => setColorPickerOpen(false)}
+                className="p-1 rounded-full hover:bg-moodkin-cream text-moodkin-gray hover:text-moodkin-dark transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <input
+                type="color"
+                value={/^#[0-9A-Fa-f]{6}$/.test(pickerColor) ? pickerColor : '#FFFFFF'}
+                onChange={(e) => setPickerColor(e.target.value.toUpperCase())}
+                className="w-14 h-14 rounded-lg border border-moodkin-light-gray cursor-pointer p-0"
+              />
+              <input
+                type="text"
+                value={pickerColor}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (/^#?[0-9A-Fa-f]{0,6}$/.test(v)) {
+                    setPickerColor(v.startsWith('#') ? v : `#${v}`)
+                  }
+                }}
+                placeholder="#RRGGBB"
+                className="flex-1 px-3 py-2 text-sm border border-moodkin-light-gray rounded-lg focus:outline-none focus:border-moodkin-gold font-mono uppercase"
+                maxLength={7}
+              />
+            </div>
+            <div
+              className="w-full h-12 rounded-lg border border-moodkin-light-gray mb-4"
+              style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(pickerColor) ? pickerColor : '#FFFFFF' }}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setColorPickerOpen(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!/^#[0-9A-Fa-f]{6}$/.test(pickerColor)}
+                onClick={() => {
+                  const c = pickerColor.toUpperCase()
+                  setBackgroundColor(c)
+                  setCustomColors(prev => prev.includes(c) ? prev : [...prev, c])
+                  setColorPickerOpen(false)
+                }}
+                className="flex-1 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark"
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
