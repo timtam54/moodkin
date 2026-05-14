@@ -1,7 +1,10 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 import { AdminUsersTable } from './admin-users-table'
+
+const ADMIN_EMAIL = 'timhams@gmail.com'
 
 export default async function AdminPage() {
   const session = await getSession()
@@ -33,14 +36,24 @@ export default async function AdminPage() {
   return (
     <div className="min-h-screen bg-moodkin-cream p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-moodkin-dark">Admin</h1>
-          <p className="text-moodkin-gray mt-1">
-            All users ({users?.length || 0})
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-moodkin-dark">Admin</h1>
+            <p className="text-moodkin-gray mt-1">
+              All users ({users?.length || 0})
+            </p>
+          </div>
+          {session.user.email.toLowerCase() === ADMIN_EMAIL && (
+            <Link
+              href="/audit"
+              className="text-sm font-medium text-moodkin-dark hover:text-moodkin-gold-hover bg-white px-4 py-2 rounded-xl shadow-sm"
+            >
+              View Audit Log
+            </Link>
+          )}
         </div>
 
-        <AdminUsersTable users={users || []} currentUserId={session.user.id} />
+        <AdminUsersTable users={users || []} currentUserId={session.user.id} currentUserEmail={session.user.email} />
       </div>
     </div>
   )

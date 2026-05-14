@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
-import { consumeBillingNotice, getSession } from '@/lib/auth/session'
+import { hasBillingNotice, getSession } from '@/lib/auth/session'
 import { DashboardNav } from '@/components/layout/dashboard-nav'
 import { OnboardingTour } from '@/components/onboarding/onboarding-tour'
 import { BillingNoticeToast } from '@/components/subscription/billing-notice-toast'
+import { PageViewTracker } from '@/components/audit/page-view-tracker'
 
 export default async function DashboardLayout({
   children,
@@ -15,7 +16,7 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  const showBillingNotice = await consumeBillingNotice()
+  const showBillingNotice = await hasBillingNotice()
 
   // Allow both photographers and clients (clients can view projects they're invited to)
   return (
@@ -31,6 +32,8 @@ export default async function DashboardLayout({
       <OnboardingTour />
 
       {showBillingNotice && <BillingNoticeToast />}
+
+      <PageViewTracker />
     </div>
   )
 }

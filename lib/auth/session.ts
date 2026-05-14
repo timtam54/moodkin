@@ -86,12 +86,14 @@ export async function createSession(userId: string): Promise<string> {
   return sessionToken
 }
 
-export async function consumeBillingNotice(): Promise<boolean> {
+export async function hasBillingNotice(): Promise<boolean> {
   const cookieStore = await cookies()
-  const present = cookieStore.get(BILLING_NOTICE_COOKIE)?.value
-  if (!present) return false
+  return Boolean(cookieStore.get(BILLING_NOTICE_COOKIE)?.value)
+}
+
+export async function clearBillingNotice(): Promise<void> {
+  const cookieStore = await cookies()
   cookieStore.delete(BILLING_NOTICE_COOKIE)
-  return true
 }
 
 export async function getSession(): Promise<Session | null> {

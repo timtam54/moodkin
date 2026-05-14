@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { UserCheck } from 'lucide-react'
+import { UserCheck, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { User } from '@/types/database'
 
@@ -43,10 +43,39 @@ function UserTypeBadge({ type }: { type: string | null }) {
 interface AdminUsersTableProps {
   users: User[]
   currentUserId: string
+  currentUserEmail: string
 }
 
-export function AdminUsersTable({ users, currentUserId }: AdminUsersTableProps) {
+const ADMIN_EMAIL = 'timhams@gmail.com'
+
+export function AdminUsersTable({ users, currentUserId, currentUserEmail }: AdminUsersTableProps) {
   const [impersonating, setImpersonating] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const isAdmin = currentUserEmail.toLowerCase() === ADMIN_EMAIL
+
+  async function handleDelete(userId: string, label: string) {
+    if (!confirm(`Permanently delete ${label}? This cascades to all their projects, assets, and messages.`)) {
+      return
+    }
+    setDeleting(userId)
+    try {
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      if (response.ok) {
+        window.location.reload()
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Failed to delete user')
+      }
+    } catch {
+      alert('Failed to delete user')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   async function handleImpersonate(userId: string) {
     setImpersonating(userId)
@@ -151,15 +180,30 @@ export function AdminUsersTable({ users, currentUserId }: AdminUsersTableProps) 
                 </td>
                 <td className="px-4 py-4">
                   {user.id !== currentUserId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleImpersonate(user.id)}
-                      disabled={impersonating === user.id}
-                    >
-                      <UserCheck className="w-4 h-4 mr-1" />
-                      {impersonating === user.id ? 'Switching...' : 'Impersonate'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleImpersonate(user.id)}
+                        disabled={impersonating === user.id}
+                      >
+                        <UserCheck className="w-4 h-4 mr-1" />
+                        {impersonating === user.id ? 'Switching...' : 'Impersonate'}
+                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(user.id, user.name || user.email)}
+                          disabled={deleting === user.id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          title="Delete user"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {deleting === user.id ? ' Deleting...' : ''}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>

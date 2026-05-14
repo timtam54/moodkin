@@ -14,6 +14,7 @@ export function BillingNoticeToast() {
       'We could not confirm a recent payment for your subscription. Please update your billing.',
       'error',
     )
+    fetch('/api/billing-notice/dismiss', { method: 'POST' }).catch(() => {})
   }, [showToast])
 
   return null
