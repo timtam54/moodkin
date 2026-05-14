@@ -1975,14 +1975,14 @@ export default function ProjectDetailPage() {
                 <Button
                   onClick={() => setShowFreeformCreator(true)}
                   disabled={isCreatingMoodboard}
-                  className="animate-pulse bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl"
+                  className="animate-pulse bg-gradient-to-r from-moodkin-gold/70 via-moodkin-gold to-moodkin-gold/70 hover:from-moodkin-gold-hover/80 hover:via-moodkin-gold-hover hover:to-moodkin-gold-hover/80 text-moodkin-dark font-semibold rounded-xl"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Moodboard
                 </Button>
                 <button
                   onClick={() => setShowMoodboardHelp(true)}
-                  className="p-2 text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream rounded-xl transition-colors"
+                  className="p-2 bg-gradient-to-br from-moodkin-gold/70 via-moodkin-gold to-moodkin-gold/70 text-moodkin-dark hover:from-moodkin-gold-hover hover:via-amber-400 hover:to-moodkin-gold-hover rounded-xl transition-all duration-200 hover:scale-105"
                   title="How moodboards work"
                 >
                   <HelpCircle className="w-5 h-5" />
@@ -2022,19 +2022,18 @@ export default function ProjectDetailPage() {
                   const getImgUrl = (img: typeof displayImages[0]) =>
                     img.asset.asset_type === 'link' ? img.asset.thumbnail_url : img.asset.url
 
-                  // Render image button
+                  // Render image tile (click is handled by the wrapping moodboard preview)
                   const renderImage = (img: typeof displayImages[0], extraClass = '') => {
                     const imgUrl = getImgUrl(img)
                     if (!imgUrl) return null
                     return (
-                      <button
+                      <div
                         key={img.id}
-                        onClick={() => setLightboxImage(imgUrl)}
-                        className={`relative cursor-pointer hover:opacity-90 transition-opacity overflow-hidden ${extraClass}`}
+                        className={`relative overflow-hidden ${extraClass}`}
                         style={imageStyle}
                       >
                         <Image src={imgUrl} alt="" fill className="object-cover" />
-                      </button>
+                      </div>
                     )
                   }
 
@@ -2048,10 +2047,9 @@ export default function ProjectDetailPage() {
                             const imgUrl = getImgUrl(img)
                             if (!imgUrl) return null
                             return (
-                              <button
+                              <div
                                 key={img.id}
-                                onClick={() => setLightboxImage(imgUrl)}
-                                className="absolute cursor-pointer hover:opacity-90 transition-opacity overflow-hidden"
+                                className="absolute overflow-hidden"
                                 style={{
                                   left: `${img.x || 0}%`,
                                   top: `${img.y || 0}%`,
@@ -2063,7 +2061,7 @@ export default function ProjectDetailPage() {
                                 }}
                               >
                                 <Image src={imgUrl} alt="" fill className="object-cover" />
-                              </button>
+                              </div>
                             )
                           })}
                         </div>
@@ -2094,7 +2092,7 @@ export default function ProjectDetailPage() {
                       return (
                         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
                           <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
-                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[0])!)} />}
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           {displayImages[1] && renderImage(displayImages[1])}
                         </div>
@@ -2105,7 +2103,7 @@ export default function ProjectDetailPage() {
                         <div className="w-full h-full grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
                           {displayImages[0] && renderImage(displayImages[0])}
                           <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
-                            {displayImages[1] && <Image src={getImgUrl(displayImages[1])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[1])!)} />}
+                            {displayImages[1] && <Image src={getImgUrl(displayImages[1])!} alt="" fill className="object-cover" />}
                           </div>
                         </div>
                       )
@@ -2116,7 +2114,7 @@ export default function ProjectDetailPage() {
                       return (
                         <div className="w-full h-full grid grid-rows-5" style={{ gap: `${spacingPx}px` }}>
                           <div className="row-span-3 relative overflow-hidden" style={imageStyle}>
-                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" onClick={() => setLightboxImage(getImgUrl(displayImages[0])!)} />}
+                            {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           <div className="row-span-2 grid grid-cols-2" style={{ gap: `${spacingPx}px` }}>
                             {displayImages.slice(1, 3).map(img => renderImage(img))}
@@ -2180,7 +2178,7 @@ export default function ProjectDetailPage() {
                     if (gridLayout === '4-top') {
                       return (
                         <div className="w-full h-full grid grid-rows-3" style={{ gap: `${spacingPx}px` }}>
-                          <div className="row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                          <div className="row-span-2 relative overflow-hidden" style={imageStyle}>
                             {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           <div className="grid grid-cols-3" style={{ gap: `${spacingPx}px` }}>
@@ -2216,12 +2214,12 @@ export default function ProjectDetailPage() {
                     if (gridLayout === '4-diagonal') {
                       return (
                         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacingPx}px` }}>
-                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
                             {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           {displayImages[1] && renderImage(displayImages[1])}
                           {displayImages[2] && renderImage(displayImages[2])}
-                          <div className="col-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[3] && setLightboxImage(getImgUrl(displayImages[3])!)}>
+                          <div className="col-span-2 relative overflow-hidden" style={imageStyle}>
                             {displayImages[3] && <Image src={getImgUrl(displayImages[3])!} alt="" fill className="object-cover" />}
                           </div>
                         </div>
@@ -2256,7 +2254,7 @@ export default function ProjectDetailPage() {
                     if (gridLayout === '5-big') {
                       return (
                         <div className="w-full h-full grid grid-cols-3 grid-rows-2" style={{ gap: `${spacingPx}px` }}>
-                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
                             {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           {displayImages.slice(1, 5).map(img => renderImage(img))}
@@ -2282,7 +2280,7 @@ export default function ProjectDetailPage() {
                     if (gridLayout === '6-big') {
                       return (
                         <div className="w-full h-full grid grid-cols-3 grid-rows-3" style={{ gap: `${spacingPx}px` }}>
-                          <div className="col-span-2 row-span-2 relative overflow-hidden cursor-pointer hover:opacity-90" style={imageStyle} onClick={() => displayImages[0] && setLightboxImage(getImgUrl(displayImages[0])!)}>
+                          <div className="col-span-2 row-span-2 relative overflow-hidden" style={imageStyle}>
                             {displayImages[0] && <Image src={getImgUrl(displayImages[0])!} alt="" fill className="object-cover" />}
                           </div>
                           {displayImages.slice(1, 6).map(img => renderImage(img))}
