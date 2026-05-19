@@ -20,6 +20,51 @@ interface HelpAction {
 
 const HELP_ACTIONS: HelpAction[] = [
   {
+    id: 'add',
+    title: 'Add images',
+    description: 'Desktop: drag photos from the gallery onto the canvas. Mobile: tap a photo and it will be placed on the canvas.',
+    desktopAnimation: (
+      <div className="relative w-full h-32 bg-moodkin-cream/50 rounded-lg overflow-hidden">
+        {/* Gallery thumbnail */}
+        <div className="absolute left-3 top-3 w-12 h-12 bg-moodkin-gold/40 border-2 border-moodkin-gold rounded animate-add-source-desktop">
+          <div className="w-full h-full bg-gradient-to-br from-moodkin-gold/30 to-moodkin-gold/50" />
+        </div>
+        {/* Canvas target */}
+        <div className="absolute right-3 top-3 bottom-3 w-24 border-2 border-dashed border-moodkin-light-gray rounded flex items-center justify-center text-[10px] text-moodkin-gray">
+          Canvas
+        </div>
+        {/* Cursor dragging */}
+        <div className="absolute animate-cursor-add-desktop">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="drop-shadow-md">
+            <path d="M5 3L19 12L12 13L9 20L5 3Z" fill="white" stroke="#1a1a1a" strokeWidth="1.5"/>
+          </svg>
+        </div>
+        <p className="absolute bottom-2 left-2 text-xs text-moodkin-gray">Drag from gallery to canvas</p>
+      </div>
+    ),
+    mobileAnimation: (
+      <div className="relative w-full h-32 bg-moodkin-cream/50 rounded-lg overflow-hidden">
+        {/* Gallery thumbnail */}
+        <div className="absolute left-3 top-3 w-12 h-12 bg-moodkin-gold/40 border-2 border-moodkin-gold rounded">
+          <div className="w-full h-full bg-gradient-to-br from-moodkin-gold/30 to-moodkin-gold/50" />
+        </div>
+        {/* Canvas target */}
+        <div className="absolute right-3 top-3 bottom-3 w-24 border-2 border-dashed border-moodkin-light-gray rounded flex items-center justify-center text-[10px] text-moodkin-gray">
+          Canvas
+        </div>
+        {/* Image appearing on canvas after tap */}
+        <div className="absolute right-9 top-8 w-10 h-10 bg-moodkin-gold/40 border-2 border-moodkin-gold rounded animate-add-target-mobile">
+          <div className="w-full h-full bg-gradient-to-br from-moodkin-gold/30 to-moodkin-gold/50" />
+        </div>
+        {/* Finger tap on thumbnail */}
+        <div className="absolute left-5 top-5 animate-finger-tap-add">
+          <div className="w-8 h-8 rounded-full bg-black/20 border-2 border-black/30" />
+        </div>
+        <p className="absolute bottom-2 left-2 text-xs text-moodkin-gray">Tap photo to add to canvas</p>
+      </div>
+    ),
+  },
+  {
     id: 'move',
     title: 'Move',
     description: 'Reposition images on the canvas',
@@ -314,6 +359,22 @@ export function FreeformHelpDialog({ open, onClose }: FreeformHelpDialogProps) {
           0%, 40%, 100% { z-index: 1; }
           50%, 90% { z-index: 10; }
         }
+        @keyframes add-source-desktop {
+          0%, 100% { left: 12px; top: 12px; opacity: 1; }
+          40%, 60% { left: 60%; top: 30%; opacity: 0.6; }
+        }
+        @keyframes cursor-add-desktop {
+          0%, 100% { left: 22px; top: 22px; }
+          40%, 60% { left: calc(60% + 10px); top: calc(30% + 10px); }
+        }
+        @keyframes add-target-mobile {
+          0%, 40% { opacity: 0; transform: scale(0.6); }
+          60%, 100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes finger-tap-add {
+          0%, 30%, 70%, 100% { opacity: 0; transform: scale(0.7); }
+          40%, 60% { opacity: 1; transform: scale(1); }
+        }
 
         :global(.animate-move-desktop) {
           animation: move-desktop 3s ease-in-out infinite;
@@ -347,6 +408,18 @@ export function FreeformHelpDialog({ open, onClose }: FreeformHelpDialogProps) {
         }
         :global(.animate-layer-demo) {
           animation: layer-demo 3s ease-in-out infinite;
+        }
+        :global(.animate-add-source-desktop) {
+          animation: add-source-desktop 3s ease-in-out infinite;
+        }
+        :global(.animate-cursor-add-desktop) {
+          animation: cursor-add-desktop 3s ease-in-out infinite;
+        }
+        :global(.animate-add-target-mobile) {
+          animation: add-target-mobile 2.5s ease-in-out infinite;
+        }
+        :global(.animate-finger-tap-add) {
+          animation: finger-tap-add 2.5s ease-in-out infinite;
         }
       `}</style>
     </div>

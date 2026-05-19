@@ -68,9 +68,14 @@ const ASPECT_RATIOS: { value: AspectRatioType; label: string; icon: React.ReactN
   },
 ]
 
-const STEPS: { id: StepType; label: string; description: string }[] = [
+const STEPS: { id: StepType; label: string; description: string; mobileDescription?: string }[] = [
   { id: 'aspect', label: 'Size', description: 'Choose the canvas size for your moodboard' },
-  { id: 'canvas', label: 'Canvas', description: 'Drag photos onto the canvas and arrange them freely, drag corners to resize' },
+  {
+    id: 'canvas',
+    label: 'Canvas',
+    description: 'Drag photos onto the canvas and arrange them freely, drag corners to resize',
+    mobileDescription: 'Arrange your moodboard',
+  },
 ]
 
 const DEFAULT_BACKGROUND_COLORS = [
@@ -141,6 +146,7 @@ export function FreeformMoodboardCreator({
   const [customColors, setCustomColors] = useState<string[]>([])
   const [colorPickerOpen, setColorPickerOpen] = useState(false)
   const [pickerColor, setPickerColor] = useState('#E9B824')
+  const [showCanvasHint, setShowCanvasHint] = useState(false)
 
   // Filter to visual assets (images and links with thumbnails)
   const visualAssets = useMemo(() =>
@@ -163,8 +169,20 @@ export function FreeformMoodboardCreator({
       setCustomColors([])
       setColorPickerOpen(false)
       setPickerColor('#E9B824')
+      setShowCanvasHint(false)
     }
   }, [open])
+
+  // Show canvas hint when entering the canvas step, auto-hide after 10s
+  useEffect(() => {
+    if (currentStep !== 'canvas') {
+      setShowCanvasHint(false)
+      return
+    }
+    setShowCanvasHint(true)
+    const timer = setTimeout(() => setShowCanvasHint(false), 10000)
+    return () => clearTimeout(timer)
+  }, [currentStep])
 
   // Get canvas dimensions based on aspect ratio (responsive)
   const getCanvasDimensions = () => {
@@ -483,30 +501,37 @@ export function FreeformMoodboardCreator({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-stretch md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4">
+      <div className="bg-white rounded-none md:rounded-2xl shadow-xl w-full max-w-none md:max-w-6xl h-full md:h-auto md:max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-moodkin-light-gray/30">
-          <div>
-            <h2 className="text-lg font-semibold text-moodkin-dark">Moodboard</h2>
-            <p className="text-sm text-moodkin-gray">{STEPS[currentStepIndex].description}</p>
+        <div className="flex items-center justify-between px-3 py-2 md:px-4 md:py-3 border-b border-moodkin-gold/40 bg-moodkin-gold">
+          <div className="min-w-0">
+            <h2 className="text-base md:text-lg font-semibold text-moodkin-dark truncate leading-tight">
+              <span className="hidden md:inline">Moodboard</span>
+              <span className="md:hidden">
+                {STEPS[currentStepIndex].mobileDescription ?? STEPS[currentStepIndex].description}
+              </span>
+            </h2>
+            <p className="hidden md:block text-xs md:text-sm text-moodkin-dark/70">
+              {STEPS[currentStepIndex].description}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-moodkin-cream transition-colors"
+            className="p-2 rounded-full hover:bg-moodkin-dark/10 transition-colors"
           >
-            <X className="w-5 h-5 text-moodkin-gray" />
+            <X className="w-5 h-5 text-moodkin-dark" />
           </button>
         </div>
 
         {/* Step indicators */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-moodkin-light-gray/30">
+        <div className="flex items-center gap-2 px-3 md:px-4 py-1 md:py-3 border-b border-moodkin-light-gray/30">
           {STEPS.map((step, index) => (
             <div key={step.id} className="flex items-center gap-2">
               <button
                 onClick={() => index < currentStepIndex && setCurrentStep(step.id)}
                 disabled={index > currentStepIndex}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-3 py-1 md:py-1.5 rounded-full text-sm font-medium transition-colors ${
                   step.id === currentStep
                     ? 'bg-moodkin-gold text-moodkin-dark'
                     : index < currentStepIndex
@@ -527,7 +552,7 @@ export function FreeformMoodboardCreator({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={`flex-1 ${currentStep === 'canvas' ? 'overflow-hidden px-2 pt-0.5 pb-2 md:p-6' : 'overflow-y-auto p-4 md:p-6'}`}>
           {/* Step 1: Aspect Ratio Selection */}
           {currentStep === 'aspect' && (
             <div className="space-y-6">
@@ -601,13 +626,27 @@ export function FreeformMoodboardCreator({
 
           {/* Step 2: Canvas Editor */}
           {currentStep === 'canvas' && (
-            <div className="flex flex-col md:flex-row gap-6 md:h-[500px]">
-              {/* Image Gallery - Top on mobile, Left sidebar on desktop */}
-              <div className="w-full md:w-48 flex-shrink-0 md:border-r border-b md:border-b-0 border-moodkin-light-gray/30 pb-4 md:pb-0 md:pr-4 overflow-x-auto md:overflow-y-auto">
-                <div className="flex items-center justify-between sticky top-0 bg-white py-1 mb-3">
+            <div className="flex flex-col md:flex-row gap-1 md:gap-6 h-full md:h-[500px]">
+              {/* Mobile hint banner */}
+              {showCanvasHint && (
+                <div className="md:hidden flex items-start justify-between gap-2 bg-moodkin-gold/15 border border-moodkin-gold/40 text-moodkin-dark text-xs rounded-lg px-3 py-2">
+                  <span>Tap photos below to add them to the canvas. Then drag to position, drag corners to resize.</span>
+                  <button
+                    onClick={() => setShowCanvasHint(false)}
+                    className="flex-shrink-0 p-0.5 rounded-full hover:bg-moodkin-gold/30 transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Image Gallery - Top scrollable on mobile, Left sidebar on desktop */}
+              <div className="w-full md:w-48 flex-1 md:flex-none min-h-0 md:flex-shrink-0 md:border-r border-b md:border-b-0 border-moodkin-light-gray/30 pb-1 md:pb-0 md:pr-4 overflow-y-auto">
+                <div className="flex items-center justify-between sticky top-0 bg-white py-0 mb-1 md:mb-3 z-10">
                   <h3 className="text-sm font-medium text-moodkin-dark">
                     <span className="hidden md:inline">Drag images to canvas</span>
-                    <span className="md:hidden">Tap to add images</span>
+                    <span className="md:hidden">Tap photos to add to canvas</span>
                   </h3>
                   <button
                     onClick={() => setHelpDialogOpen(true)}
@@ -650,7 +689,7 @@ export function FreeformMoodboardCreator({
               </div>
 
               {/* Canvas Area */}
-              <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] md:min-h-0">
+              <div className="flex-shrink-0 md:flex-1 flex flex-col items-center justify-center pt-2 md:pt-0 md:min-h-0">
                 <div
                   ref={canvasRef}
                   onClick={handleCanvasClick}
@@ -744,8 +783,8 @@ export function FreeformMoodboardCreator({
 
                 {/* Controls for selected image */}
                 {selectedImage && (
-                  <div className="mt-4 flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2 bg-moodkin-cream rounded-lg p-2">
+                  <div className="mt-2 md:mt-4 flex flex-col items-center gap-1 md:gap-2">
+                    <div className="flex flex-wrap items-center justify-center gap-1 md:gap-2 bg-moodkin-cream rounded-lg p-1.5 md:p-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -794,9 +833,8 @@ export function FreeformMoodboardCreator({
                         Rotation: {selectedImage.rotation}°
                       </span>
                     </div>
-                    <p className="text-xs text-moodkin-gray">
-                      <span className="hidden md:inline">Drag corners to resize</span>
-                      <span className="md:hidden">Drag corner circles to resize</span>
+                    <p className="hidden md:block text-xs text-moodkin-gray">
+                      Drag corners to resize
                     </p>
                   </div>
                 )}
@@ -806,7 +844,7 @@ export function FreeformMoodboardCreator({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-moodkin-light-gray/30 bg-moodkin-cream/30">
+        <div className="flex items-center justify-between px-3 py-2 md:p-4 border-t border-moodkin-light-gray/30 bg-moodkin-cream/30">
           <Button
             variant="ghost"
             onClick={currentStepIndex === 0 ? onClose : handleBack}
@@ -815,9 +853,14 @@ export function FreeformMoodboardCreator({
             <span className="hidden sm:inline">{currentStepIndex === 0 ? 'Cancel' : 'Back'}</span>
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {currentStep === 'canvas' && canvasImages.length > 0 && (
+              <span className="md:hidden text-[11px] text-moodkin-gray truncate">
+                Drag corners to resize
+              </span>
+            )}
             {currentStep === 'canvas' && (
-              <span className="text-sm text-moodkin-gray mr-4">
+              <span className="hidden md:inline text-sm text-moodkin-gray mr-4">
                 {canvasImages.length} image{canvasImages.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -826,16 +869,18 @@ export function FreeformMoodboardCreator({
               <Button
                 onClick={handleCreate}
                 disabled={!canGoNext || isLoading}
-                className="bg-moodkin-gold hover:bg-moodkin-gold/90 text-moodkin-dark"
+                size="sm"
+                className="bg-moodkin-gold hover:bg-moodkin-gold/90 text-moodkin-dark px-3 md:px-4 md:h-10"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    <Loader2 className="w-4 h-4 mr-1.5 md:mr-2 animate-spin" />
+                    Creating
+                    <span className="hidden md:inline">...</span>
                   </>
                 ) : (
                   <>
-                    <Check className="w-4 h-4 mr-2" />
+                    <Check className="w-4 h-4 mr-1.5 md:mr-2" />
                     Create
                   </>
                 )}
@@ -844,7 +889,8 @@ export function FreeformMoodboardCreator({
               <Button
                 onClick={handleNext}
                 disabled={!canGoNext}
-                className="bg-moodkin-gold hover:bg-moodkin-gold/90 text-moodkin-dark"
+                size="sm"
+                className="bg-moodkin-gold hover:bg-moodkin-gold/90 text-moodkin-dark px-3 md:px-4 md:h-10"
               >
                 Next
                 <ChevronRight className="w-4 h-4 ml-1" />
