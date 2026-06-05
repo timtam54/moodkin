@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Download, X, Share } from 'lucide-react'
+import { Download, X, Share, ExternalLink } from 'lucide-react'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+function isInAppBrowser() {
+  const nav = navigator as Navigator & { vendor?: string }
+  const ua = nav.userAgent || nav.vendor || ''
+  return /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line|Twitter|MicroMessenger|TikTok|LinkedInApp/i.test(ua)
 }
 
 export function PWAInstall() {
@@ -13,6 +19,8 @@ export function PWAInstall() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [isAndroid, setIsAndroid] = useState(false)
+  const [inAppBrowser, setInAppBrowser] = useState(false)
 
   useEffect(() => {
     // Check if already installed (standalone mode)
@@ -25,8 +33,14 @@ export function PWAInstall() {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
     const android = /Android/.test(navigator.userAgent)
     setIsIOS(ios)
+    setIsAndroid(android)
     console.log('[PWA] iOS:', ios, 'Android:', android)
     console.log('[PWA] User Agent:', navigator.userAgent)
+
+    // Detect in-app browser (Facebook, Instagram, Messenger, etc.)
+    const inApp = isInAppBrowser()
+    setInAppBrowser(inApp)
+    console.log('[PWA] In-app browser:', inApp)
 
     // Register service worker
     if ('serviceWorker' in navigator) {
@@ -83,6 +97,15 @@ export function PWAInstall() {
       }
     }
 
+    // In an in-app browser (Facebook, Instagram, etc.) beforeinstallprompt
+    // won't fire — show a "open in your browser" banner instead.
+    if (inApp && !standalone) {
+      const dismissed = localStorage.getItem('pwa-inapp-dismissed')
+      if (!dismissed) {
+        setShowInstallBanner(true)
+      }
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
     }
@@ -102,7 +125,13 @@ export function PWAInstall() {
 
   const handleDismiss = () => {
     setShowInstallBanner(false)
-    localStorage.setItem('pwa-install-dismissed', 'true')
+    localStorage.setItem(inAppBrowser ? 'pwa-inapp-dismissed' : 'pwa-install-dismissed', 'true')
+  }
+
+  const handleOpenInChrome = () => {
+    // Android: use intent:// to hand off to Chrome
+    const url = location.href.replace(/^https?:\/\//, '')
+    location.href = `intent://${url}#Intent;scheme=https;package=com.android.chrome;end`
   }
 
   // Don't show if already installed
@@ -126,8 +155,24 @@ export function PWAInstall() {
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm">Install Moodkin</h3>
-          {isIOS ? (
+          <h3 className="font-semibold text-sm">
+            {inAppBrowser ? 'Open in your browser' : 'Install Moodkin'}
+          </h3>
+          {inAppBrowser ? (
+            isIOS ? (
+              <p className="text-xs text-gray-300 mt-1">
+                Tap <span aria-hidden>•••</span> at the bottom right, then &quot;Open in Safari&quot; to install the app.
+              </p>
+            ) : isAndroid ? (
+              <p className="text-xs text-gray-300 mt-1">
+                Tap below to open in Chrome, then install from there.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-300 mt-1">
+                Open this page in your device&apos;s browser to install the app.
+              </p>
+            )
+          ) : isIOS ? (
             <p className="text-xs text-gray-300 mt-1">
               Tap <Share className="w-3 h-3 inline-block mx-0.5" /> then &quot;Add to Home Screen&quot;
             </p>
@@ -137,7 +182,17 @@ export function PWAInstall() {
             </p>
           )}
 
-          {!isIOS && (
+          {inAppBrowser && isAndroid && (
+            <button
+              onClick={handleOpenInChrome}
+              className="mt-3 w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium text-sm py-2 px-4 rounded-lg transition-colors inline-flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open in Chrome
+            </button>
+          )}
+
+          {!inAppBrowser && !isIOS && (
             <button
               onClick={handleInstall}
               className="mt-3 w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium text-sm py-2 px-4 rounded-lg transition-colors"
