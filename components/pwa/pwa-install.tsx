@@ -72,11 +72,9 @@ export function PWAInstall() {
     }
 
     // Listen for beforeinstallprompt
-    let promptFired = false
     const handler = (e: Event) => {
       console.log('[PWA] beforeinstallprompt event fired!')
       e.preventDefault()
-      promptFired = true
       setDeferredPrompt(e as BeforeInstallPromptEvent)
 
       // Show banner after a short delay (ignore dismissed state for now to debug)
@@ -108,25 +106,8 @@ export function PWAInstall() {
       }
     }
 
-    // Android fallback: if beforeinstallprompt didn't fire (engagement
-    // heuristics, prior install/uninstall, or post-intent:// handoff),
-    // show a banner with manual "tap ⋮ → Install app" instructions.
-    let androidFallback: ReturnType<typeof setTimeout> | undefined
-    if (android && !inApp && !standalone) {
-      androidFallback = setTimeout(() => {
-        if (!promptFired) {
-          const dismissed = localStorage.getItem('pwa-android-fallback-dismissed')
-          if (!dismissed) {
-            console.log('[PWA] beforeinstallprompt did not fire — showing manual fallback')
-            setShowInstallBanner(true)
-          }
-        }
-      }, 3000)
-    }
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handler)
-      if (androidFallback) clearTimeout(androidFallback)
     }
   }, [])
 
@@ -142,16 +123,9 @@ export function PWAInstall() {
     }
   }
 
-  const androidManualFallback = isAndroid && !inAppBrowser && !deferredPrompt
-
   const handleDismiss = () => {
     setShowInstallBanner(false)
-    const key = inAppBrowser
-      ? 'pwa-inapp-dismissed'
-      : androidManualFallback
-        ? 'pwa-android-fallback-dismissed'
-        : 'pwa-install-dismissed'
-    localStorage.setItem(key, 'true')
+    localStorage.setItem(inAppBrowser ? 'pwa-inapp-dismissed' : 'pwa-install-dismissed', 'true')
   }
 
   const handleOpenInChrome = () => {
@@ -202,10 +176,6 @@ export function PWAInstall() {
             <p className="text-xs text-gray-300 mt-1">
               Tap <Share className="w-3 h-3 inline-block mx-0.5" /> then &quot;Add to Home Screen&quot;
             </p>
-          ) : androidManualFallback ? (
-            <p className="text-xs text-gray-300 mt-1">
-              Tap <span aria-hidden>⋮</span> in the top right, then &quot;Install app&quot; or &quot;Add to Home screen&quot;.
-            </p>
           ) : (
             <p className="text-xs text-gray-300 mt-1">
               Get quick access from your home screen
@@ -222,7 +192,7 @@ export function PWAInstall() {
             </button>
           )}
 
-          {!inAppBrowser && !isIOS && !androidManualFallback && (
+          {!inAppBrowser && !isIOS && (
             <button
               onClick={handleInstall}
               className="mt-3 w-full bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium text-sm py-2 px-4 rounded-lg transition-colors"
