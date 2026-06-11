@@ -2,7 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Sparkles, ImagePlus, Trash2, Loader2, Link2, Plus, ExternalLink, Layout, Download, HelpCircle, Wand2, Heart, Flag, Brain, Lightbulb, Users, X, Bell, BellOff, Pencil, Crown, HandHelping, Info, FileText, StickyNote, FileUp, File as FileIcon } from 'lucide-react'
 import { uploadFile } from '@/lib/supabase/storage'
 import { useConversation, useDeleteConversation, useUpdateConversation } from '@/hooks/use-conversations'
 import { useProjectAssets, useCreateProjectAsset, useDeleteProjectAsset, useUpdateAssetCreative, useInvalidateProjectAssets } from '@/hooks/use-project-assets'
@@ -32,6 +32,8 @@ import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useProjectReactions } from '@/hooks/use-asset-interactions'
 import { useUnseenCounts, useMarkAsSeen, type TabType } from '@/hooks/use-unseen-counts'
+import { useProjectNote, useUpdateProjectNote } from '@/hooks/use-project-notes'
+import { useProjectFiles, useCreateProjectFile, useDeleteProjectFile } from '@/hooks/use-project-files'
 import { useToast } from '@/components/ui/toast'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -42,6 +44,8 @@ const tabs = [
   { id: 'clients', label: 'Client', icon: null },
   { id: 'links', label: 'Links', icon: null },
   { id: 'moodboards', label: 'Moodboards', icon: null },
+  { id: 'notes', label: 'Notes', icon: null },
+  { id: 'files', label: 'Files', icon: null },
   { id: 'conversation', label: 'Conversation', icon: null },
 ]
 
@@ -125,6 +129,42 @@ export default function ProjectDetailPage() {
   const { data: allReactions } = useProjectReactions(projectId)
   const { data: unseenCounts } = useUnseenCounts()
   const { markSeen } = useMarkAsSeen(projectId)
+  const { data: projectNote } = useProjectNote(projectId)
+  const updateProjectNote = useUpdateProjectNote(projectId)
+  const { data: projectFiles } = useProjectFiles(projectId)
+  const createProjectFile = useCreateProjectFile(projectId)
+  const deleteProjectFile = useDeleteProjectFile(projectId)
+  const [notesDraft, setNotesDraft] = useState('')
+  const [notesSavedAt, setNotesSavedAt] = useState<number | null>(null)
+  const [isSavingNote, setIsSavingNote] = useState(false)
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
+  const filesInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync remote note into local draft when it first loads or projectId changes
+  useEffect(() => {
+    if (projectNote && 'content' in projectNote) {
+      setNotesDraft(projectNote.content || '')
+    }
+  }, [projectNote?.content, projectId])
+
+  // Debounced autosave for notes
+  useEffect(() => {
+    const remote = (projectNote && 'content' in projectNote ? projectNote.content : '') || ''
+    if (notesDraft === remote) return
+    const timer = setTimeout(async () => {
+      setIsSavingNote(true)
+      try {
+        await updateProjectNote.mutateAsync(notesDraft)
+        setNotesSavedAt(Date.now())
+      } catch (err) {
+        console.error('Failed to save note:', err)
+      } finally {
+        setIsSavingNote(false)
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesDraft])
 
   const currentUserId = session?.user?.id || ''
   const currentUserName = session?.user?.name || session?.user?.email || 'Unknown'
@@ -333,6 +373,56 @@ export default function ProjectDetailPage() {
         creativeFileInputRef.current.value = ''
       }
     }
+  }
+
+  const handleFilesSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setIsUploadingFile(true)
+    try {
+      for (const file of Array.from(files)) {
+        const url = await uploadFile(file, 'files')
+        await createProjectFile.mutateAsync({
+          url,
+          filename: file.name,
+          mime_type: file.type || undefined,
+          size_bytes: file.size,
+        })
+      }
+    } catch (err) {
+      console.error('File upload failed:', err)
+      showToast(err instanceof Error ? err.message : 'Failed to upload file', 'error')
+    } finally {
+      setIsUploadingFile(false)
+      if (filesInputRef.current) filesInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteFile = (fileId: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete this file?',
+      description: 'This action cannot be undone.',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isLoading: true }))
+        try {
+          await deleteProjectFile.mutateAsync(fileId)
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        } catch (err) {
+          console.error('Failed to delete file:', err)
+          showToast(err instanceof Error ? err.message : 'Failed to delete file', 'error')
+          setConfirmDialog(prev => ({ ...prev, open: false, isLoading: false }))
+        }
+      }
+    })
+  }
+
+  const formatFileSize = (bytes: number | null | undefined) => {
+    if (!bytes && bytes !== 0) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
   const handleDeleteAsset = (assetId: string) => {
@@ -2480,6 +2570,123 @@ export default function ProjectDetailPage() {
                 <p className="text-sm mt-1">Click "Blank Piece of Paper" to start a new moodboard</p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-moodkin-gray text-sm">
+                <StickyNote className="w-4 h-4 text-moodkin-gold" />
+                <span>
+                  {isSavingNote
+                    ? 'Saving…'
+                    : notesSavedAt
+                      ? 'Saved'
+                      : 'Auto-saves as you type'}
+                </span>
+              </div>
+            </div>
+            <div className="relative bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(15, 23, 42, 0.08) 32px)',
+                  backgroundPosition: '0 24px',
+                }}
+              />
+              <textarea
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                placeholder="Start writing…"
+                className="relative w-full min-h-[600px] resize-y bg-transparent text-moodkin-dark text-base leading-8 px-6 py-6 focus:outline-none"
+                style={{ lineHeight: '32px' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'files' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-lg font-semibold text-moodkin-dark">Project Files</h2>
+              <label className="inline-flex items-center gap-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-semibold rounded-xl px-4 py-2 cursor-pointer transition-colors">
+                {isUploadingFile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileUp className="w-4 h-4" />
+                )}
+                <span>{isUploadingFile ? 'Uploading…' : 'Upload File'}</span>
+                <input
+                  ref={filesInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rtf,.odt,.ods,.odp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/csv,application/zip,application/rtf"
+                  onChange={(e) => handleFilesSelect(e.target.files)}
+                  disabled={isUploadingFile}
+                />
+              </label>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-moodkin-light-gray/40">
+              {projectFiles && projectFiles.length > 0 ? (
+                projectFiles.map((file) => {
+                  const canDelete = file.uploaded_by_id === currentUserId || isCreative
+                  const ext = file.filename.split('.').pop()?.toUpperCase() || 'FILE'
+                  return (
+                    <div key={file.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-10 h-10 rounded-xl bg-moodkin-cream flex items-center justify-center flex-shrink-0">
+                        <FileIcon className="w-5 h-5 text-moodkin-gold" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate font-medium text-moodkin-dark hover:text-moodkin-gold transition-colors"
+                          title={file.filename}
+                        >
+                          {file.filename}
+                        </a>
+                        <div className="text-xs text-moodkin-gray mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="uppercase">{ext}</span>
+                          {file.size_bytes ? <span>· {formatFileSize(file.size_bytes)}</span> : null}
+                          {file.uploaded_by_name ? <span>· {file.uploaded_by_name}</span> : null}
+                          <span>· {new Date(file.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 text-moodkin-gray hover:text-moodkin-dark hover:bg-moodkin-cream rounded-lg transition-colors"
+                        title="Open"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="p-2 text-moodkin-gray hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-12 text-moodkin-gray">
+                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No files uploaded yet</p>
+                  <p className="text-sm mt-1">Upload PDFs, Word docs, spreadsheets or any reference files</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

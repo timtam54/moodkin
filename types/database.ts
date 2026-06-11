@@ -591,6 +591,70 @@ export interface Database {
           created_at?: string
         }
       }
+      project_notes: {
+        Row: {
+          id: string
+          conversation_id: string
+          content: string
+          updated_by_id: string | null
+          updated_by_name: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          content?: string
+          updated_by_id?: string | null
+          updated_by_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          content?: string
+          updated_by_id?: string | null
+          updated_by_name?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      project_files: {
+        Row: {
+          id: string
+          conversation_id: string
+          url: string
+          filename: string
+          mime_type: string | null
+          size_bytes: number | null
+          uploaded_by_id: string
+          uploaded_by_name: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          url: string
+          filename: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          uploaded_by_id: string
+          uploaded_by_name?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          url?: string
+          filename?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          uploaded_by_id?: string
+          uploaded_by_name?: string | null
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -615,6 +679,8 @@ export type PushSubscription = Database['public']['Tables']['push_subscriptions'
 export type ProjectColour = Database['public']['Tables']['project_colours']['Row']
 export type ColourReaction = Database['public']['Tables']['colour_reactions']['Row']
 export type ColourComment = Database['public']['Tables']['colour_comments']['Row']
+export type ProjectNote = Database['public']['Tables']['project_notes']['Row']
+export type ProjectFile = Database['public']['Tables']['project_files']['Row']
 
 // Extended moodboard type with images
 export type MoodboardWithImages = Moodboard & {
