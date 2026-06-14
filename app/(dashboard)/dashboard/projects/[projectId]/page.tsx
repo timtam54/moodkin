@@ -139,13 +139,18 @@ export default function ProjectDetailPage() {
   const [isSavingNote, setIsSavingNote] = useState(false)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const filesInputRef = useRef<HTMLInputElement>(null)
+  const notesHydratedForProject = useRef<string | null>(null)
 
-  // Sync remote note into local draft when it first loads or projectId changes
+  // Hydrate the draft from the server once per project. Subsequent server updates
+  // (e.g. from our own autosave) must not overwrite the draft while the user is typing
+  // — on iOS PWA, replacing the textarea value resets the caret and scrolls the page.
   useEffect(() => {
+    if (notesHydratedForProject.current === projectId) return
     if (projectNote && 'content' in projectNote) {
       setNotesDraft(projectNote.content || '')
+      notesHydratedForProject.current = projectId
     }
-  }, [projectNote?.content, projectId])
+  }, [projectNote, projectId])
 
   // Debounced autosave for notes
   useEffect(() => {
