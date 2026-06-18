@@ -225,13 +225,15 @@ export default function ProjectDetailPage() {
   // Check if current user has active subscription
   const currentUserHasSubscription = isSubscriptionActive(
     session?.user?.stripeid,
-    session?.user?.subscriptionEndsAt
+    session?.user?.subscriptionEndsAt,
+    session?.user?.googlePlayPurchaseToken,
   )
   // Check if project owner has active subscription (for other features)
   const projectOwner = projectUsers?.find(pu => pu.is_owner)
   const ownerHasSubscription = isSubscriptionActive(
     projectOwner?.user?.stripeid,
-    projectOwner?.user?.subscription_ends_at
+    projectOwner?.user?.subscription_ends_at,
+    projectOwner?.user?.google_play_purchase_token,
   )
   const isOwner = projectOwner?.user_id === currentUserId
 

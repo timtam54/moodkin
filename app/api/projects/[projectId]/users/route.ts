@@ -17,7 +17,7 @@ export async function GET(
     // Get project users with user info (including stripeid and subscription_ends_at for subscription check)
     const { data: projectUsers, error } = await supabase
       .from('project_users')
-      .select('*, user:users!project_users_user_id_fkey(id, name, email, avatar_url, stripeid, subscription_ends_at)')
+      .select('*, user:users!project_users_user_id_fkey(id, name, email, avatar_url, stripeid, subscription_ends_at, google_play_purchase_token)')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
 

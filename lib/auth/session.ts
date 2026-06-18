@@ -18,6 +18,8 @@ export interface SessionUser {
   subscriptionStatus?: SubscriptionStatus
   subscriptionEndsAt?: string | null
   stripeid?: string | null
+  googlePlayPurchaseToken?: string | null
+  subscriptionSource?: 'stripe' | 'google_play' | 'promo' | null
   tourDisplayed?: boolean | null
   aiImagesCount?: number
   aiCountResetMonth?: string | null
@@ -142,6 +144,8 @@ export async function getSession(): Promise<Session | null> {
         subscriptionStatus: user.subscription_status,
         subscriptionEndsAt: user.subscription_ends_at,
         stripeid: user.stripeid,
+        googlePlayPurchaseToken: user.google_play_purchase_token,
+        subscriptionSource: user.subscription_source,
         tourDisplayed: user.tour_displayed,
         aiImagesCount: user.ai_images_count,
         aiCountResetMonth: user.ai_count_reset_month,

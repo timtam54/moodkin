@@ -39,7 +39,12 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [subscriptionNoticeOpen, setSubscriptionNoticeOpen] = useState(false)
-  const subscriptionState = getSubscriptionState(user.stripeid, user.subscriptionEndsAt, user.subscriptionStatus)
+  const subscriptionState = getSubscriptionState(
+    user.stripeid,
+    user.subscriptionEndsAt,
+    user.subscriptionStatus,
+    user.googlePlayPurchaseToken,
+  )
 
   // Show subscription notice dialog once per session
   useEffect(() => {

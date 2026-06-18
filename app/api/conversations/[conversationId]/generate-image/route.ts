@@ -63,7 +63,8 @@ export async function POST(
     // Check if the current user has an active subscription
     const hasSubscription = isSubscriptionActive(
       session.user.stripeid,
-      session.user.subscriptionEndsAt
+      session.user.subscriptionEndsAt,
+      session.user.googlePlayPurchaseToken,
     )
     if (!hasSubscription) {
       return NextResponse.json({ error: 'Subscription required to generate AI images' }, { status: 403 })

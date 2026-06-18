@@ -49,13 +49,24 @@ function isValidStripeid(stripeid: string | null | undefined): boolean {
   return stripeid.startsWith('cus_') || stripeid === 'Free Tester'
 }
 
-// Check if subscription is active based on stripeid and subscription_ends_at
+// A row is "subscribed" if it has EITHER a valid Stripe customer ID OR a
+// Google Play purchase token. The Play webhook keeps subscription_ends_at
+// fresh for Play subscribers, so the same end-date check works for both.
+function hasSubscriptionRecord(
+  stripeid: string | null | undefined,
+  googlePlayPurchaseToken: string | null | undefined
+): boolean {
+  return isValidStripeid(stripeid) || Boolean(googlePlayPurchaseToken)
+}
+
+// Check if subscription is active. Accepts the Google Play token as an
+// optional third argument so existing callers (web flow) keep working.
 export function isSubscriptionActive(
   stripeid: string | null | undefined,
-  subscriptionEndsAt: string | null | undefined
+  subscriptionEndsAt: string | null | undefined,
+  googlePlayPurchaseToken?: string | null
 ): boolean {
-  // Must have a valid Stripe customer ID or promo code
-  if (!isValidStripeid(stripeid)) {
+  if (!hasSubscriptionRecord(stripeid, googlePlayPurchaseToken)) {
     return false
   }
 
@@ -79,10 +90,11 @@ export type SubscriptionState =
 export function getSubscriptionState(
   stripeid: string | null | undefined,
   subscriptionEndsAt: string | null | undefined,
-  subscriptionStatus: string | null | undefined
+  subscriptionStatus: string | null | undefined,
+  googlePlayPurchaseToken?: string | null
 ): SubscriptionState {
   // Never had a subscription
-  if (!isValidStripeid(stripeid)) {
+  if (!hasSubscriptionRecord(stripeid, googlePlayPurchaseToken)) {
     return { status: 'none' }
   }
 

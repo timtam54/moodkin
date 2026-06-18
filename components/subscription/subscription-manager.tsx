@@ -20,6 +20,8 @@ import { subscriptionConfig, formatPrice, getSubscriptionState } from '@/lib/con
 import { useOnboarding } from '@/hooks/use-onboarding'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
+import { isAndroidApp } from '@/lib/platform/detect'
+import { purchaseSubscription, PlayBillingUnavailableError } from '@/lib/play-billing/client'
 
 interface SubscriptionManagerProps {
   onClose?: () => void
@@ -37,9 +39,22 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   const [aiImageCount, setAiImageCount] = useState<{ count: number; limit: number; month: string } | null>(null)
 
   const user = session?.user
+  const [isLaunchingPlayBilling, setIsLaunchingPlayBilling] = useState(false)
+  const [platformIsAndroid, setPlatformIsAndroid] = useState(false)
+
+  // Detect platform on mount — must be in an effect because detection reads
+  // window/navigator and we want SSR output to match the initial client render.
+  useEffect(() => {
+    setPlatformIsAndroid(isAndroidApp())
+  }, [])
 
   const subscriptionState = user
-    ? getSubscriptionState(user.stripeid, user.subscriptionEndsAt, user.subscriptionStatus)
+    ? getSubscriptionState(
+        user.stripeid,
+        user.subscriptionEndsAt,
+        user.subscriptionStatus,
+        user.googlePlayPurchaseToken,
+      )
     : { status: 'none' as const, endsAt: new Date() }
 
   // Fetch AI image count for active or cancelled subscriptions
@@ -77,6 +92,18 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   }
 
   const handleManageSubscription = async () => {
+    // Play Store subs must be managed in the Play Store. Stripe portal will
+    // reject them anyway because there's no Stripe customer record.
+    if (user?.subscriptionSource === 'google_play') {
+      const productId = process.env.NEXT_PUBLIC_GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID
+      const pkg = process.env.NEXT_PUBLIC_ANDROID_PACKAGE_NAME ?? 'com.moodkinstudio.app'
+      const url = productId
+        ? `https://play.google.com/store/account/subscriptions?sku=${productId}&package=${pkg}`
+        : 'https://play.google.com/store/account/subscriptions'
+      window.location.href = url
+      return
+    }
+
     if (!user?.stripeid) return
     setIsLoadingPortal(true)
     try {
@@ -98,8 +125,43 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
     }
   }
 
-  const handleSubscribe = () => {
-    setPaymentDialogOpen(true)
+  const handleSubscribe = async () => {
+    if (!platformIsAndroid) {
+      setPaymentDialogOpen(true)
+      return
+    }
+
+    // Android wrapper — route through Google Play Billing instead of Stripe.
+    const productId = process.env.NEXT_PUBLIC_GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID
+    if (!productId) {
+      alert('Google Play subscription is not configured. Please contact support.')
+      return
+    }
+
+    setIsLaunchingPlayBilling(true)
+    try {
+      const { purchaseToken } = await purchaseSubscription(productId)
+      const res = await fetch('/api/play-billing/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaseToken, productId }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Verification failed' }))
+        throw new Error(error || 'Verification failed')
+      }
+      await refetch()
+      router.refresh()
+    } catch (err) {
+      if (err instanceof PlayBillingUnavailableError) {
+        alert(err.message)
+      } else {
+        console.error('Play Billing flow failed', err)
+        alert('Subscription failed. Please try again or contact support.')
+      }
+    } finally {
+      setIsLaunchingPlayBilling(false)
+    }
   }
 
   const handleTogglePush = async () => {
@@ -233,9 +295,10 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
 
               <button
                 onClick={handleSubscribe}
-                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+                disabled={isLaunchingPlayBilling}
+                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                <Crown className="w-4 h-4" />
+                {isLaunchingPlayBilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
                 Resubscribe - {formatPrice()}/month
               </button>
             </>
@@ -254,9 +317,10 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
               </div>
               <button
                 onClick={handleSubscribe}
-                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+                disabled={isLaunchingPlayBilling}
+                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                <Crown className="w-4 h-4" />
+                {isLaunchingPlayBilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
                 Subscribe now - {formatPrice()}/month
               </button>
             </>
@@ -269,9 +333,10 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
               </div>
               <button
                 onClick={handleSubscribe}
-                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors"
+                disabled={isLaunchingPlayBilling}
+                className="flex items-center gap-2 px-4 py-2 bg-moodkin-gold hover:bg-moodkin-gold-hover text-moodkin-dark font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                <Crown className="w-4 h-4" />
+                {isLaunchingPlayBilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
                 Subscribe now - {formatPrice()}/month
               </button>
             </>

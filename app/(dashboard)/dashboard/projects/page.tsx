@@ -25,7 +25,11 @@ export default function ProjectsPage() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
 
   const user = session?.user
-  const hasActiveSubscription = isSubscriptionActive(user?.stripeid, user?.subscriptionEndsAt)
+  const hasActiveSubscription = isSubscriptionActive(
+    user?.stripeid,
+    user?.subscriptionEndsAt,
+    user?.googlePlayPurchaseToken,
+  )
   const projectCount = projects?.length || 0
   const maxFreeProjects = subscriptionConfig.freeTier.maxProjects
 

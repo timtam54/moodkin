@@ -34,6 +34,9 @@ export interface Database {
           stripeid: string | null
           subscription_status: SubscriptionStatus
           subscription_ends_at: string | null
+          subscription_source: 'stripe' | 'google_play' | 'promo' | null
+          google_play_purchase_token: string | null
+          google_play_product_id: string | null
           creative_client: CreativeClientType | null
           tour_displayed: boolean | null
           ai_images_count: number
@@ -57,6 +60,9 @@ export interface Database {
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
+          subscription_source?: 'stripe' | 'google_play' | 'promo' | null
+          google_play_purchase_token?: string | null
+          google_play_product_id?: string | null
           creative_client?: CreativeClientType | null
           tour_displayed?: boolean | null
           ai_images_count?: number
@@ -80,6 +86,9 @@ export interface Database {
           stripeid?: string | null
           subscription_status?: SubscriptionStatus
           subscription_ends_at?: string | null
+          subscription_source?: 'stripe' | 'google_play' | 'promo' | null
+          google_play_purchase_token?: string | null
+          google_play_product_id?: string | null
           creative_client?: CreativeClientType | null
           tour_displayed?: boolean | null
           ai_images_count?: number
@@ -673,7 +682,7 @@ export type Moodboard = Database['public']['Tables']['moodboards']['Row']
 export type MoodboardImage = Database['public']['Tables']['moodboard_images']['Row']
 export type ProjectUser = Database['public']['Tables']['project_users']['Row']
 export type ProjectUserWithUser = ProjectUser & {
-  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url' | 'stripeid' | 'subscription_ends_at'> | null
+  user: Pick<User, 'id' | 'name' | 'email' | 'avatar_url' | 'stripeid' | 'subscription_ends_at' | 'google_play_purchase_token'> | null
 }
 export type PushSubscription = Database['public']['Tables']['push_subscriptions']['Row']
 export type ProjectColour = Database['public']['Tables']['project_colours']['Row']

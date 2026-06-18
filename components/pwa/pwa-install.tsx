@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Download, X, Share, ExternalLink } from 'lucide-react'
+import { captureStartupPlatform } from '@/lib/platform/detect'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -23,6 +24,9 @@ export function PWAInstall() {
   const [inAppBrowser, setInAppBrowser] = useState(false)
 
   useEffect(() => {
+    // Stash ?platform=android from the TWA start_url before any other code reads it.
+    captureStartupPlatform()
+
     // Check if already installed (standalone mode)
     const standalone = window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true
