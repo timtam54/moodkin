@@ -6,13 +6,21 @@ import nodemailer from 'nodemailer'
 
 // POST - Resend invite email
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ projectId: string; userId: string }> }
 ) {
   try {
     const session = await requireSession()
     const supabase = await createServiceClient()
     const { projectId, userId } = await params
+
+    let deliveryMethod: 'server' | 'mailto' = 'server'
+    try {
+      const body = await request.json()
+      if (body?.deliveryMethod === 'mailto') deliveryMethod = 'mailto'
+    } catch {
+      // no body — default to server
+    }
 
     // Get the invite
     const { data: invite, error: inviteError } = await supabase
@@ -55,6 +63,26 @@ export async function POST(
       .eq('id', session.user.id)
       .single()
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const inviteLink = `${appUrl}/invite/${invite.invite_token}`
+
+    if (deliveryMethod === 'mailto') {
+      await supabase
+        .from('project_users')
+        .update({ invited_at: new Date().toISOString() })
+        .eq('id', userId)
+
+      return NextResponse.json({
+        success: true,
+        deliveryMethod: 'mailto',
+        inviteLink,
+        email: invite.email,
+        projectTitle: project.title,
+        inviterName: inviter?.name || inviter?.email || 'Someone',
+        role: invite.role,
+      })
+    }
+
     // Send invite email
     console.log('[Email] Attempting to resend invite email to:', invite.email)
     console.log('[Email] Using EMAIL_USER:', process.env.EMAIL_USER)
@@ -69,9 +97,6 @@ export async function POST(
         pass: process.env.EMAIL_PASSWORD,
       },
     })
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const inviteLink = `${appUrl}/invite/${invite.invite_token}`
 
     const emailHtml = `
       <!DOCTYPE html>

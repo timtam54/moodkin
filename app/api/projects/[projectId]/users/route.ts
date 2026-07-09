@@ -42,7 +42,9 @@ export async function POST(
     const supabase = await createServiceClient()
     const { projectId } = await params
 
-    const { email, role } = await request.json()
+    const { email, role, deliveryMethod: rawDeliveryMethod } = await request.json()
+    const deliveryMethod: 'server' | 'mailto' =
+      rawDeliveryMethod === 'mailto' ? 'mailto' : 'server'
 
     if (!email || !role) {
       return NextResponse.json({ error: 'Email and role are required' }, { status: 400 })
@@ -115,6 +117,19 @@ export async function POST(
       return NextResponse.json({ error: inviteError.message }, { status: 500 })
     }
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const inviteLink = `${appUrl}/invite/${invite.invite_token}`
+
+    if (deliveryMethod === 'mailto') {
+      return NextResponse.json({
+        ...invite,
+        deliveryMethod: 'mailto',
+        inviteLink,
+        projectTitle: project.title,
+        inviterName: inviter?.name || inviter?.email || 'Someone',
+      })
+    }
+
     // Send invite email
     try {
       console.log('[Email] Attempting to send invite email to:', email)
@@ -130,9 +145,6 @@ export async function POST(
           pass: process.env.EMAIL_PASSWORD,
         },
       })
-
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      const inviteLink = `${appUrl}/invite/${invite.invite_token}`
 
       const emailHtml = `
         <!DOCTYPE html>

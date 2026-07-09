@@ -7,8 +7,17 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useProjectUsers, useInviteUser, useRemoveProjectUser, useResendInvite, useUpdateProjectUserRole } from '@/hooks/use-project-users'
 import { useSession } from '@/hooks/use-session'
-import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User, AlertCircle } from 'lucide-react'
+import { Camera, Loader2, Mail, X, Clock, CheckCircle, Users, UserPlus, Send, Crown, User, AlertCircle, Server, AtSign } from 'lucide-react'
 import type { ProjectUserRole } from '@/types/database'
+
+type DeliveryMethod = 'server' | 'mailto'
+
+interface PendingSend {
+  kind: 'invite' | 'resend'
+  email: string
+  role: ProjectUserRole
+  userId?: string // present for 'resend'
+}
 
 interface InviteUserDialogProps {
   open: boolean
@@ -26,6 +35,7 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
   const [emailError, setEmailError] = useState<string | null>(null)
   const [role, setRole] = useState<ProjectUserRole>('creative')
   const [showSpamReminder, setShowSpamReminder] = useState(false)
+  const [pendingSend, setPendingSend] = useState<PendingSend | null>(null)
   const { showToast } = useToast()
   const { session } = useSession()
   const currentUserEmail = session?.user?.email?.toLowerCase()
@@ -90,6 +100,19 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
     }
   }
 
+  function openMailto(toEmail: string, projectName: string, inviteLink: string) {
+    const subject = `You're invited to collaborate on "${projectName}" on Moodkin`
+    const body =
+      `Hi,\n\n` +
+      `I'd like you to collaborate with me on "${projectName}" on Moodkin.\n\n` +
+      `Accept the invitation here:\n${inviteLink}\n\n` +
+      `Thanks!`
+    const href = `mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`
+    window.location.href = href
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
@@ -100,14 +123,23 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
     }
 
     const inviteEmail = email.trim().toLowerCase()
+    setPendingSend({ kind: 'invite', email: inviteEmail, role })
+  }
+
+  function runInvite(inviteEmail: string, inviteRole: ProjectUserRole, method: DeliveryMethod) {
     inviteUser.mutate(
-      { email: inviteEmail, role },
+      { email: inviteEmail, role: inviteRole, deliveryMethod: method },
       {
-        onSuccess: () => {
-          showToast(`Invite sent to ${inviteEmail}`, 'success')
+        onSuccess: (data) => {
+          if (method === 'mailto' && data?.inviteLink) {
+            openMailto(inviteEmail, projectTitle, data.inviteLink)
+            showToast(`Opening your email app for ${inviteEmail}`, 'success')
+          } else {
+            showToast(`Invite sent to ${inviteEmail}`, 'success')
+            setShowSpamReminder(true)
+          }
           setEmail('')
           setRole('creative')
-          setShowSpamReminder(true)
         },
         onError: (error) => {
           showToast(error.message || 'Failed to send invite', 'error')
@@ -129,16 +161,39 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
     })
   }
 
-  function handleResend(userId: string, userEmail: string) {
-    resendInvite.mutate(userId, {
-      onSuccess: () => {
-        showToast(`Invite resent to ${userEmail}`, 'success')
-        setShowSpamReminder(true)
-      },
-      onError: (error) => {
-        showToast(error.message || 'Failed to resend invite', 'error')
-      },
-    })
+  function handleResend(userId: string, userEmail: string, userRole: ProjectUserRole) {
+    setPendingSend({ kind: 'resend', email: userEmail, role: userRole, userId })
+  }
+
+  function runResend(userId: string, userEmail: string, method: DeliveryMethod) {
+    resendInvite.mutate(
+      { userId, deliveryMethod: method },
+      {
+        onSuccess: (data) => {
+          if (method === 'mailto' && data?.inviteLink) {
+            openMailto(userEmail, projectTitle, data.inviteLink)
+            showToast(`Opening your email app for ${userEmail}`, 'success')
+          } else {
+            showToast(`Invite resent to ${userEmail}`, 'success')
+            setShowSpamReminder(true)
+          }
+        },
+        onError: (error) => {
+          showToast(error.message || 'Failed to resend invite', 'error')
+        },
+      }
+    )
+  }
+
+  function handleDeliveryChoice(method: DeliveryMethod) {
+    if (!pendingSend) return
+    const send = pendingSend
+    setPendingSend(null)
+    if (send.kind === 'invite') {
+      runInvite(send.email, send.role, method)
+    } else if (send.userId) {
+      runResend(send.userId, send.email, method)
+    }
   }
 
   function handleClose() {
@@ -394,7 +449,7 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
-                      onClick={() => handleResend(user.id, user.email)}
+                      onClick={() => handleResend(user.id, user.email, user.role)}
                       disabled={resendInvite.isPending}
                       className="p-2 text-moodkin-gray hover:text-moodkin-gold hover:bg-moodkin-gold/10 rounded-xl transition-colors"
                       title="Resend invite"
@@ -479,6 +534,56 @@ export function InviteUserDialog({ open, onClose, projectId, projectTitle }: Inv
           )}
         </div>
       )}
+
+      <Dialog
+        open={!!pendingSend}
+        onClose={() => setPendingSend(null)}
+        className="max-w-sm"
+      >
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 bg-moodkin-gold rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Send className="w-7 h-7 text-moodkin-dark" />
+          </div>
+          <h3 className="text-lg font-bold text-moodkin-dark">How should we send it?</h3>
+          <p className="text-sm text-moodkin-gray mt-1 break-all">
+            {pendingSend?.email}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => handleDeliveryChoice('server')}
+            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-moodkin-light-gray hover:border-moodkin-gold bg-white text-left transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-moodkin-gold/20 flex items-center justify-center flex-shrink-0">
+              <Server className="w-5 h-5 text-moodkin-dark" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-moodkin-dark">Send from Moodkin</p>
+              <p className="text-xs text-moodkin-gray mt-0.5">
+                We'll email the invite from our server (may land in spam).
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleDeliveryChoice('mailto')}
+            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-moodkin-light-gray hover:border-moodkin-gold bg-white text-left transition-colors"
+          >
+            <div className="w-10 h-10 rounded-xl bg-moodkin-gold/20 flex items-center justify-center flex-shrink-0">
+              <AtSign className="w-5 h-5 text-moodkin-dark" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-moodkin-dark">Send from my email</p>
+              <p className="text-xs text-moodkin-gray mt-0.5">
+                Opens your email app with the invite link pre-filled.
+              </p>
+            </div>
+          </button>
+        </div>
+      </Dialog>
     </Dialog>
   )
 }

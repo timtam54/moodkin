@@ -16,16 +16,26 @@ export function useProjectUsers(projectId: string) {
   })
 }
 
+export type InviteDeliveryMethod = 'server' | 'mailto'
+
 // Invite user to project
 export function useInviteUser(projectId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ email, role }: { email: string; role: ProjectUserRole }) => {
+    mutationFn: async ({
+      email,
+      role,
+      deliveryMethod = 'server',
+    }: {
+      email: string
+      role: ProjectUserRole
+      deliveryMethod?: InviteDeliveryMethod
+    }) => {
       const res = await fetch(`/api/projects/${projectId}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, role }),
+        body: JSON.stringify({ email, role, deliveryMethod }),
       })
 
       if (!res.ok) {
@@ -33,7 +43,13 @@ export function useInviteUser(projectId: string) {
         throw new Error(data.error || 'Failed to send invite')
       }
 
-      return res.json()
+      return res.json() as Promise<{
+        inviteLink?: string
+        deliveryMethod?: InviteDeliveryMethod
+        projectTitle?: string
+        inviterName?: string
+        email?: string
+      } & Record<string, unknown>>
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] })
@@ -92,9 +108,17 @@ export function useRemoveProjectUser(projectId: string) {
 // Resend invite email
 export function useResendInvite(projectId: string) {
   return useMutation({
-    mutationFn: async (userId: string) => {
+    mutationFn: async ({
+      userId,
+      deliveryMethod = 'server',
+    }: {
+      userId: string
+      deliveryMethod?: InviteDeliveryMethod
+    }) => {
       const res = await fetch(`/api/projects/${projectId}/users/${userId}/resend`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryMethod }),
       })
 
       if (!res.ok) {
@@ -102,7 +126,14 @@ export function useResendInvite(projectId: string) {
         throw new Error(data.error || 'Failed to resend invite')
       }
 
-      return res.json()
+      return res.json() as Promise<{
+        inviteLink?: string
+        deliveryMethod?: InviteDeliveryMethod
+        projectTitle?: string
+        inviterName?: string
+        email?: string
+        role?: ProjectUserRole
+      } & Record<string, unknown>>
     },
   })
 }
