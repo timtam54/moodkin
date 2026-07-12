@@ -39,6 +39,15 @@ yarn-error.log*
 # android signing keys (sensitive)
 /android-signing
 
+# docs folder — ignore everything by default (may contain credentials, notes, etc.),
+# allow-list files you actively want tracked
+docs/*
+!docs/.gitkeep
+!docs/what-is-a-moodboard.md
+!docs/moodkin-play-store-setup.md
+!docs/AuthKey_9CR32328ZJ.p8
+
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
