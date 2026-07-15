@@ -385,6 +385,14 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
                 Notifications blocked. Enable in browser settings.
               </p>
             )}
+
+            {/* TEMPORARY — remove once TWA platform detection is verified. */}
+            <Link
+              href="/debug/platform"
+              className="text-xs text-moodkin-gray hover:text-moodkin-dark underline text-center"
+            >
+              Debug platform
+            </Link>
           </div>
         )}
       </div>
