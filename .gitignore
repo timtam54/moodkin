@@ -53,3 +53,4 @@ docs/*
 next-env.d.ts
 .env*.local
 docs/migrations
+docs

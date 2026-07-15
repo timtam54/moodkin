@@ -20,7 +20,7 @@ import { subscriptionConfig, formatPrice, getSubscriptionState } from '@/lib/con
 import { useOnboarding } from '@/hooks/use-onboarding'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
-import { isAndroidApp } from '@/lib/platform/detect'
+import { useIsAndroidApp } from '@/components/providers/platform-provider'
 import { purchaseSubscription, PlayBillingUnavailableError } from '@/lib/play-billing/client'
 
 interface SubscriptionManagerProps {
@@ -40,13 +40,7 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
 
   const user = session?.user
   const [isLaunchingPlayBilling, setIsLaunchingPlayBilling] = useState(false)
-  const [platformIsAndroid, setPlatformIsAndroid] = useState(false)
-
-  // Detect platform on mount — must be in an effect because detection reads
-  // window/navigator and we want SSR output to match the initial client render.
-  useEffect(() => {
-    setPlatformIsAndroid(isAndroidApp())
-  }, [])
+  const platformIsAndroid = useIsAndroidApp()
 
   const subscriptionState = user
     ? getSubscriptionState(

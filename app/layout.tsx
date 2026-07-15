@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { cookies } from 'next/headers'
 import { QueryProvider } from '@/components/providers/query-provider'
 import { UserTypeProvider } from '@/components/providers/user-type-provider'
+import { PlatformProvider } from '@/components/providers/platform-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { PWAInstall } from '@/components/pwa/pwa-install'
+import { PLATFORM_COOKIE_NAME, verifyPlatformCookie, type Platform } from '@/lib/platform/cookie'
 import './globals.css'
 
 const inter = Inter({
@@ -42,11 +45,19 @@ export const viewport: Viewport = {
   colorScheme: 'light',
 }
 
-export default function RootLayout({
+async function readPlatform(): Promise<Platform> {
+  const secret = process.env.PLATFORM_COOKIE_SECRET
+  if (!secret) return 'web'
+  const raw = (await cookies()).get(PLATFORM_COOKIE_NAME)?.value
+  return (await verifyPlatformCookie(raw, secret)) ?? 'web'
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const platform = await readPlatform()
   return (
     <html lang="en">
       <head>
@@ -55,12 +66,14 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <PWAInstall />
-        <QueryProvider>
-          <UserTypeProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </UserTypeProvider>
-        </QueryProvider>
+        <PlatformProvider platform={platform}>
+          <PWAInstall />
+          <QueryProvider>
+            <UserTypeProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </UserTypeProvider>
+          </QueryProvider>
+        </PlatformProvider>
       </body>
     </html>
   )
