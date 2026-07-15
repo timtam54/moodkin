@@ -20,8 +20,7 @@ import { subscriptionConfig, formatPrice, getSubscriptionState } from '@/lib/con
 import { useOnboarding } from '@/hooks/use-onboarding'
 import { useSession } from '@/hooks/use-session'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
-import { useIsAndroidApp } from '@/components/providers/platform-provider'
-import { purchaseSubscription, PlayBillingUnavailableError } from '@/lib/play-billing/client'
+import { useSubscribe } from '@/hooks/use-subscribe'
 
 interface SubscriptionManagerProps {
   onClose?: () => void
@@ -39,8 +38,13 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   const [aiImageCount, setAiImageCount] = useState<{ count: number; limit: number; month: string } | null>(null)
 
   const user = session?.user
-  const [isLaunchingPlayBilling, setIsLaunchingPlayBilling] = useState(false)
-  const platformIsAndroid = useIsAndroidApp()
+  const { subscribe: handleSubscribe, isLaunchingPlayBilling } = useSubscribe({
+    onStripeRequested: () => setPaymentDialogOpen(true),
+    onSuccess: async () => {
+      await refetch()
+      router.refresh()
+    },
+  })
 
   const subscriptionState = user
     ? getSubscriptionState(
@@ -116,45 +120,6 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
       alert('Failed to open subscription portal. Please try again.')
     } finally {
       setIsLoadingPortal(false)
-    }
-  }
-
-  const handleSubscribe = async () => {
-    if (!platformIsAndroid) {
-      setPaymentDialogOpen(true)
-      return
-    }
-
-    // Android wrapper — route through Google Play Billing instead of Stripe.
-    const productId = process.env.NEXT_PUBLIC_GOOGLE_PLAY_SUBSCRIPTION_PRODUCT_ID
-    if (!productId) {
-      alert('Google Play subscription is not configured. Please contact support.')
-      return
-    }
-
-    setIsLaunchingPlayBilling(true)
-    try {
-      const { purchaseToken } = await purchaseSubscription(productId)
-      const res = await fetch('/api/play-billing/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purchaseToken, productId }),
-      })
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: 'Verification failed' }))
-        throw new Error(error || 'Verification failed')
-      }
-      await refetch()
-      router.refresh()
-    } catch (err) {
-      if (err instanceof PlayBillingUnavailableError) {
-        alert(err.message)
-      } else {
-        console.error('Play Billing flow failed', err)
-        alert('Subscription failed. Please try again or contact support.')
-      }
-    } finally {
-      setIsLaunchingPlayBilling(false)
     }
   }
 
@@ -385,14 +350,6 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
                 Notifications blocked. Enable in browser settings.
               </p>
             )}
-
-            {/* TEMPORARY — remove once TWA platform detection is verified. */}
-            <Link
-              href="/debug/platform"
-              className="text-xs text-moodkin-gray hover:text-moodkin-dark underline text-center"
-            >
-              Debug platform
-            </Link>
           </div>
         )}
       </div>

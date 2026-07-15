@@ -13,6 +13,7 @@ import { useSession } from '@/hooks/use-session'
 import { Dialog } from '@/components/ui/dialog'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
 import { isSubscriptionActive, subscriptionConfig, formatPrice } from '@/lib/config/subscription'
+import { useSubscribe } from '@/hooks/use-subscribe'
 
 export default function ProjectsPage() {
   const { data: projects, isLoading } = useConversations()
@@ -41,9 +42,17 @@ export default function ProjectsPage() {
     }
   }
 
+  const { subscribe } = useSubscribe({
+    onStripeRequested: () => setShowPaymentDialog(true),
+    onSuccess: () => {
+      router.push('/dashboard/projects/new')
+      router.refresh()
+    },
+  })
+
   const handleUpgradeClick = () => {
     setShowUpgradeDialog(false)
-    setShowPaymentDialog(true)
+    void subscribe()
   }
 
   const handlePaymentSuccess = async (customerId: string) => {

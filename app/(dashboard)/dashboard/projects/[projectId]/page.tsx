@@ -27,6 +27,7 @@ import { SubscribeDialog } from '@/components/subscription/subscribe-dialog'
 import { OwnershipInfoDialog } from '@/components/subscription/ownership-info-dialog'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
 import { subscriptionConfig, isSubscriptionActive } from '@/lib/config/subscription'
+import { useSubscribe } from '@/hooks/use-subscribe'
 import { MessageList } from '@/components/conversation/message-list'
 import { MessageInput } from '@/components/conversation/message-input'
 import { usePushNotifications } from '@/hooks/use-push-notifications'
@@ -105,6 +106,12 @@ export default function ProjectDetailPage() {
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false)
   const [showOwnershipInfoDialog, setShowOwnershipInfoDialog] = useState(false)
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+  const { subscribe: handleSubscribeClick } = useSubscribe({
+    onStripeRequested: () => setShowPaymentDialog(true),
+    onSuccess: () => {
+      window.location.reload()
+    },
+  })
   const [showCustomSizeDialog, setShowCustomSizeDialog] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [exportMoodboard, setExportMoodboard] = useState<MoodboardWithImages | null>(null)
@@ -1619,7 +1626,7 @@ export default function ProjectDetailPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowPaymentDialog(true)}
+                  onClick={handleSubscribeClick}
                   className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
                 >
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
@@ -1693,7 +1700,7 @@ export default function ProjectDetailPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setShowPaymentDialog(true)}
+                  onClick={handleSubscribeClick}
                   className="aspect-square bg-gradient-to-br from-moodkin-gold to-amber-600 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden hover:from-amber-500 hover:to-amber-700 transition-all group"
                 >
                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
@@ -1865,7 +1872,7 @@ export default function ProjectDetailPage() {
           isOwner={isOwner}
           isSubscribed={currentUserHasSubscription}
           ownerEmail={projectOwner?.email}
-          onSubscribe={() => setShowPaymentDialog(true)}
+          onSubscribe={handleSubscribeClick}
         />
 
         {/* Custom Size Export Dialog */}
