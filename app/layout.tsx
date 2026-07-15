@@ -7,6 +7,7 @@ import { PlatformProvider } from '@/components/providers/platform-provider'
 import { ToastProvider } from '@/components/ui/toast'
 import { PWAInstall } from '@/components/pwa/pwa-install'
 import { PLATFORM_COOKIE_NAME, verifyPlatformCookie, type Platform } from '@/lib/platform/cookie'
+import Link from 'next/link'
 import './globals.css'
 
 const inter = Inter({
@@ -73,6 +74,27 @@ export default async function RootLayout({
               <ToastProvider>{children}</ToastProvider>
             </UserTypeProvider>
           </QueryProvider>
+          {/* TEMPORARY — remove once TWA platform detection is verified. */}
+          <Link
+            href="/debug/platform"
+            style={{
+              position: 'fixed',
+              bottom: 12,
+              right: 12,
+              zIndex: 9999,
+              padding: '10px 14px',
+              borderRadius: 999,
+              background: platform === 'android-app' ? '#0f766e' : '#7c2d12',
+              color: 'white',
+              fontFamily: 'system-ui, sans-serif',
+              fontSize: 12,
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            }}
+          >
+            {platform === 'android-app' ? 'ANDROID' : 'WEB'}
+          </Link>
         </PlatformProvider>
       </body>
     </html>
