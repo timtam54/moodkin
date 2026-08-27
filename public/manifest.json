@@ -1,5 +1,5 @@
 {
-  "id": "/dashboard/projects",
+  "id": "/",
   "lang": "en",
   "categories": ["photography", "productivity"],
   "shortcuts": [
@@ -27,7 +27,7 @@
   "name": "Moodkin",
   "short_name": "Moodkin",
   "description": "Visual moodboards for photographers and clients",
-  "start_url": "/dashboard/projects",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#faf9f6",

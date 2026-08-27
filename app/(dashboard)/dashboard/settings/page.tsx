@@ -316,50 +316,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Install App Card */}
-        {!isStandalone && (
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-moodkin-light-gray/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-moodkin-gold/20 flex items-center justify-center">
-                  <Download className="w-5 h-5 text-moodkin-gold" />
-                </div>
-                <h3 className="font-semibold text-moodkin-dark">Install App</h3>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-moodkin-cream/30">
-                <div className="flex-1 pr-3">
-                  <p className="font-medium text-moodkin-dark">Add to home screen</p>
-                  <p className="text-sm text-moodkin-gray">
-                    Install Moodkin for quick access and to save links from other apps.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleInstall}
-                  variant="primary"
-                  className="rounded-full px-6"
-                >
-                  Install
-                </Button>
-              </div>
-
-              {showInstallHint && (
-                <div className="p-3 rounded-xl bg-moodkin-cream/50 text-sm text-moodkin-gray">
-                  {installPlatform === 'ios' ? (
-                    <>Tap the <strong>Share</strong> icon in Safari, then <strong>Add to Home Screen</strong>.</>
-                  ) : installPlatform === 'android' ? (
-                    <>Open Chrome&apos;s <strong>⋮ menu</strong> (top-right) and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>. If neither appears, reload this page, wait a few seconds, then try again.</>
-                  ) : (
-                    <>Look for an install icon in your browser&apos;s address bar, or open the browser menu and choose <strong>Install app</strong>.</>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Subscription Card */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-moodkin-light-gray/30">
@@ -387,7 +343,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-4 space-y-3">
             <div className="flex items-center justify-between p-4 rounded-xl bg-moodkin-cream/30">
               <div>
                 <p className="font-medium text-moodkin-dark">Product Tour</p>
@@ -401,6 +357,37 @@ export default function SettingsPage() {
                 Restart Tour
               </Button>
             </div>
+
+            {!isStandalone && (
+              <>
+                <div className="flex items-center justify-between p-4 rounded-xl bg-moodkin-cream/30">
+                  <div className="flex-1 pr-3">
+                    <p className="font-medium text-moodkin-dark">Install App</p>
+                    <p className="text-sm text-moodkin-gray">Add Moodkin to your home screen</p>
+                  </div>
+                  <Button
+                    onClick={handleInstall}
+                    variant="outline"
+                    className="rounded-full px-6"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Install
+                  </Button>
+                </div>
+
+                {showInstallHint && (
+                  <div className="p-3 rounded-xl bg-moodkin-cream/50 text-sm text-moodkin-gray">
+                    {installPlatform === 'ios' ? (
+                      <>Tap the <strong>Share</strong> icon in Safari, then <strong>Add to Home Screen</strong>.</>
+                    ) : installPlatform === 'android' ? (
+                      <>Open Chrome&apos;s <strong>⋮ menu</strong> (top-right) and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>. If neither appears, reload this page, wait a few seconds, then try again.</>
+                    ) : (
+                      <>Look for an install icon in your browser&apos;s address bar, or open the browser menu and choose <strong>Install app</strong>.</>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
