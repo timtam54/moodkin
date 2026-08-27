@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle, HelpCircle, Pencil } from 'lucide-react'
+import { User, Mail, CreditCard, Settings, Bell, Loader2, CheckCircle, XCircle, HelpCircle, Pencil, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/avatar'
@@ -11,6 +11,11 @@ import { usePushNotifications } from '@/hooks/use-push-notifications'
 import { useOnboarding } from '@/hooks/use-onboarding'
 import { useToast } from '@/components/ui/toast'
 import { SubscriptionManager } from '@/components/subscription/subscription-manager'
+
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -24,6 +29,51 @@ export default function SettingsPage() {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState('')
   const [savingName, setSavingName] = useState(false)
+
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [installPlatform, setInstallPlatform] = useState<'ios' | 'android' | 'other'>('other')
+  const [showInstallHint, setShowInstallHint] = useState(false)
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+    setIsStandalone(standalone)
+
+    const ua = navigator.userAgent
+    if (/iPad|iPhone|iPod/.test(ua)) setInstallPlatform('ios')
+    else if (/Android/.test(ua)) setInstallPlatform('android')
+
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setInstallPrompt(e as InstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+
+    const installedHandler = () => setIsStandalone(true)
+    window.addEventListener('appinstalled', installedHandler)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', installedHandler)
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      try {
+        await installPrompt.prompt()
+        const { outcome } = await installPrompt.userChoice
+        if (outcome === 'accepted') setInstallPrompt(null)
+      } catch (err) {
+        console.error('Install prompt failed:', err)
+        setShowInstallHint(true)
+      }
+      return
+    }
+    setShowInstallHint(true)
+  }
 
   useEffect(() => {
     setNameInput(session?.user.name ?? '')
@@ -265,6 +315,50 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+
+        {/* Install App Card */}
+        {!isStandalone && (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-moodkin-light-gray/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-moodkin-gold/20 flex items-center justify-center">
+                  <Download className="w-5 h-5 text-moodkin-gold" />
+                </div>
+                <h3 className="font-semibold text-moodkin-dark">Install App</h3>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-moodkin-cream/30">
+                <div className="flex-1 pr-3">
+                  <p className="font-medium text-moodkin-dark">Add to home screen</p>
+                  <p className="text-sm text-moodkin-gray">
+                    Install Moodkin for quick access and to save links from other apps.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleInstall}
+                  variant="primary"
+                  className="rounded-full px-6"
+                >
+                  Install
+                </Button>
+              </div>
+
+              {showInstallHint && (
+                <div className="p-3 rounded-xl bg-moodkin-cream/50 text-sm text-moodkin-gray">
+                  {installPlatform === 'ios' ? (
+                    <>Tap the <strong>Share</strong> icon in Safari, then <strong>Add to Home Screen</strong>.</>
+                  ) : installPlatform === 'android' ? (
+                    <>Open Chrome&apos;s <strong>⋮ menu</strong> (top-right) and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>. If neither appears, reload this page, wait a few seconds, then try again.</>
+                  ) : (
+                    <>Look for an install icon in your browser&apos;s address bar, or open the browser menu and choose <strong>Install app</strong>.</>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Subscription Card */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
