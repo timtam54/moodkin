@@ -1,8 +1,6 @@
-const CACHE_NAME = 'moodkin-v3';
+const CACHE_NAME = 'moodkin-v4';
 
-// Assets to cache on install
 const PRECACHE_ASSETS = [
-  '/',
   '/manifest.json',
   '/icons-pwa/icon-192.png',
   '/icons-pwa/icon-512.png',
@@ -10,12 +8,17 @@ const PRECACHE_ASSETS = [
   '/darklogo.png',
 ];
 
-// Install event - cache assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        PRECACHE_ASSETS.map((asset) =>
+          cache.add(asset).catch((err) => {
+            console.warn('[SW] precache failed for', asset, err);
+          })
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
