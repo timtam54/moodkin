@@ -72,6 +72,9 @@ const exportFormats: { id: ExportFormat; label: string; icon: string; width: num
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const router = useRouter()
+  const initialTab = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('tab') || 'creative')
+    : 'creative'
   const { session } = useSession()
   const { showToast } = useToast()
   const { data: project, isLoading } = useConversation(projectId)
@@ -85,7 +88,7 @@ export default function ProjectDetailPage() {
   const deleteMoodboard = useDeleteMoodboard(projectId)
   const deleteProject = useDeleteConversation()
   const updateProject = useUpdateConversation(projectId)
-  const [activeTab, setActiveTab] = useState('creative')
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
