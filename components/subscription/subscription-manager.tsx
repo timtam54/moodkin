@@ -13,6 +13,7 @@ import {
   Sparkles,
   Bell,
   BellOff,
+  Download,
 } from 'lucide-react'
 import { logout } from '@/lib/auth/client'
 import { PaymentDialog } from '@/components/payment/payment-dialog'
@@ -27,6 +28,11 @@ interface SubscriptionManagerProps {
   showProfileActions?: boolean
 }
 
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 export function SubscriptionManager({ onClose, showProfileActions = true }: SubscriptionManagerProps) {
   const router = useRouter()
   const { session, refetch } = useSession()
@@ -36,6 +42,10 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
   const [isLoadingPortal, setIsLoadingPortal] = useState(false)
   const [isTogglingPush, setIsTogglingPush] = useState(false)
   const [aiImageCount, setAiImageCount] = useState<{ count: number; limit: number; month: string } | null>(null)
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other')
+  const [showInstallHint, setShowInstallHint] = useState(false)
 
   const user = session?.user
   const { subscribe: handleSubscribe, isLaunchingPlayBilling } = useSubscribe({
@@ -67,6 +77,31 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
         .catch(err => console.error('Failed to fetch AI image count:', err))
     }
   }, [subscriptionState.status])
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+    setIsStandalone(standalone)
+
+    const ua = navigator.userAgent
+    if (/iPad|iPhone|iPod/.test(ua)) setPlatform('ios')
+    else if (/Android/.test(ua)) setPlatform('android')
+
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setInstallPrompt(e as InstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+
+    const installedHandler = () => setIsStandalone(true)
+    window.addEventListener('appinstalled', installedHandler)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('appinstalled', installedHandler)
+    }
+  }, [])
 
   const handleTakeTour = () => {
     onClose?.()
@@ -121,6 +156,23 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
     } finally {
       setIsLoadingPortal(false)
     }
+  }
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      try {
+        await installPrompt.prompt()
+        const { outcome } = await installPrompt.userChoice
+        if (outcome === 'accepted') {
+          setInstallPrompt(null)
+        }
+      } catch (err) {
+        console.error('Install prompt failed:', err)
+        setShowInstallHint(true)
+      }
+      return
+    }
+    setShowInstallHint(true)
   }
 
   const handleTogglePush = async () => {
@@ -349,6 +401,29 @@ export function SubscriptionManager({ onClose, showProfileActions = true }: Subs
               <p className="text-xs text-moodkin-gray text-center">
                 Notifications blocked. Enable in browser settings.
               </p>
+            )}
+
+            {!isStandalone && (
+              <>
+                <button
+                  onClick={handleInstall}
+                  className="flex items-center justify-center gap-2 px-4 py-2 text-moodkin-gray hover:text-moodkin-dark text-sm transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Install app
+                </button>
+                {showInstallHint && (
+                  <div className="text-xs text-moodkin-gray text-center px-4 py-2 bg-moodkin-cream/50 rounded-xl">
+                    {platform === 'ios' ? (
+                      <>Tap the Share icon in Safari, then <strong>Add to Home Screen</strong>.</>
+                    ) : platform === 'android' ? (
+                      <>Open Chrome&apos;s <strong>⋮ menu</strong> and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>. If neither shows, reload the page and wait a few seconds.</>
+                    ) : (
+                      <>Look for an install icon in your browser&apos;s address bar, or open the browser menu and choose <strong>Install app</strong>.</>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
